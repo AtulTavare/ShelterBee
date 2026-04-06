@@ -1,0 +1,217 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required) - Firebase Auth UID
+//   - email: string (required) - User's email address
+//   - displayName: string (optional) - User's full name
+//   - photoURL: string (optional) - URL to user's profile photo
+//   - role: string (required) - 'visitor', 'owner', or 'admin'
+//   - createdAt: timestamp (required) - Creation time
+//
+// Collection: properties
+// Document ID: {propertyId}
+// Fields:
+//   - ownerId: string (required) - UID of the property owner
+//   - title: string (required) - Title of the property listing
+//   - type: string (required) - 'Room', 'PG', 'Full Flat', 'Full Property'
+//   - area: string (required) - Short area name
+//   - address: string (required) - Exact address
+//   - pricePerDay: number (required) - Price per day in INR
+//   - photos: list (required) - Array of photo URLs
+//   - amenities: list (required) - List of amenities
+//   - description: string (required) - Detailed description
+//   - status: string (required) - 'Pending', 'Approved', 'Rejected'
+//   - createdAt: timestamp (required) - Creation time
+//
+// Collection: bookings
+// Document ID: {bookingId}
+// Fields:
+//   - propertyId: string (required) - ID of the booked property
+//   - visitorId: string (required) - UID of the visitor who booked
+//   - ownerId: string (required) - UID of the property owner
+//   - checkIn: string (required) - Check-in date
+//   - checkOut: string (required) - Check-out date
+//   - totalAmount: number (required) - Total amount paid
+//   - status: string (required) - 'Confirmed'
+//   - createdAt: timestamp (required) - Creation time
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (('email' in request.auth.token && request.auth.token.email == "tavareatul7192@gmail.com") ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'createdAt', 'termsAccepted']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['visitor', 'owner', 'admin'] &&
+             data.createdAt is string &&
+             data.termsAccepted is bool &&
+             (!('firstName' in data) || (data.firstName is string)) &&
+             (!('lastName' in data) || (data.lastName is string)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('mobile' in data) || (data.mobile is string)) &&
+             (!('whatsapp' in data) || (data.whatsapp is string)) &&
+             (!('dob' in data) || (data.dob is string)) &&
+             (!('age' in data) || (data.age is number)) &&
+             (!('gender' in data) || (data.gender is string)) &&
+             (!('propertyName' in data) || (data.propertyName is string)) &&
+             (!('propertyHolderName' in data) || (data.propertyHolderName is string)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 1000));
+    }
+    
+    function isValidProperty(data) {
+      return hasRequiredFields(['ownerId', 'title', 'type', 'area', 'address', 'pricePerDay', 'photos', 'amenities', 'description', 'status', 'createdAt']) &&
+             data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.type in ['Room', 'PG', 'Full Flat', 'Full Property'] &&
+             data.area is string && data.area.size() > 0 && data.area.size() < 100 &&
+             data.address is string && data.address.size() > 0 && data.address.size() < 500 &&
+             data.pricePerDay is number && data.pricePerDay >= 0 &&
+             data.photos is list && data.photos.size() <= 20 &&
+             data.amenities is list && data.amenities.size() <= 50 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
+             data.status in ['Pending', 'Approved', 'Rejected'] &&
+             data.createdAt is timestamp;
+    }
+    
+    function isValidBooking(data) {
+      return hasRequiredFields(['propertyId', 'visitorId', 'ownerId', 'visitorName', 'visitorContact', 'isWhatsapp', 'checkIn', 'checkOut', 'nights', 'estimatedCost', 'platformFee', 'status', 'createdAt', 'updatedAt']) &&
+             data.propertyId is string && data.propertyId.size() > 0 && data.propertyId.size() < 100 &&
+             data.visitorId is string && data.visitorId.size() > 0 && data.visitorId.size() < 100 &&
+             data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 100 &&
+             data.visitorName is string && data.visitorName.size() > 0 && data.visitorName.size() < 100 &&
+             data.visitorContact is string && data.visitorContact.size() > 0 && data.visitorContact.size() < 50 &&
+             data.isWhatsapp is bool &&
+             (!('whatsappNumber' in data) || (data.whatsappNumber is string && data.whatsappNumber.size() < 50)) &&
+             (data.checkIn == null || data.checkIn is timestamp) &&
+             (data.checkOut == null || data.checkOut is timestamp) &&
+             data.nights is number && data.nights >= 0 &&
+             data.estimatedCost is number && data.estimatedCost >= 0 &&
+             data.platformFee is number && data.platformFee >= 0 &&
+             data.status in ['pending', 'confirmed', 'cancelled', 'completed'] &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Admins can read all. Users can read their own profile. Other users can read public info of owners.
+      allow read: if isAdmin() || isOwner(userId) || (isAuthenticated() && resource.data.role == 'owner');
+      
+      // Users can create their own profile. Default role is visitor or owner. Admin role can only be set by admin.
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role in ['visitor', 'owner'] || isAdmin()) &&
+                    request.resource.data.uid == userId;
+                    
+      // Users can update their own profile, but cannot change their role or uid. Admins can update anything.
+      allow update: if isAdmin() || (isOwner(userId) && isValidUser(request.resource.data) && 
+                       request.resource.data.role == resource.data.role &&
+                       request.resource.data.uid == resource.data.uid &&
+                       request.resource.data.createdAt == resource.data.createdAt);
+    }
+
+    match /properties/{propertyId} {
+      // Admins can read all. Anyone can read approved properties. Owners can read their own.
+      allow read: if isAdmin() || resource.data.status == 'Approved' || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      
+      // Authenticated users can create properties. Status must be Pending initially unless admin.
+      allow create: if (isAuthenticated() && isValidProperty(request.resource.data) &&
+                    (request.resource.data.ownerId == request.auth.uid) &&
+                    (request.resource.data.status == 'Pending')) || isAdmin();
+                    
+      // Admins can update anything. Owners can update their properties (except status, ownerId, createdAt).
+      allow update: if isAdmin() || (isAuthenticated() && isValidProperty(request.resource.data) && 
+                       resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.ownerId == resource.data.ownerId &&
+                       request.resource.data.status == resource.data.status &&
+                       request.resource.data.createdAt == resource.data.createdAt);
+                       
+      // Only admins can delete properties.
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      // Admins can read all. Visitors can read their own bookings. Owners can read bookings for their properties.
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.visitorId == request.auth.uid || resource.data.ownerId == request.auth.uid));
+      
+      // Authenticated visitors can create bookings.
+      allow create: if (isAuthenticated() && isValidBooking(request.resource.data) &&
+                    (request.resource.data.visitorId == request.auth.uid)) || isAdmin();
+                    
+      // Admins can update anything. Owners can update bookings for their properties. Visitors can update their own bookings (e.g. to cancel).
+      allow update: if isAdmin() || 
+                       (isAuthenticated() && isValidBooking(request.resource.data) && 
+                        (resource.data.ownerId == request.auth.uid || resource.data.visitorId == request.auth.uid) &&
+                        request.resource.data.propertyId == resource.data.propertyId &&
+                        request.resource.data.visitorId == resource.data.visitorId &&
+                        request.resource.data.ownerId == resource.data.ownerId &&
+                        request.resource.data.createdAt == resource.data.createdAt);
+                        
+      allow delete: if isAdmin();
+    }
+
+    match /wallets/{userId} {
+      allow read: if isAdmin() || isAuthenticated();
+      allow create, update: if isAdmin() || isAuthenticated();
+      allow delete: if isAdmin() || isOwner(userId);
+    }
+
+    match /walletTransactions/{transactionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if isAdmin() || isAuthenticated();
+    }
+
+    match /withdrawalRequests/{requestId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.visitorId == request.auth.uid;
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.propertyId != null && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+  }
+}

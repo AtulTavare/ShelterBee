@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the Shelterbee platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "photoURL": { "type": "string", "description": "URL to user's profile photo" },
+        "role": { "type": "string", "enum": ["visitor", "owner", "admin"], "description": "User's role on the platform" },
+        "createdAt": { "type": "timestamp", "description": "When the user account was created" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Property": {
+      "title": "Property",
+      "description": "A property listed on Shelterbee.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "description": "UID of the property owner" },
+        "title": { "type": "string", "description": "Title of the property listing" },
+        "type": { "type": "string", "enum": ["Room", "PG", "Full Flat", "Full Property"], "description": "Type of property" },
+        "area": { "type": "string", "description": "Short area name" },
+        "address": { "type": "string", "description": "Exact address (hidden until booked)" },
+        "pricePerDay": { "type": "number", "description": "Price per day in INR" },
+        "photos": { "type": "array", "items": { "type": "string" }, "description": "Array of photo URLs" },
+        "amenities": { "type": "array", "items": { "type": "string" }, "description": "List of amenities" },
+        "description": { "type": "string", "description": "Detailed description" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Approval status" },
+        "createdAt": { "type": "timestamp", "description": "When the property was listed" }
+      },
+      "required": ["ownerId", "title", "type", "area", "address", "pricePerDay", "photos", "amenities", "description", "status", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "A booking made by a visitor for a property.",
+      "type": "object",
+      "properties": {
+        "propertyId": { "type": "string", "description": "ID of the booked property" },
+        "visitorId": { "type": "string", "description": "UID of the visitor who booked" },
+        "ownerId": { "type": "string", "description": "UID of the property owner" },
+        "checkIn": { "type": "string", "description": "Check-in date (ISO string)" },
+        "checkOut": { "type": "string", "description": "Check-out date (ISO string)" },
+        "totalAmount": { "type": "number", "description": "Total amount paid for unlock" },
+        "status": { "type": "string", "enum": ["Confirmed"], "description": "Booking status" },
+        "createdAt": { "type": "timestamp", "description": "When the booking was made" }
+      },
+      "required": ["propertyId", "visitorId", "ownerId", "checkIn", "checkOut", "totalAmount", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/properties/{propertyId}": {
+      "schema": { "$ref": "#/entities/Property" },
+      "description": "Stores property listings."
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Stores property bookings."
+    }
+  }
+}
