@@ -185,7 +185,7 @@ export default function PropertyDetail() {
                 transition={{ duration: 0.8 }}
                 alt="Main Property View" 
                 className="w-full h-full object-cover bento-img absolute inset-0" 
-                src={property.photos[currentSlide]} 
+                src={property.photos?.[currentSlide] || 'https://picsum.photos/seed/placeholder/800/600'} 
                 referrerPolicy="no-referrer" 
               />
             </AnimatePresence>
@@ -193,16 +193,16 @@ export default function PropertyDetail() {
           </div>
           <div className="md:col-span-5 grid grid-cols-2 grid-rows-2 gap-2">
             <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Interior 1" className="w-full h-full object-cover bento-img" src={property.photos[1]} referrerPolicy="no-referrer" />
+              <img alt="Interior 1" className="w-full h-full object-cover bento-img" src={property.photos?.[1] || 'https://picsum.photos/seed/placeholder1/400/300'} referrerPolicy="no-referrer" />
             </div>
             <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Interior 2" className="w-full h-full object-cover bento-img" src={property.photos[2]} referrerPolicy="no-referrer" />
+              <img alt="Interior 2" className="w-full h-full object-cover bento-img" src={property.photos?.[2] || 'https://picsum.photos/seed/placeholder2/400/300'} referrerPolicy="no-referrer" />
             </div>
             <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Interior 3" className="w-full h-full object-cover bento-img" src={property.photos[3]} referrerPolicy="no-referrer" />
+              <img alt="Interior 3" className="w-full h-full object-cover bento-img" src={property.photos?.[3] || 'https://picsum.photos/seed/placeholder3/400/300'} referrerPolicy="no-referrer" />
             </div>
             <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Exterior" className="w-full h-full object-cover bento-img" src={property.photos[4]} referrerPolicy="no-referrer" />
+              <img alt="Exterior" className="w-full h-full object-cover bento-img" src={property.photos?.[4] || 'https://picsum.photos/seed/placeholder4/400/300'} referrerPolicy="no-referrer" />
             </div>
           </div>
         </section>

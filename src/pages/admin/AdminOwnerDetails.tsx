@@ -89,18 +89,8 @@ export const AdminOwnerDetails = () => {
             <div className="px-6 py-5 border-b border-slate-200 bg-white">
               <h3 className="text-lg font-semibold text-slate-900">Verification Documents</h3>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Mock documents for now as they are not in UserProfile */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-blue-500">description</span>
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">Aadhar Card</div>
-                    <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Verified</div>
-                  </div>
-                </div>
-                <a href="#" className="text-sm font-medium text-blue-600 hover:underline">View</a>
-              </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-500">Documents are associated with individual property listings. Please review the properties below to see their specific verification documents.</p>
             </div>
           </div>
 

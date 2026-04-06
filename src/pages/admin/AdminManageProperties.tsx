@@ -208,6 +208,37 @@ export const AdminManageProperties = () => {
                   {selectedProperty.description || 'No description provided.'}
                 </p>
               </div>
+
+              {/* Documents */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Uploaded Documents</h3>
+                <div className="flex flex-col gap-2">
+                  {selectedProperty.aadhaarFront && (
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="material-symbols-outlined text-blue-500">badge</span>
+                      <span className="font-medium text-sm text-slate-900">Aadhaar Card (Front)</span>
+                      <a href={selectedProperty.aadhaarFront} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                    </div>
+                  )}
+                  {selectedProperty.aadhaarBack && (
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="material-symbols-outlined text-blue-500">badge</span>
+                      <span className="font-medium text-sm text-slate-900">Aadhaar Card (Back)</span>
+                      <a href={selectedProperty.aadhaarBack} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                    </div>
+                  )}
+                  {selectedProperty.propertyProof && (
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="material-symbols-outlined text-blue-500">description</span>
+                      <span className="font-medium text-sm text-slate-900">Property Proof</span>
+                      <a href={selectedProperty.propertyProof} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                    </div>
+                  )}
+                  {(!selectedProperty.aadhaarFront && !selectedProperty.aadhaarBack && !selectedProperty.propertyProof) && (
+                    <div className="text-sm text-slate-500">No documents uploaded.</div>
+                  )}
+                </div>
+              </div>
               
               <div className="flex gap-3 pt-4 border-t border-slate-100">
                 {selectedProperty.status !== 'Approved' && (

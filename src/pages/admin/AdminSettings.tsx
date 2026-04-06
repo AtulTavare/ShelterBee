@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export const AdminSettings = () => {
   const { isMaintenanceMode, setMaintenanceMode } = useAdmin();
@@ -8,6 +10,60 @@ export const AdminSettings = () => {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearDemoData = async () => {
+    if (!window.confirm("Are you sure you want to delete all properties, bookings, and non-admin users? This action cannot be undone.")) {
+      return;
+    }
+    
+    setIsClearing(true);
+    try {
+      // Clear properties
+      const propertiesSnap = await getDocs(collection(db, 'properties'));
+      const propertyDeletions = propertiesSnap.docs.map(d => deleteDoc(doc(db, 'properties', d.id)));
+      
+      // Clear bookings
+      const bookingsSnap = await getDocs(collection(db, 'bookings'));
+      const bookingDeletions = bookingsSnap.docs.map(d => deleteDoc(doc(db, 'bookings', d.id)));
+      
+      // Clear wallet transactions
+      const walletSnap = await getDocs(collection(db, 'wallet_transactions'));
+      const walletDeletions = walletSnap.docs.map(d => deleteDoc(doc(db, 'wallet_transactions', d.id)));
+      
+      // Clear reviews
+      const reviewsSnap = await getDocs(collection(db, 'reviews'));
+      const reviewDeletions = reviewsSnap.docs.map(d => deleteDoc(doc(db, 'reviews', d.id)));
+      
+      // Clear support tickets
+      const ticketsSnap = await getDocs(collection(db, 'support_tickets'));
+      const ticketDeletions = ticketsSnap.docs.map(d => deleteDoc(doc(db, 'support_tickets', d.id)));
+      
+      // Clear users (except current admin)
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const userDeletions = usersSnap.docs
+        .filter(d => d.id !== user?.uid)
+        .map(d => deleteDoc(doc(db, 'users', d.id)));
+
+      await Promise.all([
+        ...propertyDeletions,
+        ...bookingDeletions,
+        ...walletDeletions,
+        ...reviewDeletions,
+        ...ticketDeletions,
+        ...userDeletions
+      ]);
+
+      setSuccessMessage("All demo data has been successfully cleared. The platform is now clean.");
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (error) {
+      console.error("Failed to clear demo data:", error);
+      setErrorMessage("Failed to clear demo data. Check the console for details.");
+      setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -42,6 +98,22 @@ export const AdminSettings = () => {
             </button>
           </div>
           
+          <div className="flex items-center justify-between p-5 bg-red-50 rounded-xl border border-red-100">
+            <div>
+              <h3 className="font-semibold text-red-900 text-base">Clear All Data (Factory Reset)</h3>
+              <p className="text-sm text-red-700 mt-1">
+                Wipe all properties, bookings, transactions, and users (except your admin account). Use this to remove demo data before handing over to the client.
+              </p>
+            </div>
+            <button
+              onClick={handleClearDemoData}
+              disabled={isClearing}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 whitespace-nowrap ml-4"
+            >
+              {isClearing ? 'Clearing...' : 'Wipe Data'}
+            </button>
+          </div>
+
           {isMaintenanceMode && (
             <div className="p-5 bg-red-50 rounded-xl border border-red-100 flex items-start gap-3">
               <span className="material-symbols-outlined text-red-600 mt-0.5">warning</span>
