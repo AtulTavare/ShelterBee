@@ -1,12 +1,17 @@
+import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 const rejectionReasons = [
-  'Incomplete Property Details',
-  'Blurry or Fake Images',
-  'Invalid Ownership Documents',
-  'Price Unreasonably High',
+  'Mismatch between property details and submitted documents',
+  'Invalid or unclear ID proof (Aadhar/light bill)',
+  'Poor quality images',
+  'Owner identity mismatch',
+  'Improper address',
+  'Inappropriate bank details',
   'Other'
 ];
 
@@ -15,23 +20,25 @@ export const AdminPendingApprovals = () => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [otherReason, setOtherReason] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPendingProperties();
-  }, []);
-
-  const fetchPendingProperties = async () => {
-    setLoading(true);
-    try {
-      const allProps = await propertyService.getAllProperties();
-      setProperties(allProps.filter(p => p.status === 'Pending'));
-    } catch (error) {
-      console.error("Error fetching pending properties:", error);
-    } finally {
+    const q = query(collection(db, 'properties'), where('status', '==', 'Pending'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const pendingProps = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Property[];
+      setProperties(pendingProps);
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error("Error fetching pending properties:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleApprove = async (id: string) => {
     try {
@@ -53,16 +60,16 @@ export const AdminPendingApprovals = () => {
         }
       }
 
-      setProperties(properties.filter(p => p.id !== id));
       setSelectedProperty(null);
     } catch (error) {
       console.error("Error approving property:", error);
-      // alert("Failed to approve property.");
+      showToast("An error occurred", "error");
     }
   };
 
   const handleReject = async () => {
-    if (!rejectReason || !selectedProperty) return;
+    const finalReason = rejectReason === 'Other' ? otherReason : rejectReason;
+    if (!finalReason || !selectedProperty) return;
     try {
       await propertyService.updatePropertyStatus(selectedProperty.id, 'Rejected');
       
@@ -72,20 +79,20 @@ export const AdminPendingApprovals = () => {
           (window as any).sendEmail(
             ownerProfile.email,
             "Property Listing Update — Shelterbee",
-            `Your property listing "${selectedProperty.title}" requires updates.\nReason: ${rejectReason}`
+            `Your property listing "${selectedProperty.title}" requires updates.\nReason: ${finalReason}`
           );
         }
       } catch (e) {
         console.error("Failed to send email:", e);
       }
 
-      setProperties(properties.filter(p => p.id !== selectedProperty.id));
       setShowRejectModal(false);
       setSelectedProperty(null);
       setRejectReason('');
+      setOtherReason('');
     } catch (error) {
       console.error("Error rejecting property:", error);
-      // alert("Failed to reject property.");
+      showToast("An error occurred", "error");
     }
   };
 
@@ -188,21 +195,51 @@ export const AdminPendingApprovals = () => {
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="material-symbols-outlined text-blue-500">badge</span>
                       <span className="font-medium text-sm text-slate-900">Aadhaar Card (Front)</span>
-                      <a href={selectedProperty.aadhaarFront} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${selectedProperty.aadhaarFront}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="ml-auto text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
                     </div>
                   )}
                   {selectedProperty.aadhaarBack && (
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="material-symbols-outlined text-blue-500">badge</span>
                       <span className="font-medium text-sm text-slate-900">Aadhaar Card (Back)</span>
-                      <a href={selectedProperty.aadhaarBack} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${selectedProperty.aadhaarBack}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="ml-auto text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
                     </div>
                   )}
                   {selectedProperty.propertyProof && (
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="material-symbols-outlined text-blue-500">description</span>
                       <span className="font-medium text-sm text-slate-900">Property Proof</span>
-                      <a href={selectedProperty.propertyProof} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${selectedProperty.propertyProof}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="ml-auto text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
                     </div>
                   )}
                   {(!selectedProperty.aadhaarFront && !selectedProperty.aadhaarBack && !selectedProperty.propertyProof) && (
@@ -248,17 +285,28 @@ export const AdminPendingApprovals = () => {
             </div>
             <div className="p-6 overflow-y-auto space-y-3">
               {rejectionReasons.map((reason) => (
-                <label key={reason} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                  <input 
-                    type="radio" 
-                    name="rejectReason" 
-                    value={reason} 
-                    checked={rejectReason === reason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    className="w-4 h-4 text-red-600 focus:ring-red-600"
-                  />
-                  <span className="font-medium text-slate-900 text-sm">{reason}</span>
-                </label>
+                <div key={reason} className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input 
+                      type="radio" 
+                      name="rejectReason" 
+                      value={reason} 
+                      checked={rejectReason === reason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      className="w-4 h-4 text-red-600 focus:ring-red-600"
+                    />
+                    <span className="font-medium text-slate-900 text-sm">{reason}</span>
+                  </label>
+                  {reason === 'Other' && rejectReason === 'Other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter other reason..."
+                      value={otherReason}
+                      onChange={(e) => setOtherReason(e.target.value)}
+                      className="ml-7 p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                    />
+                  )}
+                </div>
               ))}
             </div>
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0 rounded-b-2xl">
@@ -270,7 +318,7 @@ export const AdminPendingApprovals = () => {
               </button>
               <button 
                 onClick={handleReject}
-                disabled={!rejectReason}
+                disabled={!rejectReason || (rejectReason === 'Other' && !otherReason)}
                 className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
               >
                 Confirm Rejection

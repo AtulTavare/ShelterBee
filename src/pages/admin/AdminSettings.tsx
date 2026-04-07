@@ -3,66 +3,61 @@ import { useAdmin } from '../../contexts/AdminContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { showConfirm, showToast } from '../../utils/toast';
 
 export const AdminSettings = () => {
   const { isMaintenanceMode, setMaintenanceMode } = useAdmin();
   const { user } = useAuth();
 
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
 
   const handleClearDemoData = async () => {
-    if (!window.confirm("Are you sure you want to delete all properties, bookings, and non-admin users? This action cannot be undone.")) {
-      return;
-    }
-    
-    setIsClearing(true);
-    try {
-      // Clear properties
-      const propertiesSnap = await getDocs(collection(db, 'properties'));
-      const propertyDeletions = propertiesSnap.docs.map(d => deleteDoc(doc(db, 'properties', d.id)));
-      
-      // Clear bookings
-      const bookingsSnap = await getDocs(collection(db, 'bookings'));
-      const bookingDeletions = bookingsSnap.docs.map(d => deleteDoc(doc(db, 'bookings', d.id)));
-      
-      // Clear wallet transactions
-      const walletSnap = await getDocs(collection(db, 'wallet_transactions'));
-      const walletDeletions = walletSnap.docs.map(d => deleteDoc(doc(db, 'wallet_transactions', d.id)));
-      
-      // Clear reviews
-      const reviewsSnap = await getDocs(collection(db, 'reviews'));
-      const reviewDeletions = reviewsSnap.docs.map(d => deleteDoc(doc(db, 'reviews', d.id)));
-      
-      // Clear support tickets
-      const ticketsSnap = await getDocs(collection(db, 'support_tickets'));
-      const ticketDeletions = ticketsSnap.docs.map(d => deleteDoc(doc(db, 'support_tickets', d.id)));
-      
-      // Clear users (except current admin)
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const userDeletions = usersSnap.docs
-        .filter(d => d.id !== user?.uid)
-        .map(d => deleteDoc(doc(db, 'users', d.id)));
+    showConfirm("Are you absolutely sure you want to delete all properties, bookings, transactions, and non-admin users? This action cannot be undone.", async () => {
+      setIsClearing(true);
+      try {
+        // Clear properties
+        const propertiesSnap = await getDocs(collection(db, 'properties'));
+        const propertyDeletions = propertiesSnap.docs.map(d => deleteDoc(doc(db, 'properties', d.id)));
+        
+        // Clear bookings
+        const bookingsSnap = await getDocs(collection(db, 'bookings'));
+        const bookingDeletions = bookingsSnap.docs.map(d => deleteDoc(doc(db, 'bookings', d.id)));
+        
+        // Clear wallet transactions
+        const walletSnap = await getDocs(collection(db, 'wallet_transactions'));
+        const walletDeletions = walletSnap.docs.map(d => deleteDoc(doc(db, 'wallet_transactions', d.id)));
+        
+        // Clear reviews
+        const reviewsSnap = await getDocs(collection(db, 'reviews'));
+        const reviewDeletions = reviewsSnap.docs.map(d => deleteDoc(doc(db, 'reviews', d.id)));
+        
+        // Clear support tickets
+        const ticketsSnap = await getDocs(collection(db, 'support_tickets'));
+        const ticketDeletions = ticketsSnap.docs.map(d => deleteDoc(doc(db, 'support_tickets', d.id)));
+        
+        // Clear users (except current admin)
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const userDeletions = usersSnap.docs
+          .filter(d => d.id !== user?.uid)
+          .map(d => deleteDoc(doc(db, 'users', d.id)));
 
-      await Promise.all([
-        ...propertyDeletions,
-        ...bookingDeletions,
-        ...walletDeletions,
-        ...reviewDeletions,
-        ...ticketDeletions,
-        ...userDeletions
-      ]);
+        await Promise.all([
+          ...propertyDeletions,
+          ...bookingDeletions,
+          ...walletDeletions,
+          ...reviewDeletions,
+          ...ticketDeletions,
+          ...userDeletions
+        ]);
 
-      setSuccessMessage("All demo data has been successfully cleared. The platform is now clean.");
-      setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (error) {
-      console.error("Failed to clear demo data:", error);
-      setErrorMessage("Failed to clear demo data. Check the console for details.");
-      setTimeout(() => setErrorMessage(null), 5000);
-    } finally {
-      setIsClearing(false);
-    }
+        showToast("All demo data has been successfully cleared. The platform is now clean.", "success");
+      } catch (error) {
+        console.error("Failed to clear demo data:", error);
+        showToast("Failed to clear demo data. Check the console for details.", "error");
+      } finally {
+        setIsClearing(false);
+      }
+    });
   };
 
   return (
@@ -123,18 +118,6 @@ export const AdminSettings = () => {
                   Users cannot access the main platform right now. Ensure you turn this off once updates are complete.
                 </p>
               </div>
-            </div>
-          )}
-          
-          {successMessage && (
-            <div className="p-4 bg-green-50 text-green-700 rounded-xl border border-green-200 text-sm font-medium">
-              {successMessage}
-            </div>
-          )}
-          
-          {errorMessage && (
-            <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 text-sm font-medium">
-              {errorMessage}
             </div>
           )}
         </div>

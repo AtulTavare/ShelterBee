@@ -1,3 +1,4 @@
+import { showToast, showConfirm } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -211,7 +212,7 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing }: { user: any
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to save profile", error);
-      alert("Failed to save profile changes.");
+      showToast("An error occurred", "error");
     } finally {
       setIsSaving(false);
     }
@@ -449,21 +450,21 @@ function StayHistoryTab() {
       ? `Are you sure you want to cancel? You will receive a refund of ₹${refundAmount} to your Shelterbee Wallet.`
       : `Are you sure you want to cancel? Since it's less than 24 hours before check-in, you will not receive a refund.`;
 
-    if (!window.confirm(confirmMessage)) return;
-
-    setCancellingId(booking.id);
-    try {
-      await bookingService.updateBookingStatus(booking.id, 'cancelled');
-      if (refundAmount > 0) {
-        await walletService.processRefund(booking.visitorId, booking.ownerId, refundAmount, refundAmount * 0.75, booking.id);
+    showConfirm(confirmMessage, async () => {
+      setCancellingId(booking.id);
+      try {
+        await bookingService.updateBookingStatus(booking.id, 'cancelled');
+        if (refundAmount > 0) {
+          await walletService.processRefund(booking.visitorId, booking.ownerId, refundAmount, refundAmount * 0.75, booking.id);
+        }
+        await fetchBookings();
+      } catch (error) {
+        console.error("Error cancelling booking:", error);
+        showToast("An error occurred", "error");
+      } finally {
+        setCancellingId(null);
       }
-      await fetchBookings();
-    } catch (error) {
-      console.error("Error cancelling booking:", error);
-      alert("Failed to cancel booking. Please try again.");
-    } finally {
-      setCancellingId(null);
-    }
+    });
   };
 
   if (loading) {
@@ -666,20 +667,20 @@ function FavouritesTab() {
       fetchMyProperties();
     } catch (error) {
       console.error("Error updating availability:", error);
-      alert("Failed to update availability.");
+      showToast("An error occurred", "error");
     }
   };
 
   const removeListing = async (id: string) => {
-    if (window.confirm("Are you sure you want to remove this listing?")) {
+    showConfirm("Are you sure you want to remove this listing?", async () => {
       try {
         await propertyService.deleteProperty(id);
         fetchMyProperties();
       } catch (error) {
         console.error("Error removing listing:", error);
-        alert("Failed to remove listing.");
+        showToast("An error occurred", "error");
       }
-    }
+    });
   };
 
   const viewBookings = async (propertyId: string, title: string) => {
@@ -716,7 +717,7 @@ function FavouritesTab() {
     if (!replyText[reviewId]) return;
     try {
       await reviewService.addReply(reviewId, replyText[reviewId]);
-      alert("Reply submitted successfully!");
+      showToast("An error occurred", "error");
       // Update local state
       setSelectedPropertyReviews(prev => 
         prev.map(r => r.id === reviewId ? { ...r, reply: replyText[reviewId] } : r)
@@ -724,7 +725,7 @@ function FavouritesTab() {
       setReplyText(prev => ({ ...prev, [reviewId]: '' }));
     } catch (error) {
       console.error("Error submitting reply:", error);
-      alert("Failed to submit reply.");
+      showToast("An error occurred", "error");
     }
   };
 
@@ -752,7 +753,7 @@ function FavouritesTab() {
       setSelectedPropertyBookings(propBookings);
     } catch (error) {
       console.error("Error updating booking:", error);
-      alert("Failed to update booking status.");
+      showToast("An error occurred", "error");
     }
   };
 
@@ -1062,40 +1063,40 @@ function WalletTab() {
 
   const handleSaveBankDetails = async () => {
     if (!bankDetails.accountHolderName || !bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.branchName || !bankDetails.bankName) {
-      alert("Please fill in all bank details.");
+      showToast("An error occurred", "error");
       return;
     }
     try {
       await walletService.updateBankAccount(user!.uid, { ...bankDetails, verified: false });
       fetchWalletData();
       setShowBankDetailsModal(false);
-      alert("Bank details saved successfully.");
+      showToast("An error occurred", "error");
     } catch (error) {
       console.error("Error saving bank details:", error);
-      alert("Failed to save bank details.");
+      showToast("An error occurred", "error");
     }
   };
 
   const handleNextStep = () => {
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount.");
+      showToast("An error occurred", "error");
       return;
     }
     if (amount > (wallet?.availableBalance || 0)) {
-      alert("Insufficient available balance.");
+      showToast("An error occurred", "error");
       return;
     }
     if (todaysWithdrawalCount >= 2) {
-      alert("You have reached the maximum of 2 withdrawals per day.");
+      showToast("An error occurred", "error");
       return;
     }
     if (todaysWithdrawalAmount + amount > 10000) {
-      alert(`Daily withdrawal limit is ₹10,000. You can withdraw up to ₹${10000 - todaysWithdrawalAmount} more today.`);
+      showToast("An error occurred", "error");
       return;
     }
     if (!bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.bankName) {
-      alert("Please add your bank details first before withdrawing.");
+      showToast("An error occurred", "error");
       setShowWithdrawModal(false);
       setShowBankDetailsModal(true);
       return;
@@ -1107,7 +1108,7 @@ function WalletTab() {
     const amount = parseFloat(withdrawAmount);
     try {
       await walletService.requestWithdrawal(user!.uid, amount, bankDetails);
-      alert("Withdrawal request submitted successfully! Amount will be transferred to your bank account in 3-4 working days.");
+      showToast("An error occurred", "error");
       setShowWithdrawModal(false);
       setWithdrawStep(1);
       setWithdrawAmount('');
@@ -1115,7 +1116,7 @@ function WalletTab() {
       fetchWalletData();
     } catch (error: any) {
       console.error("Error requesting withdrawal:", error);
-      alert(error.message || "Failed to request withdrawal.");
+      showToast("An error occurred", "error");
     }
   };
 
@@ -1612,7 +1613,7 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to save profile", error);
-      alert("Failed to save profile changes.");
+      showToast("An error occurred", "error");
     } finally {
       setIsSaving(false);
     }

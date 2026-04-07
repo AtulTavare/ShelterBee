@@ -1,7 +1,20 @@
+import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { propertyService, Property } from '../../services/propertyService';
 import { emailService } from '../../services/emailService';
 import { userService } from '../../services/userService';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase';
+
+const rejectionReasons = [
+  'Mismatch between property details and submitted documents',
+  'Invalid or unclear ID proof (Aadhar/light bill)',
+  'Poor quality images',
+  'Owner identity mismatch',
+  'Improper address',
+  'Inappropriate bank details',
+  'Other'
+];
 
 export const AdminManageProperties = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'rejected' | 'approved' | 'pending'>('all');
@@ -10,29 +23,32 @@ export const AdminManageProperties = () => {
   const [loading, setLoading] = useState(true);
 
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [otherReason, setOtherReason] = useState('');
 
   useEffect(() => {
-    fetchProperties();
-  }, []);
-
-  const fetchProperties = async () => {
-    setLoading(true);
-    try {
-      const data = await propertyService.getAllProperties();
-      setProperties(data);
-    } catch (error) {
-      console.error("Error fetching properties:", error);
-    } finally {
+    const unsubscribe = onSnapshot(collection(db, 'properties'), (snapshot) => {
+      const allProps = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Property[];
+      setProperties(allProps);
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error("Error fetching properties:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const filteredProperties = properties.filter(p => {
     if (activeTab === 'all') return true;
     return p.status.toLowerCase() === activeTab;
   });
 
-  const handleStatusChange = async (id: string, newStatus: 'Approved' | 'Rejected' | 'Pending') => {
+  const handleStatusChange = async (id: string, newStatus: 'Approved' | 'Rejected' | 'Pending', reason?: string) => {
     try {
       await propertyService.updatePropertyStatus(id, newStatus);
       
@@ -40,23 +56,35 @@ export const AdminManageProperties = () => {
       if (prop) {
         const owner = await userService.getUserProfile(prop.ownerId);
         if (owner && owner.email) {
+          const reasonText = reason ? `\nReason: ${reason}` : '';
           await emailService.sendEmail({
             to: owner.email,
             subject: `Property ${newStatus}: ${prop.title}`,
-            text: `Hello ${owner.displayName || 'User'},\n\nYour property "${prop.title}" has been ${newStatus.toLowerCase()} by the admin.\n\nThank you,\nAdmin Team`,
-            html: `<p>Hello ${owner.displayName || 'User'},</p><p>Your property "<strong>${prop.title}</strong>" has been <strong>${newStatus.toLowerCase()}</strong> by the admin.</p><p>Thank you,<br/>Admin Team</p>`
+            text: `Hello ${owner.displayName || 'User'},\n\nYour property "${prop.title}" has been ${newStatus.toLowerCase()} by the admin.${reasonText}\n\nThank you,\nAdmin Team`,
+            html: `<p>Hello ${owner.displayName || 'User'},</p><p>Your property "<strong>${prop.title}</strong>" has been <strong>${newStatus.toLowerCase()}</strong> by the admin.</p>${reason ? `<p>Reason: ${reason}</p>` : ''}<p>Thank you,<br/>Admin Team</p>`
           });
         }
       }
 
-      setProperties(properties.map(p => p.id === id ? { ...p, status: newStatus } : p));
       if (selectedProperty?.id === id) {
         setSelectedProperty({ ...selectedProperty, status: newStatus });
       }
+      
+      if (newStatus === 'Rejected') {
+        setShowRejectModal(false);
+        setRejectReason('');
+        setOtherReason('');
+      }
     } catch (error) {
       console.error("Error updating status:", error);
-      // alert("Failed to update status.");
+      showToast("An error occurred", "error");
     }
+  };
+
+  const handleReject = () => {
+    const finalReason = rejectReason === 'Other' ? otherReason : rejectReason;
+    if (!finalReason || !selectedProperty) return;
+    handleStatusChange(selectedProperty.id!, 'Rejected', finalReason);
   };
 
   const handleDelete = async (id: string) => {
@@ -69,7 +97,7 @@ export const AdminManageProperties = () => {
       setShowDeleteModal(null);
     } catch (error) {
       console.error("Error deleting property:", error);
-      // alert("Failed to delete property.");
+      showToast("An error occurred", "error");
     }
   };
 
@@ -217,21 +245,51 @@ export const AdminManageProperties = () => {
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="material-symbols-outlined text-blue-500">badge</span>
                       <span className="font-medium text-sm text-slate-900">Aadhaar Card (Front)</span>
-                      <a href={selectedProperty.aadhaarFront} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${selectedProperty.aadhaarFront}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="ml-auto text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
                     </div>
                   )}
                   {selectedProperty.aadhaarBack && (
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="material-symbols-outlined text-blue-500">badge</span>
                       <span className="font-medium text-sm text-slate-900">Aadhaar Card (Back)</span>
-                      <a href={selectedProperty.aadhaarBack} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${selectedProperty.aadhaarBack}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="ml-auto text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
                     </div>
                   )}
                   {selectedProperty.propertyProof && (
                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <span className="material-symbols-outlined text-blue-500">description</span>
                       <span className="font-medium text-sm text-slate-900">Property Proof</span>
-                      <a href={selectedProperty.propertyProof} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-blue-600 hover:underline">View</a>
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${selectedProperty.propertyProof}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="ml-auto text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
                     </div>
                   )}
                   {(!selectedProperty.aadhaarFront && !selectedProperty.aadhaarBack && !selectedProperty.propertyProof) && (
@@ -251,7 +309,7 @@ export const AdminManageProperties = () => {
                 )}
                 {selectedProperty.status !== 'Rejected' && (
                   <button 
-                    onClick={() => handleStatusChange(selectedProperty.id!, 'Rejected')}
+                    onClick={() => setShowRejectModal(true)}
                     className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 font-medium py-3 rounded-xl transition-colors"
                   >
                     Reject Property
@@ -280,6 +338,65 @@ export const AdminManageProperties = () => {
                 className="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-xl transition-colors"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {showRejectModal && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          onClick={() => setShowRejectModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-200 shrink-0">
+              <h2 className="text-lg font-semibold text-slate-900">Reason for Rejection</h2>
+              <p className="text-sm text-slate-500 mt-1">Select a reason to notify the property owner.</p>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-3">
+              {rejectionReasons.map((reason) => (
+                <div key={reason} className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input 
+                      type="radio" 
+                      name="rejectReason" 
+                      value={reason} 
+                      checked={rejectReason === reason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      className="w-4 h-4 text-red-600 focus:ring-red-600"
+                    />
+                    <span className="font-medium text-slate-900 text-sm">{reason}</span>
+                  </label>
+                  {reason === 'Other' && rejectReason === 'Other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter other reason..."
+                      value={otherReason}
+                      onChange={(e) => setOtherReason(e.target.value)}
+                      className="ml-7 p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0 rounded-b-2xl">
+              <button 
+                onClick={() => setShowRejectModal(false)}
+                className="flex-1 py-2.5 px-4 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleReject}
+                disabled={!rejectReason || (rejectReason === 'Other' && !otherReason)}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
+              >
+                Confirm Rejection
               </button>
             </div>
           </div>

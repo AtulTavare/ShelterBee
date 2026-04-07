@@ -1,3 +1,4 @@
+import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
@@ -43,7 +44,7 @@ export const AdminUsers = () => {
       setUsers(users.map(u => u.uid === uid ? { ...u, status: newStatus } : u));
     } catch (error) {
       console.error("Error updating user status:", error);
-      // alert("Failed to update user status.");
+      showToast("An error occurred", "error");
     }
   };
 

@@ -1,3 +1,4 @@
+import { showToast } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,7 +9,6 @@ const COMPULSORY_AMENITIES = ['24/7 Water Supply', 'Hot Water', '24/7 Electricit
 const AMENITIES_LIST = ['AC', 'WiFi', 'Attached Bathroom', 'Meals Included', 'Parking', 'Laundry', 'TV', 'Geyser'];
 
 import { propertyService } from '../services/propertyService';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 
 export default function ListProperty() {
@@ -49,31 +49,31 @@ export default function ListProperty() {
   const handleNext = () => {
     if (step === 1) {
       if (!formData.title || !formData.type || !formData.area || !formData.address) {
-        alert("Please fill in all fields in Step 1.");
+        showToast("Please fill in all fields in Step 1.", "error");
         return;
       }
     } else if (step === 2) {
       if (!formData.price) {
-        alert("Please enter the rent per day.");
+        showToast("Please enter the rent per day.", "error");
         return;
       }
     } else if (step === 3) {
       if (formData.photos.length !== 5) {
-        alert("Please upload exactly 5 images.");
+        showToast("Please upload exactly 5 images.", "error");
         return;
       }
       if (!formData.description) {
-        alert("Please provide a property description.");
+        showToast("Please provide a property description.", "error");
         return;
       }
     } else if (step === 4) {
       if (!formData.weProvideCompulsoryAmenities) {
-        alert("Please confirm that you provide the compulsory amenities.");
+        showToast("Please confirm that you provide the compulsory amenities.", "error");
         return;
       }
     } else if (step === 5) {
       if (!formData.aadhaarFront || !formData.aadhaarBack || !formData.propertyProof) {
-        alert("Please upload all required documents.");
+        showToast("Please upload all required documents.", "error");
         return;
       }
     }
@@ -99,6 +99,47 @@ export default function ListProperty() {
     }
   };
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 0.6 quality
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          resolve(dataUrl);
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -108,38 +149,48 @@ export default function ListProperty() {
     
     setIsSubmitting(true);
     try {
-      const uploadedPhotoUrls: string[] = [];
-      
-      for (let i = 0; i < formData.photos.length; i++) {
-        const file = formData.photos[i];
+      // Compress and convert photos to Base64 in parallel
+      const photoUploadPromises = formData.photos.map(async (file) => {
         if (file) {
-          const fileRef = ref(storage, `properties/${user.uid}/${Date.now()}_${i}_${file.name}`);
-          await uploadBytes(fileRef, file);
-          const url = await getDownloadURL(fileRef);
-          uploadedPhotoUrls.push(url);
+          return await compressImage(file);
         }
-      }
+        return null;
+      });
+      
+      const photoUrls = await Promise.all(photoUploadPromises);
+      const uploadedPhotoUrls = photoUrls.filter(url => url !== null) as string[];
 
+      // Compress and convert documents to Base64 in parallel
+      const docUploadPromises = [];
+      
       let aadhaarFrontUrl = '';
       if (formData.aadhaarFront) {
-        const fileRef = ref(storage, `documents/${user.uid}/${Date.now()}_aadhaarFront_${formData.aadhaarFront.name}`);
-        await uploadBytes(fileRef, formData.aadhaarFront);
-        aadhaarFrontUrl = await getDownloadURL(fileRef);
+        docUploadPromises.push(
+          compressImage(formData.aadhaarFront).then(url => {
+            aadhaarFrontUrl = url;
+          })
+        );
       }
 
       let aadhaarBackUrl = '';
       if (formData.aadhaarBack) {
-        const fileRef = ref(storage, `documents/${user.uid}/${Date.now()}_aadhaarBack_${formData.aadhaarBack.name}`);
-        await uploadBytes(fileRef, formData.aadhaarBack);
-        aadhaarBackUrl = await getDownloadURL(fileRef);
+        docUploadPromises.push(
+          compressImage(formData.aadhaarBack).then(url => {
+            aadhaarBackUrl = url;
+          })
+        );
       }
 
       let propertyProofUrl = '';
       if (formData.propertyProof) {
-        const fileRef = ref(storage, `documents/${user.uid}/${Date.now()}_propertyProof_${formData.propertyProof.name}`);
-        await uploadBytes(fileRef, formData.propertyProof);
-        propertyProofUrl = await getDownloadURL(fileRef);
+        docUploadPromises.push(
+          compressImage(formData.propertyProof).then(url => {
+            propertyProofUrl = url;
+          })
+        );
       }
+
+      await Promise.all(docUploadPromises);
 
       await propertyService.addProperty({
         ownerId: user.uid,
@@ -158,9 +209,9 @@ export default function ListProperty() {
       });
       
       setIsSubmitted(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting property:", error);
-      alert("Failed to submit property. Please try again.");
+      showToast("An error occurred during submission. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }

@@ -49,19 +49,26 @@ export const AdminWallet = () => {
     }
   };
 
+  const [confirmAction, setConfirmAction] = useState<{type: 'settle' | 'withdraw', id: string, action?: 'completed' | 'rejected'} | null>(null);
+  const [toastMessage, setToastMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  const showToast = (type: 'success' | 'error', text: string) => {
+    setToastMessage({ type, text });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   const handleSettle = async (transactionId: string) => {
-    if (!window.confirm("Are you sure you want to mark this settlement as complete? This will move funds to the user's available balance.")) return;
     try {
       await walletService.markSettlementComplete(transactionId);
+      showToast('success', 'Transaction settled successfully.');
       fetchData();
     } catch (error) {
       console.error("Error settling transaction:", error);
-      alert("Failed to settle transaction.");
+      showToast('error', 'Failed to settle transaction.');
     }
   };
 
   const handleWithdrawal = async (requestId: string, action: 'completed' | 'rejected') => {
-    if (!window.confirm(`Are you sure you want to mark this withdrawal as ${action}?`)) return;
     try {
       const request = withdrawalRequests.find(r => r.id === requestId);
       await walletService.processWithdrawalRequest(requestId, action);
@@ -81,11 +88,22 @@ export const AdminWallet = () => {
         }
       }
 
+      showToast('success', `Withdrawal marked as ${action}.`);
       fetchData();
     } catch (error) {
       console.error("Error processing withdrawal:", error);
-      alert("Failed to process withdrawal.");
+      showToast('error', 'Failed to process withdrawal.');
     }
+  };
+
+  const confirmAndExecute = () => {
+    if (!confirmAction) return;
+    if (confirmAction.type === 'settle') {
+      handleSettle(confirmAction.id);
+    } else if (confirmAction.type === 'withdraw' && confirmAction.action) {
+      handleWithdrawal(confirmAction.id, confirmAction.action);
+    }
+    setConfirmAction(null);
   };
 
   return (
@@ -183,7 +201,7 @@ export const AdminWallet = () => {
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button 
-                        onClick={() => handleSettle(txn.id!)} 
+                        onClick={() => setConfirmAction({ type: 'settle', id: txn.id! })} 
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors border border-emerald-200/50"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -268,14 +286,14 @@ export const AdminWallet = () => {
                       {req.status === 'pending' ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <button 
-                            onClick={() => handleWithdrawal(req.id!, 'completed')} 
+                            onClick={() => setConfirmAction({ type: 'withdraw', id: req.id!, action: 'completed' })} 
                             className="p-1.5 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-lg transition-colors border border-transparent hover:border-emerald-200" 
                             title="Mark Completed"
                           >
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => handleWithdrawal(req.id!, 'rejected')} 
+                            onClick={() => setConfirmAction({ type: 'withdraw', id: req.id!, action: 'rejected' })} 
                             className="p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-transparent hover:border-red-200" 
                             title="Reject"
                           >
@@ -303,6 +321,43 @@ export const AdminWallet = () => {
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
+          toastMessage.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toastMessage.text}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Confirm Action</h3>
+            <p className="text-slate-600 mb-6">
+              {confirmAction.type === 'settle' 
+                ? "Are you sure you want to mark this settlement as complete? This will move funds to the user's available balance."
+                : `Are you sure you want to mark this withdrawal as ${confirmAction.action}?`}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAndExecute}
+                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

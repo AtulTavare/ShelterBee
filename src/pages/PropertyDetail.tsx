@@ -1,3 +1,4 @@
+import { showToast } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -138,7 +139,7 @@ export default function PropertyDetail() {
       setBookingId(newBookingId);
     } catch (error) {
       console.error("Failed to create booking:", error);
-      alert("Failed to process booking. Please try again.");
+      showToast("An error occurred", "error");
     } finally {
       setIsBooking(false);
     }
@@ -788,7 +789,7 @@ export default function PropertyDetail() {
                         if (dateRange.from && dateRange.to) {
                           setBookingStep(2);
                         } else {
-                          alert('Please select both check-in and check-out dates.');
+                          showToast("An error occurred", "error");
                         }
                       }}
                       className="flex-1 py-3 rounded-xl font-bold text-white bg-[#1E1B4B] hover:bg-[#1E1B4B]/90 transition-colors"
@@ -862,7 +863,7 @@ export default function PropertyDetail() {
                         if (visitorDetails.name && visitorDetails.contact && (visitorDetails.isWhatsapp || visitorDetails.whatsappNumber)) {
                           setBookingStep(3);
                         } else {
-                          alert('Please fill in all details.');
+                          showToast("An error occurred", "error");
                         }
                       }}
                       className="flex-1 py-3 rounded-xl font-bold text-white bg-[#1E1B4B] hover:bg-[#1E1B4B]/90 transition-colors"
