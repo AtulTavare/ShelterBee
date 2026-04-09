@@ -1,4 +1,4 @@
-import { auth } from '../firebase';
+// Firebase imports removed; Supabase will be used for auth in the new flow
 
 export enum OperationType {
   CREATE = 'create',
@@ -29,27 +29,19 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const currentUser = auth.currentUser;
-  
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: currentUser?.uid,
-      email: currentUser?.email,
-      emailVerified: currentUser?.emailVerified,
-      isAnonymous: currentUser?.isAnonymous,
-      tenantId: currentUser?.tenantId,
-      providerInfo: currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      userId: undefined,
+      email: null,
+      emailVerified: undefined,
+      isAnonymous: undefined,
+      tenantId: null,
+      providerInfo: []
     },
     operationType,
     path
   };
-  
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

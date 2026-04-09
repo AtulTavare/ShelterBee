@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../firebase';
+import { supabaseClient as supabase } from '../supabase';
 
 export type UserRole = 'visitor' | 'owner' | 'admin';
 
@@ -17,7 +15,7 @@ export interface UserProfile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: UserProfile | null;
   loading: boolean;
   signInWithGoogle: (role?: UserRole) => Promise<void>;
@@ -30,67 +28,50 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    // Supabase Auth state listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
         try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          if (userDoc.exists()) {
-            setProfile(userDoc.data() as UserProfile);
+          const uid = currentUser.id;
+          const { data: prof, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+          if (prof) {
+            setProfile(prof as any);
           } else {
-            // Create a new user profile with default role 'visitor'
-            // If they signed up through the owner flow, we might want to set it to 'owner'
-            // For now, we'll default to visitor and they can upgrade later or we pass it in signIn
-            const newProfile: UserProfile = {
-              uid: currentUser.uid,
+            // Create a minimal profile for new Supabase user
+            const newProfile = {
+              id: uid,
               email: currentUser.email || '',
-              displayName: currentUser.displayName,
-              photoURL: currentUser.photoURL,
+              displayName: currentUser.user_metadata?.full_name ?? currentUser.email,
+              photoURL: currentUser.user_metadata?.avatar_url ?? null,
               role: 'visitor',
-              createdAt: serverTimestamp(),
+              createdAt: new Date(),
             };
-            await setDoc(userDocRef, newProfile);
-            setProfile(newProfile);
+            const { data: created, error: ic } = await supabase.from('profiles').insert([newProfile]).select('*').single();
+            if (created) setProfile(created as any);
           }
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
+        } catch (err) {
+          console.error('Error fetching user profile:', err);
         }
       } else {
         setProfile(null);
       }
       setLoading(false);
     });
-
-    return () => unsubscribe();
+  
+    return () => { authListener?.unsubscribe?.(); };
   }, []);
 
   const signInWithGoogle = async (role: UserRole = 'visitor') => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        const newProfile: UserProfile = {
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          role: role,
-          createdAt: serverTimestamp(),
-        };
-        await setDoc(userDocRef, newProfile);
-        setProfile(newProfile);
-      }
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      if (error) throw error;
+      // After sign-in, a profile will be created by backend logic when the session loads
     } catch (error: any) {
       if (error?.code !== 'auth/popup-closed-by-user' && error?.code !== 'auth/cancelled-popup-request') {
         console.error('Error signing in with Google:', error);
@@ -100,16 +81,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (email: string, password: string) => {
-    return createUserWithEmailAndPassword(auth, email, password);
+    // Supabase signup
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    return data;
   };
 
   const login = async (email: string, password: string) => {
-    return signInWithEmailAndPassword(auth, email, password);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
   };
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -119,8 +105,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfileData = async (data: Partial<UserProfile>) => {
     if (!user) return;
     try {
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, data);
+      // Update in Supabase profiles table
+      const { id } = user as any;
+      const { data: updated, error } = await (async () => {
+        const { data, error } = await (supabase.from('profiles').update(data).eq('id', id));
+        return { data, error } as any;
+      })();
+      if (error) throw error;
       setProfile(prev => prev ? { ...prev, ...data } : null);
     } catch (error) {
       console.error('Error updating profile:', error);

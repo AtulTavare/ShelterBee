@@ -1,5 +1,4 @@
-import { collection, doc, getDoc, setDoc, updateDoc, addDoc, query, where, getDocs, serverTimestamp, runTransaction } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabaseClient as supabase } from '../supabase';
 import { emailService } from './emailService';
 import { userService } from './userService';
 
