@@ -13,8 +13,7 @@ import { bookingService } from '../services/bookingService';
 import { walletService } from '../services/walletService';
 import { emailService } from '../services/emailService';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+// Firebase imports removed: replaced by Supabase equivalents where needed
 
 export default function PropertyDetail() {
   const { id } = useParams();
