@@ -1,6 +1,8 @@
 import express from "express";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { checkUser } from './check-user';
+import { resetPassword } from './reset-password';
 
 dotenv.config();
 
@@ -39,11 +41,15 @@ app.post("/api/send-email", async (req, res) => {
       replyTo: replyTo || process.env.SMTP_USER,
     });
 
-    res.json({ success: true, messageId: info.messageId });
+  res.json({ success: true, messageId: info.messageId });
   } catch (error) {
     console.error("Error sending email:", error);
     res.status(500).json({ error: "Failed to send email" });
   }
-});
+  });
+
+// New endpoints for password reset flow
+app.post("/api/check-user", checkUser);
+app.post("/api/reset-password", resetPassword);
 
 export default app;

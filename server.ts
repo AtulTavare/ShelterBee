@@ -3,19 +3,14 @@ import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import path from "path";
-import { initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
-// Initialize Firebase Admin with default credentials
-// This works automatically in Google Cloud Run environments
-try {
-  initializeApp();
-} catch (error) {
-  console.error("Firebase Admin initialization error:", error);
-}
+// Supabase Admin client (server-side)
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function startServer() {
   const app = express();
@@ -34,31 +29,30 @@ async function startServer() {
     },
   });
 
-  // API Route to check if user exists
+  // API Route to check if user exists (Supabase-based)
   app.post("/api/check-user", async (req, res) => {
     try {
       const { email, isOwner } = req.body;
       if (!email) {
         return res.status(400).json({ error: "Email is required" });
       }
-      
-      const userRecord = await getAuth().getUserByEmail(email);
-      
-      if (isOwner) {
-        const db = getFirestore();
-        const userDoc = await db.collection("users").doc(userRecord.uid).get();
-        if (userDoc.exists && userDoc.data()?.role !== 'owner') {
-           return res.status(404).json({ error: "No property owner account found with this email address." });
+      const { data, error } = await supabaseAdmin.from('profiles').select('id, role').eq('email', email).single();
+      if (error || !data) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const role = data.role;
+      if (Boolean(isOwner)) {
+        if (role !== 'owner') {
+          return res.status(400).json({ error: 'User is not an owner' });
+        }
+      } else {
+        if (!['visitor','admin','owner'].includes(role)) {
+          return res.status(400).json({ error: 'Invalid user role' });
         }
       }
-
-      res.json({ exists: true });
+      return res.status(200).json({ ok: true, uid: data.id, role });
     } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        res.status(404).json({ error: "No user found" });
-      } else {
-        res.status(500).json({ error: "Failed to check user" });
-      }
+      return res.status(500).json({ error: 'Failed to check user' });
     }
   });
 
@@ -89,31 +83,36 @@ async function startServer() {
     }
   });
 
-  // API Route to reset password
+  // API Route to reset password (Supabase Admin REST path)
   app.post("/api/reset-password", async (req, res) => {
     try {
       const { email, newPassword } = req.body;
-
       if (!email || !newPassword) {
-        return res.status(400).json({ error: "Email and new password are required" });
+        return res.status(400).json({ error: 'Email and new password are required' });
       }
+      const { data, error } = await supabaseAdmin.from('profiles').select('id').eq('email', email).single();
+      if (error || !data) return res.status(404).json({ error: 'User not found' });
+      const userId = data.id;
 
-      // Get user by email
-      const userRecord = await getAuth().getUserByEmail(email);
-      
-      // Update password
-      await getAuth().updateUser(userRecord.uid, {
-        password: newPassword
+      // Use Supabase Admin REST API to update password
+      const adminUrl = `${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`;
+      const fetchFn = globalThis.fetch ? globalThis.fetch : (await import('node-fetch')).default;
+      const resp = await fetchFn(adminUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ password: newPassword }),
       });
-
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        return res.status(500).json({ error: errData?.message || 'Password reset failed' });
+      }
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error resetting password:", error);
-      if (error.code === 'auth/user-not-found') {
-        res.status(404).json({ error: "No account found with this email address." });
-      } else {
-        res.status(500).json({ error: "Failed to reset password" });
-      }
+      res.status(500).json({ error: 'Failed to reset password' });
     }
   });
 
