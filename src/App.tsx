@@ -12,6 +12,15 @@ import ListProperty from './pages/ListProperty';
 import Listings from './pages/Listings';
 import Support from './pages/Support';
 import Profile from './pages/Profile';
+import HelpCenter from './pages/HelpCenter';
+import ReportConcern from './pages/ReportConcern';
+import HostingRules from './pages/HostingRules';
+import LearnToHost from './pages/LearnToHost';
+import CompanyDetails from './pages/CompanyDetails';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import RefundPolicy from './pages/RefundPolicy';
+import PaymentPolicy from './pages/PaymentPolicy';
 
 // Admin Components
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -42,6 +51,15 @@ function AppContent() {
             <Route path="/listings" element={<Listings />} />
             <Route path="/support" element={<Support />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/help-center" element={<HelpCenter />} />
+            <Route path="/report-concern" element={<ReportConcern />} />
+            <Route path="/hosting-rules" element={<HostingRules />} />
+            <Route path="/learn-to-host" element={<LearnToHost />} />
+            <Route path="/company-details" element={<CompanyDetails />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/refund-policy" element={<RefundPolicy />} />
+            <Route path="/payment-policy" element={<PaymentPolicy />} />
             
             {/* Admin Routes */}
             <Route path="/admin-secret-dashboard" element={<AdminLayout />}>

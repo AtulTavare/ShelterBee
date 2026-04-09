@@ -41,8 +41,15 @@ export default function Listings() {
   const maxPropertyPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.pricePerDay || 0), 50000) : 50000, [properties]);
   const maxDepositPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.deposit || 0), 150000) : 150000, [properties]);
   
-  const [priceRange, setPriceRange] = useState<number>(maxPropertyPrice);
-  const [depositRange, setDepositRange] = useState<number>(maxDepositPrice);
+  const [priceRange, setPriceRange] = useState<number>(50000);
+  const [depositRange, setDepositRange] = useState<number>(150000);
+
+  useEffect(() => {
+    if (properties.length > 0) {
+      setPriceRange(maxPropertyPrice);
+      setDepositRange(maxDepositPrice);
+    }
+  }, [maxPropertyPrice, maxDepositPrice, properties.length]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
@@ -76,7 +83,7 @@ export default function Listings() {
   }, [topProperties.length]);
 
   const allAmenities = ['Wi-Fi', 'Gym', 'Pool', 'Parking', 'AC', 'Security', 'Meals Included', 'Laundry'];
-  const allTypes = ['Full Flat', 'PG', 'Room'];
+  const allTypes = ['Full Flat', 'PG', 'Room', 'Hostel'];
   const allAreas = useMemo(() => Array.from(new Set(properties.map(p => p.area).filter(Boolean))), [properties]);
 
   const toggleSelection = (item: string, list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -108,8 +115,8 @@ export default function Listings() {
       filtered.sort((a, b) => (a.pricePerDay || 0) - (b.pricePerDay || 0));
     } else if (sortBy === 'Newest First') {
       filtered.sort((a, b) => {
-        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+        const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0);
+        const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : (b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0);
         return timeB - timeA;
       });
     }

@@ -6,6 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
+import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
+import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
+
 const SectionHeader = ({ title }: { title: string }) => (
   <div className="flex items-center gap-4 my-6">
     <h3 className="text-xs font-bold tracking-widest text-gray-400 uppercase whitespace-nowrap">{title}</h3>
@@ -59,6 +62,7 @@ export default function Auth() {
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const termsRef = useRef<HTMLDivElement>(null);
   const { register, login } = useAuth();
@@ -119,17 +123,23 @@ export default function Auth() {
     setStep(2);
   };
 
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [pendingUserData, setPendingUserData] = useState<any>(null);
+  const [pendingUserCreds, setPendingUserCreds] = useState<any>(null);
+
   const handleCreateAccount = async () => {
     if (!termsAccepted) return;
     
     setLoading(true);
     setErrorMsg(null);
     try {
-      const userCredential = await register(email, password);
-      const user = userCredential.user;
-
+      const otp = generateOTP();
+      storeOTP(otp, email);
+      await sendOTPEmail(email, otp);
+      
+      setPendingUserCreds({ email, password });
+      
       const userData: any = {
-        uid: user.uid,
         email,
         role: userType === 'owner' ? 'owner' : 'visitor',
         createdAt: new Date().toISOString(),
@@ -153,9 +163,32 @@ export default function Auth() {
         userData.whatsapp = sameAsWhatsapp ? mobile : whatsapp;
         userData.gender = gender;
       }
+      
+      setPendingUserData(userData);
+      setShowOTPModal(true);
+    } catch (error: any) {
+      setErrorMsg("Failed to send verification email. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      await setDoc(doc(db, 'users', user.uid), userData);
+  const completeRegistration = async (isVerified: boolean) => {
+    setLoading(true);
+    try {
+      const userCredential = await register(pendingUserCreds.email, pendingUserCreds.password);
+      const user = userCredential.user;
 
+      const finalUserData = {
+        ...pendingUserData,
+        uid: user.uid,
+        emailVerified: isVerified
+      };
+
+      await setDoc(doc(db, 'users', user.uid), finalUserData);
+
+      setShowOTPModal(false);
+      
       if (location.state?.returnTo) {
         navigate(location.state.returnTo);
       } else {
@@ -170,6 +203,7 @@ export default function Auth() {
     } catch (error: any) {
       setErrorMsg(error.message || "Failed to create account.");
       setStep(1);
+      setShowOTPModal(false);
     } finally {
       setLoading(false);
     }
@@ -495,7 +529,18 @@ export default function Auth() {
                     <>
                       <SectionHeader title="ACCOUNT LOGIN" />
                       <Input label="EMAIL ADDRESS" type="email" placeholder="name@example.com" value={loginEmail} onChange={(e: any) => setLoginEmail(e.target.value)} required wrapperClassName="mb-6" />
-                      <Input label="PASSWORD" type="password" placeholder="••••••••" value={loginPassword} onChange={(e: any) => setLoginPassword(e.target.value)} required wrapperClassName="mb-6" />
+                      <div className="mb-6">
+                        <Input label="PASSWORD" type="password" placeholder="••••••••" value={loginPassword} onChange={(e: any) => setLoginPassword(e.target.value)} required />
+                        <div className="flex justify-end mt-2">
+                          <button 
+                            type="button" 
+                            onClick={() => setShowForgotPassword(true)}
+                            className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors"
+                          >
+                            Forgot Password?
+                          </button>
+                        </div>
+                      </div>
                     </>
                   )}
 
@@ -597,6 +642,13 @@ export default function Auth() {
         </div>
 
       </div>
+      <ForgotPasswordModal isOpen={showForgotPassword} onClose={() => setShowForgotPassword(false)} />
+      <OTPModal 
+        isOpen={showOTPModal} 
+        onClose={() => completeRegistration(false)} 
+        email={email} 
+        onSuccess={() => completeRegistration(true)} 
+      />
     </div>
   );
 }

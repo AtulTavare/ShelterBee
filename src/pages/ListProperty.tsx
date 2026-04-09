@@ -11,11 +11,18 @@ const AMENITIES_LIST = ['AC', 'WiFi', 'Attached Bathroom', 'Meals Included', 'Pa
 import { propertyService } from '../services/propertyService';
 import { storage } from '../firebase';
 
+import { emailService } from '../services/emailService';
+import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+
 export default function ListProperty() {
   const [step, setStep] = useState(1);
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
   
   useEffect(() => {
     if (!loading) {
@@ -144,6 +151,11 @@ export default function ListProperty() {
     e.preventDefault();
     if (!user) {
       navigate('/auth', { state: { returnTo: '/list-property' } });
+      return;
+    }
+    
+    if (profile?.emailVerified === false) {
+      setShowVerificationPopup(true);
       return;
     }
     
@@ -353,6 +365,7 @@ export default function ListProperty() {
                       <option value="PG">PG</option>
                       <option value="Full Flat">Full Flat</option>
                       <option value="Full Property">Full Property</option>
+                      <option value="Hostel">Hostel</option>
                     </select>
                   </div>
 
@@ -657,6 +670,75 @@ export default function ListProperty() {
           </div>
         </div>
       </div>
+
+      {/* Verification Popup */}
+      <AnimatePresence>
+        {showVerificationPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowVerificationPopup(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100"
+            >
+              <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <span className="material-symbols-outlined text-4xl">mark_email_unread</span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-4">Verification Required</h3>
+              <p className="text-[#64748B] mb-8 text-sm leading-relaxed">
+                Please verify your email before listing a property.
+              </p>
+              
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowVerificationPopup(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-4 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => {
+                    setShowVerificationPopup(false);
+                    if (user?.email) {
+                      const otp = generateOTP();
+                      storeOTP(otp, user.email);
+                      await sendOTPEmail(user.email, otp);
+                      setShowOTPModal(true);
+                    }
+                  }}
+                  className="flex-1 bg-[#F59E0B] hover:bg-[#D97706] text-[#1E1B4B] font-bold py-4 rounded-xl transition-all shadow-md hover:shadow-lg"
+                >
+                  Verify Now
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <OTPModal 
+        isOpen={showOTPModal} 
+        onClose={() => setShowOTPModal(false)} 
+        email={user?.email || ''} 
+        onSuccess={async () => {
+          if (user) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              emailVerified: true
+            });
+            setShowOTPModal(false);
+            showToast("Email verified successfully!", "success");
+            // Optionally, we could auto-submit the listing here
+            // handleSubmit(new Event('submit') as any);
+          }
+        }} 
+      />
     </div>
   );
 }

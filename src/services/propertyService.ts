@@ -39,11 +39,22 @@ export const propertyService = {
     try {
       const q = query(collection(db, 'properties'), where('status', '==', 'Approved'));
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || null,
-      })) as Property[];
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        let createdAt = null;
+        if (data.createdAt) {
+          if (typeof data.createdAt.toDate === 'function') {
+            createdAt = data.createdAt.toDate();
+          } else if (typeof data.createdAt === 'string' || typeof data.createdAt === 'number') {
+            createdAt = new Date(data.createdAt);
+          }
+        }
+        return {
+          id: doc.id,
+          ...data,
+          createdAt,
+        };
+      }) as Property[];
     } catch (error) {
       console.error("Error fetching approved properties:", error);
       throw error;

@@ -36,7 +36,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden md:flex items-center gap-6">
             <Link to="/" className={`font-bold transition-colors ${location.pathname === '/' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Home</Link>
-            <Link to="/listings" className={`font-bold transition-colors ${location.pathname === '/listings' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Properties</Link>
+            <Link to="/listings" className={`font-bold transition-colors ${location.pathname === '/listings' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Stays</Link>
             <Link to="/support" className={`font-bold transition-colors ${location.pathname === '/support' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Support</Link>
             {(profile?.role === 'admin' || user?.email === 'tavareatul7192@gmail.com') && (
               <Link to="/admin-secret-dashboard" className={`font-bold transition-colors ${location.pathname.startsWith('/admin-secret-dashboard') ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Admin</Link>
@@ -65,7 +65,7 @@ export default function Navbar() {
                   to="/list-property" 
                   className="hidden lg:block bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
                 >
-                  List Property
+                  Become a Host
                 </Link>
               )
             ) : (
@@ -74,7 +74,7 @@ export default function Navbar() {
                 state={{ returnTo: '/list-property' }}
                 className="hidden lg:block bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
               >
-                List Property
+                Become a Host
               </Link>
             )
           )}

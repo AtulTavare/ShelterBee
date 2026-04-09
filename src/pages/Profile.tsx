@@ -34,6 +34,10 @@ import {
   XCircle
 } from 'lucide-react';
 
+import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
 
 export default function Profile() {
@@ -41,6 +45,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('personal');
   const [isEditing, setIsEditing] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -82,9 +87,36 @@ export default function Profile() {
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-[#F8F9FA] border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="p-6">
-          <h2 className="text-xl font-bold text-[#1A1A2E] truncate">
-            {profile?.displayName || user.email?.split('@')[0]}
-          </h2>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-xl font-bold text-[#1A1A2E] truncate">
+              {profile?.displayName || user.email?.split('@')[0]}
+            </h2>
+            {profile?.emailVerified ? (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">
+                <CheckCircle2 size={12} />
+                Verified
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">
+                  Not Verified
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (user?.email) {
+                      const otp = generateOTP();
+                      storeOTP(otp, user.email);
+                      await sendOTPEmail(user.email, otp);
+                      setShowOTPModal(true);
+                    }
+                  }}
+                  className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
+                >
+                  Verify Now
+                </button>
+              </div>
+            )}
+          </div>
           <p className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider mt-1">
             Premium Member
           </p>

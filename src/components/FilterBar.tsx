@@ -19,7 +19,7 @@ interface FilterBarProps {
   onClearAll: () => void;
 }
 
-const allTypes = ['Full Flat', 'PG', 'Room'];
+const allTypes = ['Full Flat', 'PG', 'Room', 'Hostel'];
 const allAmenities = [
   { name: 'Wi-Fi', icon: Wifi },
   { name: 'Gym', icon: Dumbbell },

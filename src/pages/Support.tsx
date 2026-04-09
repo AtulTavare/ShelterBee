@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { emailService } from '../services/emailService';
+import { Link } from 'react-router-dom';
 import { Mail, Phone, MessageSquare, Gavel, Shield, Banknote, RefreshCcw, MessageCircleQuestion, ArrowRight } from 'lucide-react';
 
 export default function Support() {
@@ -175,9 +176,9 @@ export default function Support() {
             <p className="text-gray-500 text-sm leading-relaxed mb-8 flex-grow">
               Fundamental rules governing the use of our platform and real estate services.
             </p>
-            <button className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
+            <Link to="/terms" className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
               READ FULL POLICY <ArrowRight size={16} />
-            </button>
+            </Link>
           </div>
           
           {/* Card 2 */}
@@ -189,9 +190,9 @@ export default function Support() {
             <p className="text-gray-500 text-sm leading-relaxed mb-8 flex-grow">
               How we protect your sensitive data and personal investment information.
             </p>
-            <button className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
+            <Link to="/privacy" className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
               READ FULL POLICY <ArrowRight size={16} />
-            </button>
+            </Link>
           </div>
           
           {/* Card 3 */}
@@ -203,9 +204,9 @@ export default function Support() {
             <p className="text-gray-500 text-sm leading-relaxed mb-8 flex-grow">
               Details regarding escrow services, transaction fees, and fund management.
             </p>
-            <button className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
+            <Link to="/payment-policy" className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
               READ FULL POLICY <ArrowRight size={16} />
-            </button>
+            </Link>
           </div>
           
           {/* Card 4 */}
@@ -217,9 +218,9 @@ export default function Support() {
             <p className="text-gray-500 text-sm leading-relaxed mb-8 flex-grow">
               Clear guidelines for capital withdrawals and reservation cancellations.
             </p>
-            <button className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
+            <Link to="/refund-policy" className="text-[#8B5A2B] font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:text-[#F59E0B] transition-colors mt-auto">
               READ FULL POLICY <ArrowRight size={16} />
-            </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -236,9 +237,9 @@ export default function Support() {
               <p className="text-gray-500">Explore our comprehensive Knowledge Base for instant solutions.</p>
             </div>
           </div>
-          <button className="bg-white text-[#161338] font-bold py-4 px-8 rounded-xl shadow-sm hover:shadow-md transition-all whitespace-nowrap border border-gray-100">
+          <Link to="/help-center" className="bg-white text-[#161338] font-bold py-4 px-8 rounded-xl shadow-sm hover:shadow-md transition-all whitespace-nowrap border border-gray-100">
             Visit FAQ Center
-          </button>
+          </Link>
         </div>
       </section>
     </div>
