@@ -436,7 +436,7 @@ export default function ListProperty() {
                       const labels = ['External View', 'Internal View 1', 'Internal View 2', 'Internal View 3', 'Toilet/Bathroom'];
                       const file = formData.photos[index];
                       return (
-                        <div key={index} className="relative aspect-square bg-surface-container rounded-xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center text-center overflow-hidden hover:bg-surface-container-high transition-colors">
+                        <div key={`photo-${index}`} className="relative aspect-square bg-surface-container rounded-xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center text-center overflow-hidden hover:bg-surface-container-high transition-colors">
                           <input 
                             type="file" 
                             accept=".png, .jpg, .jpeg" 

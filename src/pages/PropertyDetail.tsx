@@ -287,7 +287,7 @@ export default function PropertyDetail() {
                     else if (lower.includes('cleaning') || lower.includes('housekeeping')) icon = 'cleaning_services';
 
                     return (
-                      <div key={idx} className="flex items-center gap-2 text-[#1E1B4B]">
+                      <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
                         <span className="material-symbols-outlined text-[#F59E0B] text-xl">{icon}</span>
                         <span className="font-medium text-sm">{amenity}</span>
                       </div>
@@ -506,8 +506,8 @@ export default function PropertyDetail() {
                         { label: "Owner Behavior", score: 4.9 },
                         { label: "Parking", score: 4.4 },
                         { label: "Room Environment", score: 4.8 },
-                      ].map((feature, i) => (
-                        <div key={i} className="flex items-center justify-between">
+                      ].map((feature) => (
+                        <div key={feature.label} className="flex items-center justify-between">
                           <span className="text-sm font-medium text-[#64748B]">{feature.label}</span>
                           <div className="flex items-center gap-3 w-1/2">
                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -551,7 +551,7 @@ export default function PropertyDetail() {
                         avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sneha&backgroundColor=d1d4f9"
                       }
                     ].map((review, i) => (
-                      <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                      <div key={`${review.name}-${i}`} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                         <div className="flex items-center gap-4">
                           <img src={review.avatar} alt={review.name} className="w-12 h-12 rounded-full bg-slate-100" referrerPolicy="no-referrer" />
                           <div>
@@ -716,8 +716,8 @@ export default function PropertyDetail() {
                   q: "Can I visit the property before paying the rent?",
                   a: "Absolutely! The booking process here is to secure a verified visit and direct contact. You only pay the actual rent to the owner after you have visited and approved the property."
                 }
-              ].map((faq, i) => (
-                <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+              ].map((faq) => (
+                <div key={faq.q} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
                   <h4 className="text-lg font-bold text-[#1E1B4B] mb-2">{faq.q}</h4>
                   <p className="text-[#64748B] text-sm leading-relaxed">{faq.a}</p>
                 </div>

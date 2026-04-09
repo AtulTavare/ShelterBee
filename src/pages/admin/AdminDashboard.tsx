@@ -217,10 +217,10 @@ export const AdminDashboard = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {stats.map((stat, idx) => {
+        {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+            <div key={stat.label} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
               <div className="flex flex-col">
                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{stat.label}</div>
                 <div className="text-xl font-bold tracking-tight text-slate-900">{stat.value}</div>
@@ -317,8 +317,8 @@ export const AdminDashboard = () => {
                       dataKey="value"
                       stroke="none"
                     >
-                      {(propertyTypes.length > 0 ? propertyTypes : [{ name: 'No Data', value: 1, color: '#f1f5f9' }]).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {(propertyTypes.length > 0 ? propertyTypes : [{ name: 'No Data', value: 1, color: '#f1f5f9' }]).map((entry) => (
+                        <Cell key={`cell-${entry.name}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
@@ -385,7 +385,7 @@ export const AdminDashboard = () => {
               {analyticDetails[selectedAnalytic.key] && analyticDetails[selectedAnalytic.key].length > 0 ? (
                 <div className="space-y-3">
                   {analyticDetails[selectedAnalytic.key].map((item: any, idx: number) => (
-                    <div key={idx} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 justify-between items-center hover:border-blue-200 transition-colors">
+                    <div key={item.id || idx} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 justify-between items-center hover:border-blue-200 transition-colors">
                       {Object.entries(item).filter(([k]) => k !== 'id').map(([k, v]) => (
                         <div key={k} className="flex-1 min-w-[100px]">
                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{k}</div>

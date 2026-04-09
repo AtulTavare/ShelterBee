@@ -158,7 +158,7 @@ export const AdminPendingApprovals = () => {
                 <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Images</h3>
                 <div className="flex gap-4 overflow-x-auto pb-2">
                   {selectedProperty.photos?.map((img: string, idx: number) => (
-                    <img key={idx} src={img} alt="Property" className="w-48 h-32 object-cover rounded-xl shrink-0 border border-slate-200" />
+                    <img key={`${img}-${idx}`} src={img} alt="Property" className="w-48 h-32 object-cover rounded-xl shrink-0 border border-slate-200" />
                   ))}
                 </div>
               </div>

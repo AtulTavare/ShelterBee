@@ -40,8 +40,9 @@ export default function Home() {
   const getFourProperties = () => {
     if (properties.length === 0) return [];
     const props = [...properties];
+    let counter = 0;
     while (props.length < 4) {
-      props.push({ ...props[0], id: props[0].id + Math.random().toString() });
+      props.push({ ...props[0], id: `${props[0].id}-dup-${counter++}` });
     }
     return props.slice(0, 4);
   };
@@ -55,6 +56,19 @@ export default function Home() {
       return (b.reviewCount || 0) - (a.reviewCount || 0);
     }
   }).slice(0, 4);
+  
+  // Ensure we have 4 for sortedTopProps too
+  const getFourSortedProps = () => {
+    if (sortedTopProps.length === 0) return [];
+    const props = [...sortedTopProps];
+    let counter = 0;
+    while (props.length < 4) {
+      props.push({ ...props[0], id: `${props[0].id}-dup-top-${counter++}` });
+    }
+    return props.slice(0, 4);
+  };
+  
+  const fourSortedProps = getFourSortedProps();
 
   const faqs = [
     { q: "How do I book a property?", a: "You can book a property by navigating to the property details page and clicking the 'Book Now' button. You will need to be logged in to complete the booking." },
@@ -207,7 +221,7 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {fourProps.map((property, index) => (
             <PropertyCard 
-              key={`trending-${index}`} 
+              key={`trending-${property.id}-${index}`} 
               property={property} 
               featured={index === 0} 
               isFavorite={favorites.includes(property.id)}
@@ -231,7 +245,7 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {fourProps.map((property, index) => (
             <PropertyCard 
-              key={`new-${index}`} 
+              key={`new-${property.id}-${index}`} 
               property={property} 
               isFavorite={favorites.includes(property.id)}
               onToggleFavorite={toggleFavorite}
@@ -263,9 +277,9 @@ export default function Home() {
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-          {sortedTopProps.map((property, index) => (
+          {fourSortedProps.map((property, index) => (
             <PropertyCard 
-              key={`top-${index}`} 
+              key={`top-${property.id}-${index}`} 
               property={property} 
               topRated={true} 
               isFavorite={favorites.includes(property.id)}
@@ -289,7 +303,7 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {fourProps.map((property, index) => (
             <PropertyCard 
-              key={`affordable-${index}`} 
+              key={`affordable-${property.id}-${index}`} 
               property={property} 
               verified={true} 
               isFavorite={favorites.includes(property.id)}
@@ -308,7 +322,7 @@ export default function Home() {
           </div>
           <div className="space-y-4">
             {faqs.map((faq, index) => (
-              <div key={index} className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
+              <div key={faq.q} className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
                 <button 
                   onClick={() => setOpenFaq(openFaq === index ? null : index)}
                   className="w-full px-6 py-5 flex items-center justify-between text-left focus:outline-none"

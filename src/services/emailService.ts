@@ -17,7 +17,7 @@ export const emailService = {
       // Default to the service alias for automated notifications, 
       // but allow users to reply to the support email.
       const payload = {
-        from: '"ShelterBee" <service@shelterbee.com>',
+        from: '"ShelterBee Support" <support@shelterbee.com>',
         replyTo: 'support@shelterbee.com',
         ...options
       };

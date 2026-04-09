@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Check, ShieldCheck, Home, ArrowRight } from 'lucide-react';
+import { Calendar, Check, ShieldCheck, Home, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -16,15 +16,32 @@ const SectionHeader = ({ title }: { title: string }) => (
   </div>
 );
 
-const Input = ({ label, wrapperClassName, ...props }: any) => (
-  <div className={`space-y-2 w-full ${wrapperClassName || ''}`}>
-    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
-    <input 
-      {...props} 
-      className={`w-full px-4 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800 ${props.className || ''}`} 
-    />
-  </div>
-);
+const Input = ({ label, wrapperClassName, ...props }: any) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = props.type === 'password';
+
+  return (
+    <div className={`space-y-2 w-full ${wrapperClassName || ''}`}>
+      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+      <div className="relative">
+        <input 
+          {...props} 
+          type={isPassword ? (showPassword ? 'text' : 'password') : props.type}
+          className={`w-full px-4 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800 ${props.className || ''} ${isPassword ? 'pr-12' : ''}`} 
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default function Auth() {
   const [step, setStep] = useState<1 | 2>(1);

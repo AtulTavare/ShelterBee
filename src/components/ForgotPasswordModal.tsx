@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check } from 'lucide-react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { updatePassword, signOut } from 'firebase/auth';
-import { db, auth } from '../firebase';
+import { X, Check, Eye, EyeOff } from 'lucide-react';
 import { generateOTP, storeOTP, sendOTPEmail } from './OTPModal';
 import { OTPModal } from './OTPModal';
 import { showToast } from '../utils/toast';
+import { useNavigate } from 'react-router-dom';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -14,13 +12,19 @@ interface ForgotPasswordModalProps {
 }
 
 export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen) {
@@ -29,6 +33,10 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
       setError('');
       setNewPassword('');
       setConfirmPassword('');
+      setIsOwner(false);
+      setShowCreateAccount(false);
+      setShowPassword(false);
+      setShowConfirmPassword(false);
     }
   }, [isOpen]);
 
@@ -37,15 +45,20 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
     if (!email) return;
     setLoading(true);
     setError('');
+    setShowCreateAccount(false);
 
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        setError("No account found with this email address.");
-        setLoading(false);
+      const checkRes = await fetch('/api/check-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, isOwner })
+      });
+      
+      const checkData = await checkRes.json();
+      
+      if (!checkRes.ok) {
+        setError(checkData.error || "No user found");
+        setShowCreateAccount(true);
         return;
       }
 
@@ -77,30 +90,25 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
     setError('');
 
     try {
-      // Find user document
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        
-        if (auth.currentUser) {
-          await updatePassword(auth.currentUser, newPassword);
-        }
-        
-        await updateDoc(doc(db, 'users', userDoc.id), {
-          passwordUpdatedAt: new Date().toISOString()
-        });
+      const response = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reset password");
       }
 
-      await signOut(auth);
       sessionStorage.removeItem("otp");
       sessionStorage.removeItem("otpExpiry");
       sessionStorage.removeItem("otpEmail");
       
-      showToast("Password updated successfully. Please login with your new password.", "success");
-      onClose();
+      setStep(4);
     } catch (err: any) {
       setError(err.message || "Failed to update password.");
     } finally {
@@ -129,22 +137,51 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
           <div className="p-8 sm:p-10">
             {step === 1 && (
               <>
-                <h2 className="text-2xl font-extrabold text-[#1A1A2E] mb-2">Reset Password</h2>
-                <p className="text-gray-500 text-sm mb-8">
-                  Enter your email address to receive a password reset code.
-                </p>
+                <div className="text-center mb-8">
+                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-extrabold text-[#1A1A2E] mb-2">Reset Password</h2>
+                  <p className="text-gray-500 text-sm">
+                    Enter your email address to receive a 6-digit verification code.
+                  </p>
+                </div>
 
                 {error && (
-                  <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100">
-                    {error}
+                  <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 text-center flex flex-col items-center gap-3">
+                    <span>{error}</span>
+                    {showCreateAccount && (
+                      <button 
+                        onClick={() => {
+                          onClose();
+                          navigate('/auth?mode=register');
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors"
+                      >
+                        Create Account
+                      </button>
+                    )}
                   </div>
                 )}
 
                 <form onSubmit={handleEmailSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      EMAIL ADDRESS
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        EMAIL ADDRESS
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={isOwner}
+                          onChange={(e) => setIsOwner(e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-xs font-bold text-gray-500">I'm a Property Owner</span>
+                      </label>
+                    </div>
                     <input
                       type="email"
                       value={email}
@@ -158,9 +195,9 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                   <button
                     type="submit"
                     disabled={loading || !email}
-                    className="w-full bg-[#F59E0B] hover:bg-[#D97706] text-[#1A1A2E] font-extrabold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-widest uppercase shadow-lg shadow-amber-500/20"
+                    className="w-full bg-[#1A1A2E] hover:bg-[#2A2A4A] text-white font-extrabold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-widest uppercase shadow-lg shadow-[#1A1A2E]/20"
                   >
-                    {loading ? 'Sending...' : 'Send Reset Code'}
+                    {loading ? 'Sending...' : 'Send OTP'}
                   </button>
                 </form>
               </>
@@ -174,7 +211,7 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                 </p>
 
                 {error && (
-                  <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100">
+                  <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 text-center">
                     {error}
                   </div>
                 )}
@@ -184,28 +221,46 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
                       NEW PASSWORD
                     </label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-4 py-4 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
-                      placeholder="••••••••"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-4 pr-12 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
                       CONFIRM NEW PASSWORD
                     </label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-4 py-4 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
-                      placeholder="••••••••"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-4 pr-12 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2 text-sm">
@@ -231,10 +286,32 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                     disabled={loading || !allRulesMet}
                     className="w-full bg-[#F59E0B] hover:bg-[#D97706] text-[#1A1A2E] font-extrabold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-widest uppercase shadow-lg shadow-amber-500/20"
                   >
-                    {loading ? 'Updating...' : 'Update Password'}
+                    {loading ? 'Updating...' : 'Reset Password'}
                   </button>
                 </form>
               </>
+            )}
+
+            {step === 4 && (
+              <div className="text-center py-4">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Check className="w-10 h-10 text-green-600" strokeWidth={3} />
+                </div>
+                <h2 className="text-2xl font-extrabold text-[#1A1A2E] mb-4">Password Reset Successfully</h2>
+                <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                  Your password has been updated successfully. You can now log in with your new password.
+                </p>
+                <button
+                  onClick={() => {
+                    onClose();
+                    // Optionally, you could trigger a navigation to the login page here if needed,
+                    // but since this modal is usually opened from the login page, closing it is sufficient.
+                  }}
+                  className="w-full bg-[#1A1A2E] hover:bg-[#2A2A4A] text-white font-extrabold py-4 rounded-xl transition-colors text-sm tracking-widest uppercase shadow-lg shadow-[#1A1A2E]/20"
+                >
+                  Login with New Password
+                </button>
+              </div>
             )}
           </div>
         </motion.div>

@@ -46,18 +46,25 @@ export const sendOTPEmail = async (email: string, otp: string, isPasswordReset =
 };
 
 export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(60);
   const [attempts, setAttempts] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     if (isOpen) {
-      setOtp('');
+      setOtp(['', '', '', '', '', '']);
       setAttempts(0);
       setError('');
       setTimeLeft(60);
+      // Focus first input after a short delay to allow modal to render
+      setTimeout(() => {
+        if (inputRefs.current[0]) {
+          inputRefs.current[0].focus();
+        }
+      }, 100);
     }
   }, [isOpen]);
 
@@ -83,6 +90,8 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
       await sendOTPEmail(email, newOtp);
       setTimeLeft(60);
       setAttempts(0);
+      setOtp(['', '', '', '', '', '']);
+      if (inputRefs.current[0]) inputRefs.current[0].focus();
     } catch (err) {
       setError('Failed to send OTP. Please try again.');
     } finally {
@@ -90,11 +99,34 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
     }
   };
 
+  const handleChange = (index: number, value: string) => {
+    if (isNaN(Number(value))) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Move to next input if value is entered
+    if (value !== '' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      // Move to previous input on backspace if current is empty
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (attempts >= 3) return;
 
-    const result = verifyOTP(otp);
+    const enteredOtp = otp.join('');
+    if (enteredOtp.length !== 6) return;
+
+    const result = verifyOTP(enteredOtp);
     if (result === 'success') {
       onSuccess();
     } else if (result === 'expired') {
@@ -131,50 +163,59 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
           </button>
 
           <div className="p-8 sm:p-10">
-            <h2 className="text-2xl font-extrabold text-[#1A1A2E] mb-2">Verify your email</h2>
-            <p className="text-gray-500 text-sm mb-8">
-              We've sent a 6-digit code to <br />
-              <strong className="text-gray-800">{maskEmail(email)}</strong>
-            </p>
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-extrabold text-[#1A1A2E] mb-2">Verify your email</h2>
+              <p className="text-gray-500 text-sm">
+                We've sent a 6-digit code to <br />
+                <strong className="text-gray-800">{maskEmail(email)}</strong>
+              </p>
+            </div>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100">
+              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 text-center">
                 {error}
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  ENTER 6-DIGIT OTP
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-4 py-4 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800 text-center text-2xl tracking-[0.5em] font-bold"
-                  placeholder="••••••"
-                  required
-                />
+            <form onSubmit={handleSubmit} className="space-y-8">
+              <div className="flex justify-center gap-2 sm:gap-3">
+                {otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={el => inputRefs.current[index] = el}
+                    type="text"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    className="w-12 h-14 sm:w-14 sm:h-16 rounded-xl bg-[#F8F9FA] border border-gray-200 focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 outline-none transition-all text-[#1A1A2E] text-center text-2xl font-bold"
+                    required
+                  />
+                ))}
               </div>
 
               <button
                 type="submit"
-                disabled={otp.length !== 6 || attempts >= 3 || loading}
-                className="w-full bg-[#F59E0B] hover:bg-[#D97706] text-[#1A1A2E] font-extrabold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-widest uppercase shadow-lg shadow-amber-500/20"
+                disabled={otp.join('').length !== 6 || attempts >= 3 || loading}
+                className="w-full bg-[#1A1A2E] hover:bg-[#2A2A4A] text-white font-extrabold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-widest uppercase shadow-lg shadow-[#1A1A2E]/20"
               >
                 Verify Email
               </button>
             </form>
 
             <div className="mt-8 text-center">
+              <p className="text-sm text-gray-500 mb-2">Didn't receive the code?</p>
               <button
                 onClick={handleResend}
                 disabled={timeLeft > 0 || loading}
-                className="text-sm font-bold text-[#1A1A2E] hover:text-amber-500 transition-colors disabled:text-gray-400 disabled:cursor-not-allowed"
+                className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors disabled:text-gray-400 disabled:cursor-not-allowed"
               >
-                {timeLeft > 0 ? `Resend OTP in ${timeLeft}s` : 'Resend OTP'}
+                {timeLeft > 0 ? `Resend code in ${timeLeft}s` : 'Click to resend'}
               </button>
             </div>
           </div>

@@ -87,36 +87,9 @@ export default function Profile() {
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-[#F8F9FA] border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-xl font-bold text-[#1A1A2E] truncate">
-              {profile?.displayName || user.email?.split('@')[0]}
-            </h2>
-            {profile?.emailVerified ? (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">
-                <CheckCircle2 size={12} />
-                Verified
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">
-                  Not Verified
-                </div>
-                <button 
-                  onClick={async () => {
-                    if (user?.email) {
-                      const otp = generateOTP();
-                      storeOTP(otp, user.email);
-                      await sendOTPEmail(user.email, otp);
-                      setShowOTPModal(true);
-                    }
-                  }}
-                  className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
-                >
-                  Verify Now
-                </button>
-              </div>
-            )}
-          </div>
+          <h2 className="text-xl font-bold text-[#1A1A2E] truncate mb-1">
+            {profile?.displayName || user.email?.split('@')[0]}
+          </h2>
           <p className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider mt-1">
             Premium Member
           </p>
@@ -179,8 +152,8 @@ export default function Profile() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <OwnerDashboardTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setActiveTab={setActiveTab} />}
-              {activeTab === 'personal' && <PersonalInfoTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} />}
+              {activeTab === 'dashboard' && <OwnerDashboardTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setActiveTab={setActiveTab} setShowOTPModal={setShowOTPModal} />}
+              {activeTab === 'personal' && <PersonalInfoTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setShowOTPModal={setShowOTPModal} />}
               {activeTab === 'wallet' && <WalletTab />}
               {activeTab === 'history' && <StayHistoryTab />}
               {activeTab === 'payments' && <PaymentsTab />}
@@ -191,11 +164,30 @@ export default function Profile() {
           </AnimatePresence>
         </div>
       </main>
+
+      <OTPModal 
+        isOpen={showOTPModal} 
+        onClose={() => setShowOTPModal(false)} 
+        email={user?.email || ''} 
+        onSuccess={async () => {
+          if (user) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              emailVerified: true
+            });
+            setShowOTPModal(false);
+            showToast("Email verified successfully!", "success");
+            // Note: In a real app, you might want to trigger a context refresh here
+            // or use updateProfileData if available in this scope.
+            // For now, a reload or next fetch will show the updated status.
+            window.location.reload();
+          }
+        }} 
+      />
     </div>
   );
 }
 
-function PersonalInfoTab({ user, profile, isEditing, setIsEditing }: { user: any, profile: any, isEditing: boolean, setIsEditing: (v: boolean) => void }) {
+function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPModal }: { user: any, profile: any, isEditing: boolean, setIsEditing: (v: boolean) => void, setShowOTPModal: (v: boolean) => void }) {
   const { updateProfileData } = useAuth();
   const [formData, setFormData] = useState({
     displayName: profile?.displayName || '',
@@ -279,7 +271,34 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing }: { user: any
             </div>
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Email Address</p>
-              <p className="text-[#1A1A2E] font-medium">{user.email}</p>
+              <div className="flex items-center gap-3">
+                <p className="text-[#1A1A2E] font-medium">{user.email}</p>
+                {profile?.emailVerified ? (
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">
+                    <CheckCircle2 size={12} />
+                    Verified
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">
+                      Not Verified
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        if (user?.email) {
+                          const otp = generateOTP();
+                          storeOTP(otp, user.email);
+                          await sendOTPEmail(user.email, otp);
+                          setShowOTPModal(true);
+                        }
+                      }}
+                      className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
+                    >
+                      Verify Now
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>
@@ -808,8 +827,8 @@ function FavouritesTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {properties.map(property => (
-            <div key={property.id} className="border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group">
+          {properties.map((property, index) => (
+            <div key={`${property.id}-${index}`} className="border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group">
               <div className="relative h-48">
                 <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=100"} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                 <div className="absolute top-3 right-3 flex gap-2">
@@ -1550,8 +1569,8 @@ function PropertyApprovalsTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {properties.map(property => (
-            <div key={property.id} className="border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group">
+          {properties.map((property, index) => (
+            <div key={`${property.id}-${index}`} className="border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group">
               <div className="relative h-48">
                 <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=100"} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                 <div className="absolute top-3 right-3 flex gap-2">
@@ -1583,7 +1602,7 @@ function PropertyApprovalsTab() {
   );
 }
 
-function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTab }: { user: any, profile: any, isEditing: boolean, setIsEditing: (v: boolean) => void, setActiveTab: (tab: Tab) => void }) {
+function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTab, setShowOTPModal }: { user: any, profile: any, isEditing: boolean, setIsEditing: (v: boolean) => void, setActiveTab: (tab: Tab) => void, setShowOTPModal: (v: boolean) => void }) {
   const { updateProfileData } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1686,7 +1705,34 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
           </div>
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Email Address</p>
-            <p className="text-[#1A1A2E] font-medium">{user.email}</p>
+            <div className="flex items-center gap-3">
+              <p className="text-[#1A1A2E] font-medium">{user.email}</p>
+              {profile?.emailVerified ? (
+                <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">
+                  <CheckCircle2 size={12} />
+                  Verified
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">
+                    Not Verified
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (user?.email) {
+                        const otp = generateOTP();
+                        storeOTP(otp, user.email);
+                        await sendOTPEmail(user.email, otp);
+                        setShowOTPModal(true);
+                      }
+                    }}
+                    className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
+                  >
+                    Verify Now
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>

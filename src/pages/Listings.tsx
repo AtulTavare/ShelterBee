@@ -180,9 +180,9 @@ export default function Listings() {
             </AnimatePresence>
             {/* Navigation Indicators */}
             <div className="absolute bottom-10 left-16 flex gap-3 z-10">
-              {topProperties.map((_, idx) => (
+              {topProperties.map((prop, idx) => (
                 <button 
-                  key={idx}
+                  key={prop.id}
                   onClick={() => setCurrentSlide(idx)}
                   className="relative h-1.5 rounded-full overflow-hidden transition-all bg-white/30"
                   style={{ width: idx === currentSlide ? '48px' : '48px' }}
