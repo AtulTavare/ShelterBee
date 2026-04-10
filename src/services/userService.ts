@@ -1,32 +1,28 @@
-import { collection, getDocs, doc, updateDoc, query, where, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { UserProfile } from '../contexts/AuthContext';
 
 export const userService = {
   async getAllUsers() {
-    const usersRef = collection(db, 'users');
-    const snapshot = await getDocs(usersRef);
-    return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (error) throw error;
+    return (data || []).map((u: any) => ({ uid: u.id, email: u.email, displayName: u.display_name, photoURL: u.photo_url, role: u.role, createdAt: u.created_at, phoneNumber: u.mobile, location: u.locale })) as UserProfile[];
   },
 
   async getUsersByRole(role: 'visitor' | 'owner' | 'admin') {
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('role', '==', role));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+    const { data, error } = await supabase.from('profiles').select('*').eq('role', role);
+    if (error) throw error;
+    return (data || []).map((u: any) => ({ uid: u.id, email: u.email, displayName: u.display_name, photoURL: u.photo_url, role: u.role, createdAt: u.created_at, phoneNumber: u.mobile, location: u.locale })) as UserProfile[];
   },
 
   async updateUserStatus(uid: string, status: 'Active' | 'Inactive') {
-    const userRef = doc(db, 'users', uid);
-    await updateDoc(userRef, { status });
+    const { error } = await supabase.from('profiles').update({ status }).eq('id', uid);
+    if (error) throw error;
   },
 
   async getUserProfile(uid: string) {
-    const userRef = doc(db, 'users', uid);
-    const docSnap = await getDoc(userRef);
-    if (docSnap.exists()) {
-      return { uid: docSnap.id, ...docSnap.data() } as UserProfile;
-    }
-    return null;
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
+    if (error || !data) return null;
+    const u = data as any;
+    return { uid: u.id, email: u.email, displayName: u.display_name, photoURL: u.photo_url, role: u.role, createdAt: u.created_at, phoneNumber: u.mobile, location: u.locale } as UserProfile;
   }
 };

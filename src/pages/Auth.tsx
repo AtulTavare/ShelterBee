@@ -3,8 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Check, ShieldCheck, Home, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
@@ -195,14 +194,16 @@ export default function Auth() {
     try {
       const userCredential = await register(pendingUserCreds.email, pendingUserCreds.password);
       const user = userCredential.user;
-
       const finalUserData = {
-        ...pendingUserData,
+        id: user.uid,
         uid: user.uid,
-        emailVerified: isVerified
+        email: pendingUserCreds.email,
+        emailVerified: isVerified,
+        ...pendingUserData
       };
-
-      await setDoc(doc(db, 'users', user.uid), finalUserData);
+      // Insert into Supabase profiles instead of Firestore
+      const { data: inserted, error: insertErr } = await supabase.from('profiles').insert([finalUserData]).select('*').single();
+      if (insertErr) throw insertErr;
 
       setShowOTPModal(false);
       
@@ -240,9 +241,9 @@ export default function Auth() {
       
       let role = userType;
       try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists() && userDoc.data().role) {
-          role = userDoc.data().role;
+        const { data: prof, error: profErr } = await (import('../supabase').then(m => m.supabase.from('profiles').select('role').eq('id', user.uid).single()));
+        if (prof && (prof as any).role) {
+          role = (prof as any).role;
         }
       } catch (err) {
         console.error("Error fetching user role:", err);

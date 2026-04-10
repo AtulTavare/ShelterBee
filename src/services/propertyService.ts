@@ -1,5 +1,4 @@
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 
 export interface Property {
   id?: string;
@@ -26,80 +25,60 @@ export interface Property {
 
 export const propertyService = {
   async addProperty(propertyData: Omit<Property, 'id' | 'createdAt' | 'status'>) {
-    const propertiesRef = collection(db, 'properties');
-    const docRef = await addDoc(propertiesRef, {
-      ...propertyData,
+    const payload = {
+      owner_id: propertyData.ownerId,
+      title: propertyData.title,
+      type: propertyData.type,
+      area: propertyData.area,
+      address: propertyData.address,
+      price_per_day: propertyData.pricePerDay,
+      photos: propertyData.photos,
+      amenities: propertyData.amenities,
+      description: propertyData.description,
       status: 'Pending',
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+      created_at: new Date(),
+    };
+    const { data, error } = await supabase.from('properties').insert([payload]).select('id').single();
+    if (error) throw error;
+    return data?.id as string;
   },
 
   async getApprovedProperties() {
-    try {
-      const q = query(collection(db, 'properties'), where('status', '==', 'Approved'));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        let createdAt = null;
-        if (data.createdAt) {
-          if (typeof data.createdAt.toDate === 'function') {
-            createdAt = data.createdAt.toDate();
-          } else if (typeof data.createdAt === 'string' || typeof data.createdAt === 'number') {
-            createdAt = new Date(data.createdAt);
-          }
-        }
-        return {
-          id: doc.id,
-          ...data,
-          createdAt,
-        };
-      }) as Property[];
-    } catch (error) {
-      console.error("Error fetching approved properties:", error);
-      throw error;
-    }
+    const { data, error } = await supabase.from('properties').select('*').eq('status', 'Approved');
+    if (error) throw error;
+    return (data || []).map((p: any) => ({ id: p.id, ...p, createdAt: p.created_at })) as Property[];
   },
 
   async getAllProperties() {
-    const propertiesRef = collection(db, 'properties');
-    const snapshot = await getDocs(propertiesRef);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+    const { data, error } = await supabase.from('properties').select('*');
+    if (error) throw error;
+    return (data || []).map((p: any) => ({ id: p.id, ...p, createdAt: p.created_at })) as Property[];
   },
 
   async getPropertiesByOwner(ownerId: string) {
-    const propertiesRef = collection(db, 'properties');
-    const q = query(propertiesRef, where('ownerId', '==', ownerId));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+    const { data, error } = await supabase.from('properties').select('*').eq('owner_id', ownerId);
+    if (error) throw error;
+    return (data || []).map((p: any) => ({ id: p.id, ...p, createdAt: p.created_at })) as Property[];
   },
 
   async getPropertyById(id: string) {
-    try {
-      const docRef = doc(db, 'properties', id);
-      const snapshot = await getDoc(docRef);
-      if (snapshot.exists()) {
-        return { id: snapshot.id, ...snapshot.data() } as Property;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching property by id:", error);
-      return null;
-    }
+    const { data, error } = await supabase.from('properties').select('*').eq('id', id).single();
+    if (error || !data) return null;
+    const p = data as any;
+    return { id: p.id, ownerId: p.owner_id, ...p, createdAt: p.created_at } as Property;
   },
 
   async updatePropertyStatus(id: string, status: 'Pending' | 'Approved' | 'Rejected') {
-    const docRef = doc(db, 'properties', id);
-    await updateDoc(docRef, { status });
+    await supabase.from('properties').update({ status }).eq('id', id);
   },
 
   async updateProperty(id: string, data: Partial<Property>) {
-    const docRef = doc(db, 'properties', id);
-    await updateDoc(docRef, data);
+    const updatePayload: any = { ...data };
+    delete updatePayload.id;
+    await supabase.from('properties').update(updatePayload).eq('id', id);
   },
 
   async deleteProperty(id: string) {
-    const docRef = doc(db, 'properties', id);
-    await deleteDoc(docRef);
+    await supabase.from('properties').delete().eq('id', id);
   }
 };
