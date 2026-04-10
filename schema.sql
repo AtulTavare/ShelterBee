@@ -77,6 +77,15 @@ CREATE TABLE wallets (
   last_updated_at TIMESTAMPTZ
 );
 
+CREATE TABLE support_inquiries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  full_name TEXT,
+  email TEXT,
+  subject TEXT,
+  message TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE wallet_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id),
