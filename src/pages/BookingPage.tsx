@@ -8,6 +8,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { propertyService } from '../services/propertyService';
 import { bookingService, GuestDetail } from '../services/bookingService';
 import { walletService } from '../services/walletService';
+import { emailService } from '../services/emailService';
+import { emailTemplates } from '../services/emailTemplates';
+import { userService } from '../services/userService';
 import { showToast } from '../utils/toast';
 import { 
   ChevronLeft, 
@@ -160,6 +163,67 @@ export default function BookingPage() {
 
       // Process payment to owner's wallet
       await walletService.processBookingPayment(property.ownerId, receivedAmount, bookingId);
+
+      // Send Emails
+      try {
+        // 1. Email to Guest
+        if (user.email) {
+          const guestTemplate = emailTemplates.getBookingConfirmationGuest(
+            guests[0].name,
+            property.title,
+            dateRange.from!,
+            dateRange.to!,
+            totalGuests,
+            totalAmount,
+            property.address || property.area
+          );
+          await emailService.sendEmail({
+            to: user.email,
+            subject: guestTemplate.subject,
+            html: guestTemplate.html
+          });
+        }
+
+        // 2. Email to Owner
+        const ownerProfile = await userService.getUserProfile(property.ownerId);
+        if (ownerProfile?.email) {
+          const ownerTemplate = emailTemplates.getBookingAlertOwner(
+            property.title,
+            guests[0].name,
+            guests[0].contactNo || 'Not provided',
+            dateRange.from!,
+            dateRange.to!,
+            nights,
+            totalGuests,
+            bookingId,
+            totalAmount,
+            platformCommission,
+            receivedAmount
+          );
+          await emailService.sendEmail({
+            to: ownerProfile.email,
+            subject: ownerTemplate.subject,
+            html: ownerTemplate.html
+          });
+        }
+
+        // 3. Payment Notification to Guest
+        if (user.email) {
+          const paymentTemplate = emailTemplates.getPaymentNotification(
+            guests[0].name,
+            totalAmount,
+            'Property Booking',
+            bookingId
+          );
+          await emailService.sendEmail({
+            to: user.email,
+            subject: paymentTemplate.subject,
+            html: paymentTemplate.html
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send booking emails:", emailError);
+      }
 
       showToast("Booking confirmed successfully!", "success");
       navigate('/profile?tab=stay-history');

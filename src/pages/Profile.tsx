@@ -9,6 +9,7 @@ import { propertyService } from '../services/propertyService';
 import { emailService } from '../services/emailService';
 import { userService } from '../services/userService';
 import { reviewService } from '../services/reviewService';
+import { emailTemplates } from '../services/emailTemplates';
 import { format } from 'date-fns';
 import { 
   User, 
@@ -522,6 +523,26 @@ function StayHistoryTab() {
         await bookingService.updateBookingStatus(booking.id!, 'cancelled');
         const amount = booking.totalAmount || (booking as any).estimatedCost || 0;
         await walletService.processRefund(booking.visitorId, booking.ownerId, amount, amount * 0.75, booking.id!);
+        
+        // Send Refund Email
+        try {
+          if (user?.email) {
+            const template = emailTemplates.getRefundNotification(
+              profile?.displayName || 'User',
+              amount,
+              booking.id!,
+              'Booking Cancellation (within 24 hours)'
+            );
+            await emailService.sendEmail({
+              to: user.email,
+              subject: template.subject,
+              html: template.html
+            });
+          }
+        } catch (e) {
+          console.error("Failed to send refund email:", e);
+        }
+
         showToast("Booking cancelled successfully", "success");
       } catch (error) {
         console.error("Error cancelling booking:", error);
@@ -1988,6 +2009,31 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
         ratings,
         date: format(new Date(), 'MMM dd, yyyy')
       });
+
+      // Send Email to Owner
+      try {
+        const property = await propertyService.getPropertyById(booking.propertyId);
+        if (property) {
+          const ownerProfile = await userService.getUserProfile(property.ownerId);
+          if (ownerProfile?.email) {
+            const template = emailTemplates.getReviewNotification(
+              ownerProfile.displayName || 'Owner',
+              property.title,
+              profile?.displayName || 'A guest',
+              rating,
+              text
+            );
+            await emailService.sendEmail({
+              to: ownerProfile.email,
+              subject: template.subject,
+              html: template.html
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send review email:", e);
+      }
+
       showToast("Review submitted successfully!", "success");
       onClose();
     } catch (error) {

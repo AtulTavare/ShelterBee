@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, setDoc, updateDoc, addDoc, query, where, getDocs, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { emailService } from './emailService';
+import { emailTemplates } from './emailTemplates';
 import { userService } from './userService';
 
 export interface Wallet {
@@ -258,11 +259,15 @@ export const walletService = {
     try {
       const user = await userService.getUserProfile(userId);
       if (user && user.email) {
+        const template = emailTemplates.getPaymentNotification(
+          user.displayName || 'User',
+          amount,
+          'Withdrawal Request'
+        );
         await emailService.sendEmail({
           to: user.email,
           subject: `Withdrawal Request Received: ₹${amount}`,
-          text: `Hello ${user.displayName || 'User'},\n\nWe have received your withdrawal request for ₹${amount} to account ending in ${bankAccount.accountNumber.slice(-4)}.\n\nIt will be processed shortly.\n\nThank you,\nAdmin Team`,
-          html: `<p>Hello ${user.displayName || 'User'},</p><p>We have received your withdrawal request for <strong>₹${amount}</strong> to account ending in ${bankAccount.accountNumber.slice(-4)}.</p><p>It will be processed shortly.</p><p>Thank you,<br/>Admin Team</p>`
+          html: template.html
         });
       }
     } catch (error) {
@@ -363,16 +368,16 @@ export const walletService = {
         const user = await userService.getUserProfile(reqData.userId);
         if (user && user.email) {
           const statusText = action === 'completed' ? 'Processed' : 'Rejected';
-          let message = `Your withdrawal request for ₹${reqData.amount} has been ${statusText.toLowerCase()}.`;
-          if (action === 'rejected' && rejectionReason) {
-            message += `\nReason: ${rejectionReason}`;
-          }
+          const template = emailTemplates.getPaymentNotification(
+            user.displayName || 'User',
+            reqData.amount,
+            `Withdrawal ${statusText}${action === 'rejected' ? ` (Reason: ${rejectionReason})` : ''}`
+          );
           
           await emailService.sendEmail({
             to: user.email,
             subject: `Withdrawal Request ${statusText}: ₹${reqData.amount}`,
-            text: `Hello ${user.displayName || 'User'},\n\n${message}\n\nThank you,\nAdmin Team`,
-            html: `<p>Hello ${user.displayName || 'User'},</p><p>${message.replace('\n', '<br/>')}</p><p>Thank you,<br/>Admin Team</p>`
+            html: template.html
           });
         }
       }

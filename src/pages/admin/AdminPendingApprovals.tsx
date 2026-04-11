@@ -2,6 +2,8 @@ import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
+import { emailService } from '../../services/emailService';
+import { emailTemplates } from '../../services/emailTemplates';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -49,11 +51,16 @@ export const AdminPendingApprovals = () => {
         try {
           const ownerProfile = await userService.getUserProfile(property.ownerId);
           if (ownerProfile?.email) {
-            (window as any).sendEmail(
-              ownerProfile.email,
-              "Your Property is Now Live — Shelterbee",
-              `Great news! Your property "${property.title}" has been approved and is now live on Shelterbee.`
+            const template = emailTemplates.getPropertyApproval(
+              ownerProfile.displayName || 'Owner',
+              property.title,
+              property.address || property.area
             );
+            await emailService.sendEmail({
+              to: ownerProfile.email,
+              subject: template.subject,
+              html: template.html
+            });
           }
         } catch (e) {
           console.error("Failed to send email:", e);
@@ -76,11 +83,16 @@ export const AdminPendingApprovals = () => {
       try {
         const ownerProfile = await userService.getUserProfile(selectedProperty.ownerId);
         if (ownerProfile?.email) {
-          (window as any).sendEmail(
-            ownerProfile.email,
-            "Property Listing Update — Shelterbee",
-            `Your property listing "${selectedProperty.title}" requires updates.\nReason: ${finalReason}`
+          const template = emailTemplates.getPropertyRejection(
+            ownerProfile.displayName || 'Owner',
+            selectedProperty.title,
+            finalReason
           );
+          await emailService.sendEmail({
+            to: ownerProfile.email,
+            subject: template.subject,
+            html: template.html
+          });
         }
       } catch (e) {
         console.error("Failed to send email:", e);
