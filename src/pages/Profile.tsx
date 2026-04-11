@@ -8,7 +8,7 @@ import { bookingService, Booking } from '../services/bookingService';
 import { propertyService } from '../services/propertyService';
 import { emailService } from '../services/emailService';
 import { userService } from '../services/userService';
-import { reviewService } from '../services/reviewService';
+import { reviewService, Review } from '../services/reviewService';
 import { emailTemplates } from '../services/emailTemplates';
 import { format } from 'date-fns';
 import { 
@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
@@ -462,6 +462,7 @@ import { walletService } from '../services/walletService';
 function StayHistoryTab() {
   const { user, profile } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { property?: any })[]>([]);
+  const [userReviews, setUserReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -504,7 +505,17 @@ function StayHistoryTab() {
       }
     });
 
-    return () => unsubscribe();
+    // Fetch user reviews
+    const reviewsQ = query(collection(db, 'reviews'), where('visitorId', '==', user.uid));
+    const unsubscribeReviews = onSnapshot(reviewsQ, (snapshot) => {
+      const reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUserReviews(reviews);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeReviews();
+    };
   }, [user]);
 
   const handleCancelBooking = async (booking: Booking) => {
@@ -578,71 +589,96 @@ function StayHistoryTab() {
             const isCompleted = booking.status === 'completed' || (booking.checkOut && booking.checkOut < new Date());
 
             return (
-              <div key={booking.id} className="flex flex-col sm:flex-row gap-6 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow">
-                <img 
-                  src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
-                  alt="Property" 
-                  className="w-full sm:w-48 h-32 object-cover rounded-xl" 
-                  referrerPolicy="no-referrer"
-                />
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-lg text-[#1A1A2E]">{booking.property?.title || 'Unknown Property'}</h3>
-                      <span className={`text-xs font-bold px-2 py-1 rounded-md ${
-                        booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
-                        booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
-                        booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
-                        'text-gray-600 bg-gray-50'
-                      }`}>
-                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                      </span>
+              <div key={booking.id} className="flex flex-col gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow bg-white">
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <img 
+                    src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
+                    alt="Property" 
+                    className="w-full sm:w-48 h-32 object-cover rounded-xl" 
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-lg text-[#1A1A2E]">{booking.property?.title || 'Unknown Property'}</h3>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-md ${
+                          booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
+                          booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
+                          booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
+                          'text-gray-600 bg-gray-50'
+                        }`}>
+                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 flex items-center gap-1 mb-2">
+                        <MapPin className="w-4 h-4" /> {booking.property?.area || 'Unknown Location'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Stayed: {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'TBD'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'TBD'} ({booking.nights} nights)
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-500 flex items-center gap-1 mb-2">
-                      <MapPin className="w-4 h-4" /> {booking.property?.area || 'Unknown Location'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Stayed: {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'TBD'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'TBD'} ({booking.nights} nights)
-                    </p>
-                  </div>
-                  <div className="flex justify-between items-center mt-4">
-                    <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || booking.estimatedCost}</span>
-                    <div className="flex gap-3">
-                      {canCancel && (
+                    <div className="flex justify-between items-center mt-4">
+                      <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</span>
+                      <div className="flex gap-3">
+                        {canCancel && (
+                          <button 
+                            onClick={() => handleCancelBooking(booking)}
+                            disabled={cancellingId === booking.id}
+                            className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
+                          >
+                            {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
+                          </button>
+                        )}
+                        {!canCancel && booking.status === 'confirmed' && (
+                          <button 
+                            onClick={() => showToast("Cancellation request window will be available soon.", "success")}
+                            className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 transition-colors"
+                          >
+                            Apply for Cancellation
+                          </button>
+                        )}
+                        
+                        {isCompleted && !userReviews.find(r => r.propertyId === booking.propertyId) && (
+                          <button 
+                            onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
+                            className="flex items-center gap-1 px-4 py-2 rounded-xl bg-amber-50 text-[#F59E0B] hover:bg-amber-100 transition-colors border border-amber-100"
+                          >
+                            <div className="flex">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star key={s} className={`w-4 h-4 ${s <= 3 ? 'fill-current' : 'text-gray-300'}`} />
+                              ))}
+                            </div>
+                          </button>
+                        )}
+
                         <button 
-                          onClick={() => handleCancelBooking(booking)}
-                          disabled={cancellingId === booking.id}
-                          className="text-sm font-bold text-red-500 hover:text-red-600 disabled:opacity-50"
+                          onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
+                          className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
                         >
-                          {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
+                          Report
                         </button>
-                      )}
-                      {!canCancel && booking.status === 'confirmed' && (
-                        <button 
-                          onClick={() => showToast("Cancellation request window will be available soon.", "success")}
-                          className="text-sm font-bold text-orange-500 hover:text-orange-600"
-                        >
-                          Apply for Cancellation & Refund
-                        </button>
-                      )}
-                      <button className="text-sm font-bold text-[#F59E0B] hover:text-amber-600">View Receipt</button>
-                      {isCompleted && (
-                        <button 
-                          onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
-                          className="text-sm font-bold text-blue-500 hover:text-blue-600"
-                        >
-                          Review
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
-                        className="text-sm font-bold text-gray-500 hover:text-gray-600"
-                      >
-                        Report
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </div>
+                
+                {/* Show user's review if it exists */}
+                {userReviews.find(r => r.propertyId === booking.propertyId) && (
+                  <div className="mt-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star key={s} className={`w-3.5 h-3.5 ${s <= userReviews.find(r => r.propertyId === booking.propertyId).rating ? 'text-amber-500 fill-current' : 'text-gray-300'}`} />
+                          ))}
+                        </div>
+                        <span className="text-xs font-bold text-gray-400">Your Review</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400">{userReviews.find(r => r.propertyId === booking.propertyId).date}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 italic">"{userReviews.find(r => r.propertyId === booking.propertyId).text}"</p>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -836,20 +872,38 @@ function FavouritesTab() {
     }
   };
 
-  const viewReviews = async (propertyId: string, title: string) => {
+  const viewReviews = (propertyId: string, title: string) => {
     setSelectedPropertyTitle(title);
     setShowReviewsModal(true);
     setLoadingReviews(true);
-    try {
-      // Import reviewService at the top if not already done
-      const reviews = await reviewService.getReviewsByProperty(propertyId);
+    
+    // Realtime reviews for owner
+    const reviewsQ = query(
+      collection(db, 'reviews'),
+      where('propertyId', '==', propertyId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(reviewsQ, (snapshot) => {
+      const reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSelectedPropertyReviews(reviews);
-    } catch (error) {
-      console.error("Error fetching reviews:", error);
-    } finally {
       setLoadingReviews(false);
-    }
+    }, (error) => {
+      console.error("Error fetching reviews realtime:", error);
+      setLoadingReviews(false);
+    });
+
+    // Store unsubscribe to cleanup when modal closes
+    (window as any)._reviewsUnsubscribe = unsubscribe;
   };
+
+  // Cleanup unsubscribe when modal closes
+  useEffect(() => {
+    if (!showReviewsModal && (window as any)._reviewsUnsubscribe) {
+      (window as any)._reviewsUnsubscribe();
+      (window as any)._reviewsUnsubscribe = null;
+    }
+  }, [showReviewsModal]);
 
   const submitReply = async (reviewId: string) => {
     if (!replyText[reviewId]) return;

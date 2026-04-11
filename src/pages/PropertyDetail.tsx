@@ -6,8 +6,9 @@ import { getAreaInfo } from '../services/geminiService';
 import { propertyService } from '../services/propertyService';
 import { useAuth } from '../contexts/AuthContext';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import { reviewService, Review } from '../services/reviewService';
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -18,6 +19,14 @@ export default function PropertyDetail() {
   const [showOTPModal, setShowOTPModal] = useState(false);
   
   const [property, setProperty] = useState<any>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [featureRatings, setFeatureRatings] = useState({
+    cleanliness: 0,
+    safety: 0,
+    ownerBehavior: 0,
+    comfort: 0
+  });
   const [areaInfo, setAreaInfo] = useState<{text: string, grounding: any[]} | null>(null);
   const [loadingAreaInfo, setLoadingAreaInfo] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -74,6 +83,40 @@ export default function PropertyDetail() {
     };
 
     fetchProperty();
+
+    // Fetch reviews in realtime
+    const reviewsQ = query(
+      collection(db, 'reviews'),
+      where('propertyId', '==', id),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribeReviews = onSnapshot(reviewsQ, (snapshot) => {
+      const fetchedReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+      setReviews(fetchedReviews);
+
+      if (fetchedReviews.length > 0) {
+        const total = fetchedReviews.reduce((acc, rev) => acc + rev.rating, 0);
+        setAverageRating(Number((total / fetchedReviews.length).toFixed(1)));
+
+        const features = fetchedReviews.reduce((acc, rev) => {
+          acc.cleanliness += rev.ratings.cleanliness;
+          acc.safety += rev.ratings.safety;
+          acc.ownerBehavior += rev.ratings.ownerBehavior;
+          acc.comfort += rev.ratings.comfort;
+          return acc;
+        }, { cleanliness: 0, safety: 0, ownerBehavior: 0, comfort: 0 });
+
+        setFeatureRatings({
+          cleanliness: Number((features.cleanliness / fetchedReviews.length).toFixed(1)),
+          safety: Number((features.safety / fetchedReviews.length).toFixed(1)),
+          ownerBehavior: Number((features.ownerBehavior / fetchedReviews.length).toFixed(1)),
+          comfort: Number((features.comfort / fetchedReviews.length).toFixed(1))
+        });
+      }
+    });
+
+    return () => unsubscribeReviews();
   }, [id, navigate, loading]);
 
   if (!property) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -408,10 +451,10 @@ export default function PropertyDetail() {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
                       <span className="material-symbols-outlined text-[#F59E0B] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                      <span className="text-4xl font-black text-[#1E1B4B]">4.8</span>
+                      <span className="text-4xl font-black text-[#1E1B4B]">{averageRating || '0.0'}</span>
                     </div>
                     <div className="text-[#64748B] font-medium">
-                      Based on 24 verified reviews
+                      Based on {reviews.length} verified reviews
                     </div>
                   </div>
                 </div>
@@ -423,16 +466,10 @@ export default function PropertyDetail() {
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
                       {[
-                        { label: "Cleanliness", score: 4.9 },
-                        { label: "Accuracy", score: 4.8 },
-                        { label: "Communication", score: 4.9 },
-                        { label: "Location", score: 4.7 },
-                        { label: "Check-in", score: 4.8 },
-                        { label: "Value", score: 4.6 },
-                        { label: "WiFi Speed", score: 4.5 },
-                        { label: "Owner Behavior", score: 4.9 },
-                        { label: "Parking", score: 4.4 },
-                        { label: "Room Environment", score: 4.8 },
+                        { label: "Cleanliness", score: featureRatings.cleanliness },
+                        { label: "Safety & Security", score: featureRatings.safety },
+                        { label: "Owner Behavior", score: featureRatings.ownerBehavior },
+                        { label: "Comfort", score: featureRatings.comfort },
                       ].map((feature) => (
                         <div key={feature.label} className="flex items-center justify-between">
                           <span className="text-sm font-medium text-[#64748B]">{feature.label}</span>
@@ -443,7 +480,7 @@ export default function PropertyDetail() {
                                 style={{ width: `${(feature.score / 5) * 100}%` }}
                               ></div>
                             </div>
-                            <span className="text-sm font-bold text-[#1E1B4B] w-6 text-right">{feature.score}</span>
+                            <span className="text-sm font-bold text-[#1E1B4B] w-6 text-right">{feature.score || '0.0'}</span>
                           </div>
                         </div>
                       ))}
@@ -452,51 +489,49 @@ export default function PropertyDetail() {
 
                   {/* Reviews List */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {[
-                      {
-                        name: "Rahul S.",
-                        date: "October 2023",
-                        text: "Absolutely loved the stay! The owner was incredibly helpful and the room environment was exactly as shown in the pictures. Highly recommend.",
-                        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rahul&backgroundColor=b6e3f4"
-                      },
-                      {
-                        name: "Priya M.",
-                        date: "September 2023",
-                        text: "Great location and very clean. The WiFi was fast enough for my remote work. Parking was a bit tight but manageable.",
-                        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Priya&backgroundColor=c0aede"
-                      },
-                      {
-                        name: "Amit K.",
-                        date: "August 2023",
-                        text: "The property is well-maintained. The host was very responsive and made sure we had everything we needed. Will definitely book again.",
-                        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Amit&backgroundColor=ffdfbf"
-                      },
-                      {
-                        name: "Sneha R.",
-                        date: "July 2023",
-                        text: "Beautiful place with great amenities. The neighborhood is quiet and peaceful. The check-in process was smooth and hassle-free.",
-                        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sneha&backgroundColor=d1d4f9"
-                      }
-                    ].map((review, i) => (
-                      <div key={`${review.name}-${i}`} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                        <div className="flex items-center gap-4">
-                          <img src={review.avatar} alt={review.name} className="w-12 h-12 rounded-full bg-slate-100" referrerPolicy="no-referrer" />
-                          <div>
-                            <h4 className="font-bold text-[#1E1B4B]">{review.name}</h4>
-                            <p className="text-xs text-[#64748B]">{review.date}</p>
-                          </div>
-                        </div>
-                        <p className="text-sm text-[#64748B] leading-relaxed">{review.text}</p>
+                    {reviews.length === 0 ? (
+                      <div className="col-span-full py-12 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                        <p className="text-[#64748B]">No reviews yet for this property.</p>
                       </div>
-                    ))}
+                    ) : (
+                      reviews.map((review) => (
+                        <div key={review.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                          <div className="flex items-center gap-4">
+                            <img 
+                              src={review.visitorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.visitorName}&backgroundColor=b6e3f4`} 
+                              alt={review.visitorName} 
+                              className="w-12 h-12 rounded-full bg-slate-100" 
+                              referrerPolicy="no-referrer" 
+                            />
+                            <div>
+                              <h4 className="font-bold text-[#1E1B4B]">{review.visitorName}</h4>
+                              <p className="text-xs text-[#64748B]">{review.date}</p>
+                            </div>
+                            <div className="ml-auto flex items-center gap-1">
+                              <span className="text-sm font-bold text-[#1E1B4B]">{review.rating}</span>
+                              <span className="material-symbols-outlined text-[#F59E0B] text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-[#64748B] leading-relaxed">{review.text}</p>
+                          {review.reply && (
+                            <div className="mt-4 p-4 bg-slate-50 rounded-xl border-l-4 border-[#1E1B4B]">
+                              <p className="text-xs font-bold text-[#1E1B4B] mb-1">Owner's Response:</p>
+                              <p className="text-xs text-[#64748B] italic">{review.reply}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
                 
-                <div className="mt-10 text-center">
-                  <button className="px-6 py-3 rounded-xl border-2 border-[#1E1B4B] text-[#1E1B4B] font-bold hover:bg-[#1E1B4B] hover:text-white transition-colors">
-                    Show all 24 reviews
-                  </button>
-                </div>
+                {reviews.length > 4 && (
+                  <div className="mt-10 text-center">
+                    <button className="px-6 py-3 rounded-xl border-2 border-[#1E1B4B] text-[#1E1B4B] font-bold hover:bg-[#1E1B4B] hover:text-white transition-colors">
+                      Show all {reviews.length} reviews
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           </div>

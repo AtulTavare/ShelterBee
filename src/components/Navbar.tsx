@@ -46,6 +46,7 @@ export default function Navbar() {
             <Link to="/" className={`font-bold transition-colors ${location.pathname === '/' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Home</Link>
             <Link to="/listings" className={`font-bold transition-colors ${location.pathname === '/listings' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Stays</Link>
             <Link to="/support" className={`font-bold transition-colors ${location.pathname === '/support' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Support</Link>
+            <Link to="/about-us" className={`font-bold transition-colors ${location.pathname === '/about-us' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>About Us</Link>
             {(profile?.role === 'admin' || user?.email === 'tavareatul7192@gmail.com') && (
               <Link to="/admin-secret-dashboard" className={`font-bold transition-colors ${location.pathname.startsWith('/admin-secret-dashboard') ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Admin</Link>
             )}

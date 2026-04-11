@@ -27,31 +27,35 @@ interface Footer7Props {
 
 const defaultSections = [
   {
-    title: "Support",
+    title: "Company",
     links: [
-      { name: "Help Center", href: "/help-center" },
-      { name: "Help Articles", href: "/help-center" },
-      { name: "Terms & Conditions", href: "/terms" },
-      { name: "Payments & Refund Policies", href: "/refund-policy" },
-      { name: "Cancellation Policies", href: "/refund-policy" },
-      { name: "Report a Concern", href: "/report-concern" },
+      { name: "About Us", href: "/about-us" },
+      { name: "Privacy Policy", href: "/privacy" },
+      { name: "Company Details", href: "/company-details" },
     ],
   },
   {
-    title: "Hosting",
+    title: "Terms & Policies",
     links: [
-      { name: "Become a Host", href: "/list-property" },
-      { name: "Hosting Rules", href: "/hosting-rules" },
-      { name: "Learn to Host", href: "/learn-to-host" },
       { name: "Terms & Conditions", href: "/terms" },
-      { name: "Payment Policies", href: "/payment-policy" },
+      { name: "Hosting terms & rules", href: "/hosting-rules" },
+      { name: "Payments & Refund Policies", href: "/payment-policy" },
+      { name: "Cancellation Policies", href: "/refund-policy" },
+    ],
+  },
+  {
+    title: "Support",
+    links: [
+      { name: "Help Center", href: "/help-center" },
+      { name: "Help Articles", href: "/help-articles" },
+      { name: "Report a Concern", href: "/report-concern" },
     ],
   },
 ];
 
 const defaultSocialLinks = [
-  { icon: <Instagram className="w-5 h-5" />, href: "#", label: "Instagram" },
-  { icon: <Facebook className="w-5 h-5" />, href: "#", label: "Facebook" },
+  { icon: <Instagram className="w-5 h-5" />, href: "https://www.instagram.com/shelterbee_4_you", label: "Instagram" },
+  { icon: <Facebook className="w-5 h-5" />, href: "https://www.facebook.com/share/1BQoUFoHto/", label: "Facebook" },
   { icon: <Twitter className="w-5 h-5" />, href: "#", label: "Twitter" },
   { icon: <Linkedin className="w-5 h-5" />, href: "#", label: "LinkedIn" },
 ];
