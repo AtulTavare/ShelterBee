@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import { supabase } from '../supabase';
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export interface Booking {
   id?: string;
@@ -21,48 +21,76 @@ export interface Booking {
 
 export const bookingService = {
   async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt'>) {
-    const payload: any = {
-      property_id: bookingData.propertyId,
-      visitor_id: bookingData.visitorId,
-      owner_id: bookingData.ownerId,
-      visitor_name: bookingData.visitorName,
-      visitor_contact: bookingData.visitorContact,
-      is_whatsapp: bookingData.isWhatsapp,
-      whatsapp_number: bookingData.whatsappNumber || null,
-      check_in: bookingData.checkIn,
-      check_out: bookingData.checkOut,
-      nights: bookingData.nights,
-      estimated_cost: bookingData.estimatedCost,
-      platform_fee: Math.round(bookingData.estimatedCost * 0.25),
-      status: bookingData.status,
-      created_at: new Date(),
-      updated_at: new Date()
-    };
-    const { data, error } = await supabase.from('bookings').insert([payload]).select('id').single();
-    if (error) throw error;
-    return (data && data.id) as string;
+    try {
+      const docRef = await addDoc(collection(db, 'bookings'), {
+        ...bookingData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      throw error;
+    }
   },
 
   async getBookingsByVisitor(visitorId: string) {
-    const { data, error } = await supabase.from('bookings').select('*').eq('visitor_id', visitorId);
-    if (error) throw error;
-    return (data || []) as Booking[];
+    try {
+      const q = query(collection(db, 'bookings'), where('visitorId', '==', visitorId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        checkIn: doc.data().checkIn?.toDate() || null,
+        checkOut: doc.data().checkOut?.toDate() || null,
+      })) as Booking[];
+    } catch (error) {
+      console.error("Error fetching visitor bookings:", error);
+      throw error;
+    }
   },
 
   async getBookingsByOwner(ownerId: string) {
-    const { data, error } = await supabase.from('bookings').select('*').eq('owner_id', ownerId);
-    if (error) throw error;
-    return (data || []) as Booking[];
+    try {
+      const q = query(collection(db, 'bookings'), where('ownerId', '==', ownerId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        checkIn: doc.data().checkIn?.toDate() || null,
+        checkOut: doc.data().checkOut?.toDate() || null,
+      })) as Booking[];
+    } catch (error) {
+      console.error("Error fetching owner bookings:", error);
+      throw error;
+    }
   },
 
   async getAllBookings() {
-    const { data, error } = await supabase.from('bookings').select('*');
-    if (error) throw error;
-    return (data || []) as Booking[];
+    try {
+      const querySnapshot = await getDocs(collection(db, 'bookings'));
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        checkIn: doc.data().checkIn?.toDate() || null,
+        checkOut: doc.data().checkOut?.toDate() || null,
+      })) as Booking[];
+    } catch (error) {
+      console.error("Error fetching all bookings:", error);
+      throw error;
+    }
   },
 
   async updateBookingStatus(bookingId: string, status: Booking['status']) {
-    const { error } = await supabase.from('bookings').update({ status, updated_at: new Date() }).eq('id', bookingId);
-    if (error) throw error;
+    try {
+      const bookingRef = doc(db, 'bookings', bookingId);
+      await updateDoc(bookingRef, {
+        status,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error updating booking status:", error);
+      throw error;
+    }
   }
 };

@@ -3,7 +3,8 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Check, ShieldCheck, Home, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../supabase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
@@ -190,20 +191,22 @@ export default function Auth() {
   };
 
   const completeRegistration = async (isVerified: boolean) => {
+    if (!isVerified) {
+      setShowOTPModal(false);
+      return;
+    }
     setLoading(true);
     try {
       const userCredential = await register(pendingUserCreds.email, pendingUserCreds.password);
       const user = userCredential.user;
+
       const finalUserData = {
-        id: user.uid,
+        ...pendingUserData,
         uid: user.uid,
-        email: pendingUserCreds.email,
-        emailVerified: isVerified,
-        ...pendingUserData
+        emailVerified: true
       };
-      // Insert into Supabase profiles instead of Firestore
-      const { data: inserted, error: insertErr } = await supabase.from('profiles').insert([finalUserData]).select('*').single();
-      if (insertErr) throw insertErr;
+
+      await setDoc(doc(db, 'users', user.uid), finalUserData);
 
       setShowOTPModal(false);
       
@@ -212,10 +215,8 @@ export default function Auth() {
       } else {
         if (user.email === 'tavareatul7192@gmail.com') {
           navigate('/admin-secret-dashboard');
-        } else if (userType === 'owner') {
-          navigate('/profile');
         } else {
-          navigate('/');
+          navigate('/profile');
         }
       }
     } catch (error: any) {
@@ -241,9 +242,9 @@ export default function Auth() {
       
       let role = userType;
       try {
-        const { data: prof, error: profErr } = await (import('../supabase').then(m => m.supabase.from('profiles').select('role').eq('id', user.uid).single()));
-        if (prof && (prof as any).role) {
-          role = (prof as any).role;
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists() && userDoc.data().role) {
+          role = userDoc.data().role;
         }
       } catch (err) {
         console.error("Error fetching user role:", err);

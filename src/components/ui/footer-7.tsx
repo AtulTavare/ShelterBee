@@ -57,7 +57,6 @@ const defaultSocialLinks = [
 ];
 
 const defaultLegalLinks = [
-  { name: "Company Details", href: "/company-details" },
 ];
 
 export const Footer7 = ({

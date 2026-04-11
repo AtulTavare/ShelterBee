@@ -28,9 +28,10 @@ export const showToast = (message: string, type: 'success' | 'error' = 'error') 
   }, 3000);
 };
 
-export const showConfirm = (message: string, onConfirm: () => void) => {
+export const showConfirm = (message: string, onConfirm: () => void | Promise<void>) => {
   const overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 transition-opacity duration-200';
+  overlay.style.opacity = '0';
   
   const modal = document.createElement('div');
   modal.className = 'bg-white rounded-2xl max-w-md w-full p-6 shadow-xl transform scale-95 transition-transform duration-200';
@@ -49,22 +50,31 @@ export const showConfirm = (message: string, onConfirm: () => void) => {
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors';
   cancelBtn.textContent = 'Cancel';
-  cancelBtn.onclick = () => {
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2';
+  confirmBtn.textContent = 'Confirm';
+
+  const closeModal = () => {
     overlay.style.opacity = '0';
     modal.style.transform = 'scale(95%)';
     setTimeout(() => overlay.remove(), 200);
   };
+
+  cancelBtn.onclick = closeModal;
   
-  const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors';
-  confirmBtn.textContent = 'Confirm';
-  confirmBtn.onclick = () => {
-    overlay.style.opacity = '0';
-    modal.style.transform = 'scale(95%)';
-    setTimeout(() => {
-      overlay.remove();
-      onConfirm();
-    }, 200);
+  confirmBtn.onclick = async () => {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Processing...';
+    try {
+      await onConfirm();
+      closeModal();
+    } catch (error) {
+      console.error("Confirm action failed:", error);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Confirm';
+      showToast("Action failed. Please try again.", "error");
+    }
   };
   
   btnContainer.appendChild(cancelBtn);

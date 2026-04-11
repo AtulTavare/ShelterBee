@@ -13,7 +13,8 @@ import { bookingService } from '../services/bookingService';
 import { walletService } from '../services/walletService';
 import { emailService } from '../services/emailService';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-// Firebase imports removed: replaced by Supabase equivalents where needed
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -679,7 +680,7 @@ export default function PropertyDetail() {
                   <div className="mt-4 flex flex-col items-center gap-1.5">
                     <div className="flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md border border-white/10">
                       <span className="material-symbols-outlined text-[#F59E0B] text-[10px]">verified_user</span>
-                      <span className="text-[8px] font-black text-white/60 uppercase tracking-widest">100% Refundable Guarantee</span>
+                      {/* Removed 100% Refundable Guarantee */}
                     </div>
                     <p className="text-[8px] text-white/40 text-center uppercase tracking-tighter">Secure Stripe Payment • Encrypted Data</p>
                   </div>

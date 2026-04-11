@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabase';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { emailService } from '../services/emailService';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MessageSquare, Gavel, Shield, Banknote, RefreshCcw, MessageCircleQuestion, ArrowRight } from 'lucide-react';
@@ -15,19 +16,11 @@ export default function Support() {
     
     setIsSubmitting(true);
     try {
-      // Save to Supabase (replace Firestore write)
-      const { data, error } = await supabase
-        .from('support_inquiries')
-        .insert({
-          full_name: formData.fullName,
-          email: formData.email,
-          subject: formData.subject,
-          message: formData.message,
-          created_at: new Date().toISOString()
-        })
-        .select('id')
-        .single();
-      if (error) throw error;
+      // Save to Firestore
+      await addDoc(collection(db, 'support_inquiries'), {
+        ...formData,
+        createdAt: new Date().toISOString()
+      });
 
       // Send email to support
       await emailService.sendEmail({

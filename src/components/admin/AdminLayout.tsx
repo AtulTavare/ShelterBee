@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { showConfirm } from '../../utils/toast';
 import { 
   LayoutDashboard, 
   Clock, 
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const AdminLayout = () => {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, logout } = useAuth();
 
   const navItems = [
     { name: 'Dashboard', path: '/admin-secret-dashboard', icon: LayoutDashboard },
@@ -98,14 +99,30 @@ export const AdminLayout = () => {
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-2">
           <NavLink 
             to="/" 
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm border border-transparent hover:border-slate-200 transition-all duration-200 group"
           >
-            <LogOut className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" strokeWidth={2} />
-            Exit Admin
+            <LayoutDashboard className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" strokeWidth={2} />
+            Main Site
           </NavLink>
+          <button 
+            onClick={() => {
+              showConfirm("Are you sure you want to logout?", async () => {
+                try {
+                  await logout();
+                  window.location.href = '/';
+                } catch (error) {
+                  console.error("Logout failed:", error);
+                }
+              });
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-all duration-200 group"
+          >
+            <LogOut className="w-4 h-4 text-red-400 group-hover:text-red-600 transition-colors" strokeWidth={2} />
+            Logout
+          </button>
         </div>
       </aside>
 

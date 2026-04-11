@@ -77,39 +77,42 @@ export default function FilterBar({
         <div className="flex flex-wrap items-center gap-y-4 gap-x-6 w-full">
           {/* Dates Section */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative group">
-              <div className="flex items-center gap-2 h-12 px-4 rounded-full border border-[#D4C5A9] hover:bg-[#F5EFE6] transition-colors cursor-pointer bg-white">
-                <Calendar size={16} className="text-[#8B6914]" />
+            <div className="relative">
+              <div className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm">
+                <Calendar size={16} className="text-amber-600" />
                 <div className="flex flex-col justify-center">
-                  <span className="text-[10px] uppercase tracking-widest text-[#8B6914] font-medium leading-none mb-1">Check-in</span>
-                  <span className="text-sm font-semibold text-[#222222] leading-none">{formatDate(dateRange.from)}</span>
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold leading-none mb-1">Check-in</span>
+                  <span className="text-sm font-bold text-[#1A1A2E] leading-none">{formatDate(dateRange.from)}</span>
                 </div>
               </div>
               <input 
                 type="date" 
+                min={toDateString(new Date())}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                 value={toDateString(dateRange.from)}
                 onChange={(e) => {
                   if (!e.target.value) {
-                    setDateRange({ ...dateRange, from: undefined });
+                    setDateRange({ from: undefined, to: undefined });
                     return;
                   }
                   const [year, month, day] = e.target.value.split('-').map(Number);
-                  setDateRange({ ...dateRange, from: new Date(year, month - 1, day) });
+                  const fromDate = new Date(year, month - 1, day);
+                  setDateRange({ ...dateRange, from: fromDate });
                 }}
               />
             </div>
 
-            <div className="relative group">
-              <div className="flex items-center gap-2 h-12 px-4 rounded-full border border-[#D4C5A9] hover:bg-[#F5EFE6] transition-colors cursor-pointer bg-white">
-                <Calendar size={16} className="text-[#8B6914]" />
+            <div className="relative">
+              <div className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm">
+                <Calendar size={16} className="text-amber-600" />
                 <div className="flex flex-col justify-center">
-                  <span className="text-[10px] uppercase tracking-widest text-[#8B6914] font-medium leading-none mb-1">Check-out</span>
-                  <span className="text-sm font-semibold text-[#222222] leading-none">{formatDate(dateRange.to)}</span>
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold leading-none mb-1">Check-out</span>
+                  <span className="text-sm font-bold text-[#1A1A2E] leading-none">{formatDate(dateRange.to)}</span>
                 </div>
               </div>
               <input 
                 type="date" 
+                min={dateRange.from ? toDateString(new Date(dateRange.from.getTime() + 86400000)) : toDateString(new Date())}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                 value={toDateString(dateRange.to)}
                 onChange={(e) => {
@@ -118,7 +121,8 @@ export default function FilterBar({
                     return;
                   }
                   const [year, month, day] = e.target.value.split('-').map(Number);
-                  setDateRange({ ...dateRange, to: new Date(year, month - 1, day) });
+                  const toDate = new Date(year, month - 1, day);
+                  setDateRange({ ...dateRange, to: toDate });
                 }}
               />
             </div>

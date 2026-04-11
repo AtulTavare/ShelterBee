@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { showConfirm } from '../utils/toast';
 
 export default function Navbar() {
   const { user, profile, logout } = useAuth();
@@ -22,9 +23,16 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
+  const handleLogout = () => {
+    showConfirm("Are you sure you want to logout?", async () => {
+      try {
+        await logout();
+        window.location.href = '/';
+      } catch (error) {
+        console.error("Logout failed:", error);
+        throw error; // Rethrow to let showConfirm handle it
+      }
+    });
   };
 
   return (
@@ -65,7 +73,7 @@ export default function Navbar() {
                   to="/list-property" 
                   className="hidden lg:block bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
                 >
-                  Become a Host
+                  {profile?.role === 'owner' ? 'List your property' : 'Become a Host'}
                 </Link>
               )
             ) : (

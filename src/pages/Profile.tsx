@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
@@ -191,8 +191,10 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
   const { updateProfileData } = useAuth();
   const [formData, setFormData] = useState({
     displayName: profile?.displayName || '',
-    phoneNumber: profile?.phoneNumber || '',
-    location: profile?.location || ''
+    mobile: profile?.mobile || '',
+    whatsapp: profile?.whatsapp || '',
+    gender: profile?.gender || '',
+    dob: profile?.dob || '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [recentBookings, setRecentBookings] = useState<(Booking & { property?: any })[]>([]);
@@ -234,6 +236,7 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
     try {
       await updateProfileData(formData);
       setIsEditing(false);
+      showToast("Profile updated successfully", "success");
     } catch (error) {
       console.error("Failed to save profile", error);
       showToast("An error occurred", "error");
@@ -273,59 +276,69 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Email Address</p>
               <div className="flex items-center gap-3">
                 <p className="text-[#1A1A2E] font-medium">{user.email}</p>
-                {profile?.emailVerified ? (
+                {profile?.emailVerified && (
                   <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">
                     <CheckCircle2 size={12} />
                     Verified
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">
-                      Not Verified
-                    </div>
-                    <button 
-                      onClick={async () => {
-                        if (user?.email) {
-                          const otp = generateOTP();
-                          storeOTP(otp, user.email);
-                          await sendOTPEmail(user.email, otp);
-                          setShowOTPModal(true);
-                        }
-                      }}
-                      className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
-                    >
-                      Verify Now
-                    </button>
                   </div>
                 )}
               </div>
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Contact Number</p>
               {isEditing ? (
                 <input 
                   type="text" 
-                  value={formData.phoneNumber} 
-                  onChange={e => setFormData({...formData, phoneNumber: e.target.value})}
+                  value={formData.mobile} 
+                  onChange={e => setFormData({...formData, mobile: e.target.value})}
                   className="w-full border-b border-gray-300 focus:border-[#F59E0B] outline-none py-1 text-[#1A1A2E] font-medium bg-transparent"
-                  placeholder="+1 (555) 012 - 3456"
+                  placeholder="98765 43210"
                 />
               ) : (
-                <p className="text-[#1A1A2E] font-medium">{profile?.phoneNumber || 'Not provided'}</p>
+                <p className="text-[#1A1A2E] font-medium">{profile?.mobile || 'Not provided'}</p>
               )}
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Location</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">WhatsApp Number</p>
               {isEditing ? (
                 <input 
                   type="text" 
-                  value={formData.location} 
-                  onChange={e => setFormData({...formData, location: e.target.value})}
+                  value={formData.whatsapp} 
+                  onChange={e => setFormData({...formData, whatsapp: e.target.value})}
                   className="w-full border-b border-gray-300 focus:border-[#F59E0B] outline-none py-1 text-[#1A1A2E] font-medium bg-transparent"
-                  placeholder="San Francisco, CA"
+                  placeholder="98765 43210"
                 />
               ) : (
-                <p className="text-[#1A1A2E] font-medium">{profile?.location || 'Not provided'}</p>
+                <p className="text-[#1A1A2E] font-medium">{profile?.whatsapp || 'Not provided'}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date of Birth</p>
+              {isEditing ? (
+                <input 
+                  type="date" 
+                  value={formData.dob} 
+                  onChange={e => setFormData({...formData, dob: e.target.value})}
+                  className="w-full border-b border-gray-300 focus:border-[#F59E0B] outline-none py-1 text-[#1A1A2E] font-medium bg-transparent"
+                />
+              ) : (
+                <p className="text-[#1A1A2E] font-medium">{profile?.dob || 'Not provided'}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Gender</p>
+              {isEditing ? (
+                <select 
+                  value={formData.gender} 
+                  onChange={e => setFormData({...formData, gender: e.target.value})}
+                  className="w-full border-b border-gray-300 focus:border-[#F59E0B] outline-none py-1 text-[#1A1A2E] font-medium bg-transparent"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              ) : (
+                <p className="text-[#1A1A2E] font-medium">{profile?.gender || 'Not provided'}</p>
               )}
             </div>
           </div>
@@ -446,10 +459,13 @@ import { differenceInHours } from 'date-fns';
 import { walletService } from '../services/walletService';
 
 function StayHistoryTab() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { property?: any })[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -483,32 +499,22 @@ function StayHistoryTab() {
   }, [user]);
 
   const handleCancelBooking = async (booking: Booking) => {
-    if (!booking.id || !booking.checkIn) return;
+    if (!booking.id || !booking.createdAt) return;
     
-    const hoursUntilCheckIn = differenceInHours(booking.checkIn, new Date());
-    let refundAmount = 0;
-    const totalPaid = booking.estimatedCost;
-
-    if (hoursUntilCheckIn >= 48) {
-      refundAmount = totalPaid; // 100% refund
-    } else if (hoursUntilCheckIn >= 24) {
-      refundAmount = totalPaid * 0.5; // 50% refund
-    } else {
-      refundAmount = 0; // No refund
+    const hoursSinceBooking = differenceInHours(new Date(), booking.createdAt.toDate());
+    
+    if (hoursSinceBooking > 24) {
+      showToast("An error occurred", "error");
+      return;
     }
 
-    const confirmMessage = refundAmount > 0 
-      ? `Are you sure you want to cancel? You will receive a refund of ₹${refundAmount} to your Shelterbee Wallet.`
-      : `Are you sure you want to cancel? Since it's less than 24 hours before check-in, you will not receive a refund.`;
-
-    showConfirm(confirmMessage, async () => {
-      setCancellingId(booking.id);
+    showConfirm("Are you sure you want to cancel this booking? You will receive a full refund to your wallet.", async () => {
+      setCancellingId(booking.id!);
       try {
-        await bookingService.updateBookingStatus(booking.id, 'cancelled');
-        if (refundAmount > 0) {
-          await walletService.processRefund(booking.visitorId, booking.ownerId, refundAmount, refundAmount * 0.75, booking.id);
-        }
+        await bookingService.updateBookingStatus(booking.id!, 'cancelled');
+        await walletService.processRefund(booking.visitorId, booking.ownerId, booking.estimatedCost, booking.estimatedCost * 0.75, booking.id!);
         await fetchBookings();
+        showToast("An error occurred", "error");
       } catch (error) {
         console.error("Error cancelling booking:", error);
         showToast("An error occurred", "error");
@@ -537,54 +543,89 @@ function StayHistoryTab() {
         </div>
       ) : (
         <div className="space-y-6">
-          {bookings.map((booking) => (
-            <div key={booking.id} className="flex flex-col sm:flex-row gap-6 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow">
-              <img 
-                src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
-                alt="Property" 
-                className="w-full sm:w-48 h-32 object-cover rounded-xl" 
-                referrerPolicy="no-referrer"
-              />
-              <div className="flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg text-[#1A1A2E]">{booking.property?.title || 'Unknown Property'}</h3>
-                    <span className={`text-xs font-bold px-2 py-1 rounded-md ${
-                      booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
-                      booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
-                      booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
-                      'text-gray-600 bg-gray-50'
-                    }`}>
-                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                    </span>
+          {bookings.map((booking) => {
+            const hoursSinceBooking = booking.createdAt ? differenceInHours(new Date(), booking.createdAt.toDate()) : 999;
+            const canCancel = booking.status === 'confirmed' && hoursSinceBooking <= 24;
+            const isCompleted = booking.status === 'completed' || (booking.checkOut && booking.checkOut < new Date());
+
+            return (
+              <div key={booking.id} className="flex flex-col sm:flex-row gap-6 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow">
+                <img 
+                  src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
+                  alt="Property" 
+                  className="w-full sm:w-48 h-32 object-cover rounded-xl" 
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-lg text-[#1A1A2E]">{booking.property?.title || 'Unknown Property'}</h3>
+                      <span className={`text-xs font-bold px-2 py-1 rounded-md ${
+                        booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
+                        booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
+                        booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
+                        'text-gray-600 bg-gray-50'
+                      }`}>
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 flex items-center gap-1 mb-2">
+                      <MapPin className="w-4 h-4" /> {booking.property?.area || 'Unknown Location'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Stayed: {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'TBD'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'TBD'} ({booking.nights} nights)
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-500 flex items-center gap-1 mb-2">
-                    <MapPin className="w-4 h-4" /> {booking.property?.area || 'Unknown Location'}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Stayed: {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'TBD'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'TBD'} ({booking.nights} nights)
-                  </p>
-                </div>
-                <div className="flex justify-between items-center mt-4">
-                  <span className="font-bold text-[#1A1A2E]">₹{booking.estimatedCost}</span>
-                  <div className="flex gap-2">
-                    {booking.status === 'confirmed' && booking.checkIn && booking.checkIn > new Date() && (
+                  <div className="flex justify-between items-center mt-4">
+                    <span className="font-bold text-[#1A1A2E]">₹{booking.estimatedCost}</span>
+                    <div className="flex gap-3">
+                      {canCancel && (
+                        <button 
+                          onClick={() => handleCancelBooking(booking)}
+                          disabled={cancellingId === booking.id}
+                          className="text-sm font-bold text-red-500 hover:text-red-600 disabled:opacity-50"
+                        >
+                          {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
+                        </button>
+                      )}
+                      <button className="text-sm font-bold text-[#F59E0B] hover:text-amber-600">View Receipt</button>
+                      {isCompleted && (
+                        <button 
+                          onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
+                          className="text-sm font-bold text-blue-500 hover:text-blue-600"
+                        >
+                          Review
+                        </button>
+                      )}
                       <button 
-                        onClick={() => handleCancelBooking(booking)}
-                        disabled={cancellingId === booking.id}
-                        className="text-sm font-bold text-red-500 hover:text-red-600 disabled:opacity-50"
+                        onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
+                        className="text-sm font-bold text-gray-500 hover:text-gray-600"
                       >
-                        {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
+                        Report
                       </button>
-                    )}
-                    <button className="text-sm font-bold text-[#F59E0B] hover:text-amber-600">View Receipt</button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Review Modal */}
+      <ReviewModal 
+        isOpen={showReviewModal} 
+        onClose={() => setShowReviewModal(false)} 
+        booking={selectedBooking} 
+        profile={profile}
+      />
+
+      {/* Report Modal */}
+      <ReportModal 
+        isOpen={showReportModal} 
+        onClose={() => setShowReportModal(false)} 
+        booking={selectedBooking} 
+      />
     </div>
   );
 }
@@ -1878,6 +1919,204 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, onClose: () => void, booking: any, profile: any }) {
+  const [rating, setRating] = useState(5);
+  const [ratings, setRatings] = useState({
+    cleanliness: 5,
+    safety: 5,
+    ownerBehavior: 5,
+    comfort: 5
+  });
+  const [text, setText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!booking || !text) return;
+    setIsSubmitting(true);
+    try {
+      await reviewService.addReview({
+        propertyId: booking.propertyId,
+        visitorId: booking.visitorId,
+        visitorName: profile?.displayName || 'Anonymous',
+        visitorAvatar: profile?.photoURL || '',
+        text,
+        rating,
+        ratings,
+        date: format(new Date(), 'MMM dd, yyyy')
+      });
+      showToast("Review submitted successfully!", "success");
+      onClose();
+    } catch (error) {
+      console.error("Error adding review:", error);
+      showToast("Failed to submit review", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-6">Rate your stay</h3>
+        
+        <div className="space-y-6 mb-8">
+          {[
+            { label: 'Cleanliness', key: 'cleanliness' },
+            { label: 'Safety & Security', key: 'safety' },
+            { label: 'Owner Behavior', key: 'ownerBehavior' },
+            { label: 'Comfort', key: 'comfort' }
+          ].map((item) => (
+            <div key={item.key}>
+              <label className="block text-sm font-bold text-[#1E1B4B] mb-2">{item.label}</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button 
+                    key={star} 
+                    onClick={() => setRatings({ ...ratings, [item.key as keyof typeof ratings]: star })}
+                    className={`p-1 transition-colors ${ratings[item.key as keyof typeof ratings] >= star ? 'text-amber-500' : 'text-gray-200'}`}
+                  >
+                    <Star className="w-6 h-6 fill-current" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div>
+            <label className="block text-sm font-bold text-[#1E1B4B] mb-2">Overall Rating</label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button 
+                  key={star} 
+                  onClick={() => setRating(star)}
+                  className={`p-1 transition-colors ${rating >= star ? 'text-amber-500' : 'text-gray-200'}`}
+                >
+                  <Star className="w-8 h-8 fill-current" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-[#1E1B4B] mb-2">Your Review</label>
+            <textarea 
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Tell us about your experience..."
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50 text-sm h-32 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-[#64748B] bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+          <button 
+            onClick={handleSubmit} 
+            disabled={isSubmitting || !text}
+            className="flex-[2] bg-[#1E1B4B] text-white font-bold py-3 rounded-xl hover:bg-[#1E1B4B]/90 transition-all disabled:opacity-50"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Review'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function ReportModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: () => void, booking: any }) {
+  const [reason, setReason] = useState('');
+  const [otherIssue, setOtherIssue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const reasons = [
+    'Cleanliness Issues',
+    'Misleading Information',
+    'Safety & Security Concerns',
+    'Owner Behavior Issues',
+    'Pricing & Payment Issues',
+    'Booking Issues',
+    'Maintenance Problems',
+    'Noise or Disturbance',
+    'Illegal or Suspicious Activity',
+    'Other Issue'
+  ];
+
+  const handleSubmit = async () => {
+    if (!booking || !reason) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        bookingId: booking.id,
+        propertyId: booking.propertyId,
+        visitorId: booking.visitorId,
+        reason,
+        otherIssue: reason === 'Other Issue' ? otherIssue : '',
+        createdAt: serverTimestamp()
+      });
+      showToast("Report submitted successfully", "success");
+      onClose();
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      showToast("Failed to submit report", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100">
+        <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-6">Report Property</h3>
+        
+        <div className="space-y-4 mb-8">
+          <div>
+            <label className="block text-sm font-bold text-[#1E1B4B] mb-2">Reason for Reporting</label>
+            <select 
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50 text-sm"
+            >
+              <option value="">Select a reason</option>
+              {reasons.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          {reason === 'Other Issue' && (
+            <div>
+              <label className="block text-sm font-bold text-[#1E1B4B] mb-2">Please specify</label>
+              <textarea 
+                value={otherIssue}
+                onChange={(e) => setOtherIssue(e.target.value)}
+                placeholder="Describe the issue..."
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50 text-sm h-32 resize-none"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-[#64748B] bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+          <button 
+            onClick={handleSubmit} 
+            disabled={isSubmitting || !reason || (reason === 'Other Issue' && !otherIssue)}
+            className="flex-[2] bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-all disabled:opacity-50"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Report'}
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }
