@@ -41,13 +41,22 @@
         "propertyId": { "type": "string", "description": "ID of the booked property" },
         "visitorId": { "type": "string", "description": "UID of the visitor who booked" },
         "ownerId": { "type": "string", "description": "UID of the property owner" },
-        "checkIn": { "type": "string", "description": "Check-in date (ISO string)" },
-        "checkOut": { "type": "string", "description": "Check-out date (ISO string)" },
-        "totalAmount": { "type": "number", "description": "Total amount paid for unlock" },
-        "status": { "type": "string", "enum": ["Confirmed"], "description": "Booking status" },
-        "createdAt": { "type": "timestamp", "description": "When the booking was made" }
+        "visitorName": { "type": "string", "description": "Name of the main visitor" },
+        "visitorContact": { "type": "string", "description": "Contact number of the main visitor" },
+        "isWhatsapp": { "type": "boolean", "description": "Whether contact is on WhatsApp" },
+        "checkIn": { "type": "timestamp", "description": "Check-in date" },
+        "checkOut": { "type": "timestamp", "description": "Check-out date" },
+        "nights": { "type": "number", "description": "Number of nights" },
+        "totalAmount": { "type": "number", "description": "Total booking amount" },
+        "platformCommission": { "type": "number", "description": "25% platform commission" },
+        "receivedAmount": { "type": "number", "description": "75% amount received by owner" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled", "completed"], "description": "Booking status" },
+        "guests": { "type": "array", "description": "List of guest and children details" },
+        "govIdAcknowledged": { "type": "boolean", "description": "Acknowledgment of carrying government ID" },
+        "createdAt": { "type": "timestamp", "description": "When the booking was made" },
+        "updatedAt": { "type": "timestamp", "description": "When the booking was last updated" }
       },
-      "required": ["propertyId", "visitorId", "ownerId", "checkIn", "checkOut", "totalAmount", "status", "createdAt"]
+      "required": ["propertyId", "visitorId", "ownerId", "visitorName", "visitorContact", "isWhatsapp", "checkIn", "checkOut", "nights", "totalAmount", "platformCommission", "receivedAmount", "status", "guests", "govIdAcknowledged", "createdAt", "updatedAt"]
     }
   },
   "firestore": {

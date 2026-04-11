@@ -12,6 +12,7 @@ import ListProperty from './pages/ListProperty';
 import Listings from './pages/Listings';
 import Support from './pages/Support';
 import Profile from './pages/Profile';
+import BookingPage from './pages/BookingPage';
 import HelpCenter from './pages/HelpCenter';
 import ReportConcern from './pages/ReportConcern';
 import HostingRules from './pages/HostingRules';
@@ -51,6 +52,7 @@ function AppContent() {
             <Route path="/listings" element={<Listings />} />
             <Route path="/support" element={<Support />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/book/:propertyId" element={<BookingPage />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/report-concern" element={<ReportConcern />} />
             <Route path="/hosting-rules" element={<HostingRules />} />

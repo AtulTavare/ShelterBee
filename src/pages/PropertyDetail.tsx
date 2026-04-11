@@ -2,16 +2,9 @@ import { showToast } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, differenceInDays } from 'date-fns';
-import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/style.css';
 import { getAreaInfo } from '../services/geminiService';
 import { propertyService } from '../services/propertyService';
 import { useAuth } from '../contexts/AuthContext';
-
-import { bookingService } from '../services/bookingService';
-import { walletService } from '../services/walletService';
-import { emailService } from '../services/emailService';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -27,19 +20,8 @@ export default function PropertyDetail() {
   const [property, setProperty] = useState<any>(null);
   const [areaInfo, setAreaInfo] = useState<{text: string, grounding: any[]} | null>(null);
   const [loadingAreaInfo, setLoadingAreaInfo] = useState(false);
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined
-  });
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [bookingStep, setBookingStep] = useState(1);
-  const [visitorDetails, setVisitorDetails] = useState({ name: '', contact: '', isWhatsapp: true, whatsappNumber: '' });
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
-  const [showWalletNotice, setShowWalletNotice] = useState(false);
-  const [bookingId, setBookingId] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isBooking, setIsBooking] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -95,61 +77,6 @@ export default function PropertyDetail() {
   }, [id, navigate, loading]);
 
   if (!property) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-
-  const nights = dateRange.from && dateRange.to ? differenceInDays(dateRange.to, dateRange.from) : 0;
-  const estimatedCost = nights > 0 ? nights * property.pricePerDay : 0;
-
-  const handlePaymentSuccess = async () => {
-    if (!user || !id) return;
-    setIsBooking(true);
-    
-    // Simulate 2 second payment processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    try {
-      const newBookingId = await bookingService.createBooking({
-        propertyId: id,
-        visitorId: user.uid,
-        ownerId: property.ownerId,
-        visitorName: visitorDetails.name,
-        visitorContact: visitorDetails.contact,
-        isWhatsapp: visitorDetails.isWhatsapp,
-        whatsappNumber: visitorDetails.isWhatsapp ? visitorDetails.contact : visitorDetails.whatsappNumber,
-        checkIn: dateRange.from || null,
-        checkOut: dateRange.to || null,
-        nights,
-        estimatedCost,
-        status: 'confirmed'
-      });
-      
-      // Process payment to owner's wallet (75% of estimatedCost, as platform takes 25% commission)
-      await walletService.processBookingPayment(property.ownerId, estimatedCost * 0.75, newBookingId);
-      
-      // Send confirmation email (This will fail silently if SMTP is not configured yet)
-      emailService.sendEmail({
-        to: user.email || '',
-        subject: `Booking Confirmed: ${property.title}`,
-        html: `
-          <h2>Your booking is confirmed!</h2>
-          <p>Hi ${visitorDetails.name},</p>
-          <p>You have successfully booked <strong>${property.title}</strong>.</p>
-          <p><strong>Check-in:</strong> ${dateRange.from ? format(dateRange.from, 'PPP') : 'N/A'}</p>
-          <p><strong>Check-out:</strong> ${dateRange.to ? format(dateRange.to, 'PPP') : 'N/A'}</p>
-          <p>Thank you for choosing Shelterbee!</p>
-        `
-      }).catch(console.error);
-
-      setShowPaymentModal(false);
-      setIsUnlocked(true);
-      setBookingConfirmed(true);
-      setBookingId(newBookingId);
-    } catch (error) {
-      console.error("Failed to create booking:", error);
-      showToast("An error occurred", "error");
-    } finally {
-      setIsBooking(false);
-    }
-  };
 
   return (
     <div 
@@ -241,8 +168,8 @@ export default function PropertyDetail() {
                 <span className="text-base font-bold text-[#64748B]">/day</span>
               </div>
               <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-widest">Total Cost</span>
-                <span className="text-xs font-bold text-[#1E1B4B]">₹{estimatedCost > 0 ? estimatedCost : property.pricePerDay}</span>
+                <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-widest">Base Price</span>
+                <span className="text-xs font-bold text-[#1E1B4B]">₹{property.pricePerDay}</span>
               </div>
             </div>
 
@@ -593,9 +520,9 @@ export default function PropertyDetail() {
                 
                 <div className="relative z-10">
                   <div className="flex justify-between items-center mb-4">
-                    <span className="text-[9px] uppercase font-black tracking-[0.2em] text-white/50">Total Cost</span>
+                    <span className="text-[9px] uppercase font-black tracking-[0.2em] text-white/50">Price Details</span>
                     <div className="px-2.5 py-0.5 bg-white/10 rounded-full backdrop-blur-md border border-white/10">
-                      <span className="text-[#F59E0B] font-black text-lg">{estimatedCost > 0 ? `₹${estimatedCost}` : 'Select Dates'}</span>
+                      <span className="text-[#F59E0B] font-black text-lg">₹{property.pricePerDay}/day</span>
                     </div>
                   </div>
 
@@ -640,42 +567,41 @@ export default function PropertyDetail() {
                     </li>
                   </ul>
 
-                  <button 
-                    onClick={() => {
-                      if (!user) {
-                        navigate('/auth?mode=login', { state: { returnTo: `/property/${id}` } });
-                        return;
-                      }
-                      if (profile?.emailVerified === false) {
-                        setShowVerificationPopup(true);
-                        return;
-                      }
-                      if (profile?.role === 'owner') {
-                        if (property.ownerId === user.uid) {
-                          navigate('/profile?tab=favourites');
-                        } else {
-                          navigate('/list-property');
-                        }
-                        return;
-                      }
-                      setBookingStep(1);
-                      setShowPaymentModal(true);
-                    }}
-                    className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
-                      !user
-                        ? 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
-                        : profile?.role === 'owner'
-                          ? 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
-                          : isUnlocked 
-                            ? 'bg-white/20 text-white/50 cursor-not-allowed'
-                            : 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
-                    }`}
-                    disabled={user && isUnlocked && profile?.role !== 'owner'}
-                  >
-                    {profile?.role === 'owner' 
-                      ? (property.ownerId === user?.uid ? 'Edit Property' : 'List your own property')
-                      : (isUnlocked ? 'Contact Unlocked' : 'Book Now')}
-                  </button>
+                      <button 
+                        onClick={() => {
+                          if (!user) {
+                            navigate('/auth?mode=login', { state: { returnTo: `/property/${id}` } });
+                            return;
+                          }
+                          if (profile?.emailVerified === false) {
+                            setShowVerificationPopup(true);
+                            return;
+                          }
+                          if (profile?.role === 'owner') {
+                            if (property.ownerId === user.uid) {
+                              navigate('/profile?tab=favourites');
+                            } else {
+                              navigate('/list-property');
+                            }
+                            return;
+                          }
+                          navigate(`/book/${id}`);
+                        }}
+                        className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+                          !user
+                            ? 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
+                            : profile?.role === 'owner'
+                              ? 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
+                              : isUnlocked 
+                                ? 'bg-white/20 text-white/50 cursor-not-allowed'
+                                : 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
+                        }`}
+                        disabled={user && isUnlocked && profile?.role !== 'owner'}
+                      >
+                        {profile?.role === 'owner' 
+                          ? (property.ownerId === user?.uid ? 'Edit Property' : 'List your own property')
+                          : (isUnlocked ? 'Contact Unlocked' : 'Book Now')}
+                      </button>
 
                   <div className="mt-4 flex flex-col items-center gap-1.5">
                     <div className="flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md border border-white/10">
@@ -727,257 +653,6 @@ export default function PropertyDetail() {
         </section>
 
       </div>
-
-      {/* Booking Flow Modal */}
-      <AnimatePresence>
-        {showPaymentModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowPaymentModal(false)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto"
-            >
-              {/* Step Indicator */}
-              <div className="flex items-center justify-center gap-2 mb-8">
-                {[1, 2, 3].map((step) => (
-                  <div key={step} className="flex items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                      bookingStep === step 
-                        ? 'bg-[#F59E0B] text-white' 
-                        : bookingStep > step 
-                          ? 'bg-[#1E1B4B] text-white'
-                          : 'bg-slate-100 text-slate-400'
-                    }`}>
-                      {bookingStep > step ? <span className="material-symbols-outlined text-sm">check</span> : step}
-                    </div>
-                    {step < 3 && (
-                      <div className={`w-12 h-1 ${bookingStep > step ? 'bg-[#1E1B4B]' : 'bg-slate-100'}`}></div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {bookingStep === 1 && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                  <div className="text-center">
-                    <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-2">Select Dates</h3>
-                    <p className="text-[#64748B] text-sm">When would you like to stay?</p>
-                  </div>
-                  
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex justify-center">
-                    <DayPicker
-                      mode="range"
-                      selected={dateRange}
-                      onSelect={(range) => setDateRange(range as any)}
-                      disabled={{ before: new Date() }}
-                      className="font-sans m-0"
-                      style={{
-                        '--rdp-cell-size': '32px',
-                        '--rdp-accent-color': '#F59E0B',
-                        '--rdp-background-color': 'rgba(245, 158, 11, 0.1)',
-                      } as React.CSSProperties}
-                    />
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => setShowPaymentModal(false)}
-                      className="flex-1 py-3 rounded-xl font-bold text-[#64748B] bg-slate-100 hover:bg-slate-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (dateRange.from && dateRange.to) {
-                          setBookingStep(2);
-                        } else {
-                          showToast("An error occurred", "error");
-                        }
-                      }}
-                      className="flex-1 py-3 rounded-xl font-bold text-white bg-[#1E1B4B] hover:bg-[#1E1B4B]/90 transition-colors"
-                    >
-                      Next Step
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {bookingStep === 2 && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                  <div className="text-center">
-                    <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-2">Visitor Details</h3>
-                    <p className="text-[#64748B] text-sm">Who is booking this stay?</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-[#1E1B4B] mb-1.5">Full Name</label>
-                      <input 
-                        type="text" 
-                        value={visitorDetails.name}
-                        onChange={(e) => setVisitorDetails({...visitorDetails, name: e.target.value})}
-                        placeholder="Enter your full name"
-                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-[#1E1B4B] mb-1.5">Contact Number</label>
-                      <input 
-                        type="tel" 
-                        value={visitorDetails.contact}
-                        onChange={(e) => setVisitorDetails({...visitorDetails, contact: e.target.value})}
-                        placeholder="Enter your phone number"
-                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50"
-                      />
-                    </div>
-                    <label className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={visitorDetails.isWhatsapp}
-                        onChange={(e) => setVisitorDetails({...visitorDetails, isWhatsapp: e.target.checked})}
-                        className="w-5 h-5 rounded border-slate-300 text-[#F59E0B] focus:ring-[#F59E0B]"
-                      />
-                      <span className="text-sm font-medium text-[#1E1B4B]">This number is on WhatsApp</span>
-                    </label>
-                    {!visitorDetails.isWhatsapp && (
-                      <div className="animate-in fade-in slide-in-from-top-2">
-                        <label className="block text-sm font-bold text-[#1E1B4B] mb-1.5">WhatsApp Number</label>
-                        <input 
-                          type="tel" 
-                          value={visitorDetails.whatsappNumber}
-                          onChange={(e) => setVisitorDetails({...visitorDetails, whatsappNumber: e.target.value})}
-                          placeholder="Enter your WhatsApp number"
-                          className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => setBookingStep(1)}
-                      className="flex-1 py-3 rounded-xl font-bold text-[#64748B] bg-slate-100 hover:bg-slate-200 transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (visitorDetails.name && visitorDetails.contact && (visitorDetails.isWhatsapp || visitorDetails.whatsappNumber)) {
-                          setBookingStep(3);
-                        } else {
-                          showToast("An error occurred", "error");
-                        }
-                      }}
-                      className="flex-1 py-3 rounded-xl font-bold text-white bg-[#1E1B4B] hover:bg-[#1E1B4B]/90 transition-colors"
-                    >
-                      Proceed to Pay
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {bookingStep === 3 && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                  <div className="text-center">
-                    <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-2">Payment</h3>
-                    <p className="text-[#64748B] text-sm">Unlock owner contact & secure booking</p>
-                  </div>
-                  
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                    {nights > 0 && (
-                      <div className="flex justify-between mb-3 font-medium text-[#1E1B4B]">
-                        <span>Estimated Rent ({nights} nights)</span>
-                        <span>₹{estimatedCost}</span>
-                      </div>
-                    )}
-                    <div className="border-t border-slate-200 pt-3 mt-3 flex justify-between font-extrabold text-lg text-[#1E1B4B]">
-                      <span>Total Due Now</span>
-                      <span className="text-[#F59E0B]">₹{estimatedCost}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => setBookingStep(2)}
-                      className="flex-1 py-3 rounded-xl font-bold text-[#64748B] bg-slate-100 hover:bg-slate-200 transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      onClick={handlePaymentSuccess}
-                      disabled={isBooking}
-                      className="flex-[2] bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white font-bold py-3 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                      {isBooking ? (
-                        <>
-                          <span className="material-symbols-outlined animate-spin">refresh</span>
-                          Processing...
-                        </>
-                      ) : (
-                        `Pay ₹${estimatedCost} Securely`
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Booking Confirmation Modal */}
-      <AnimatePresence>
-        {bookingConfirmed && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100"
-            >
-              <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                <span className="material-symbols-outlined text-5xl">check_circle</span>
-              </div>
-              <h3 className="text-3xl font-extrabold text-[#1E1B4B] mb-3">Booking Confirmed!</h3>
-              <p className="text-[#64748B] mb-8 text-lg">Your booking has been successfully placed. The owner will contact you shortly.</p>
-              
-              <div className="bg-slate-50 p-6 rounded-2xl mb-8 text-left border border-slate-100">
-                <p className="text-sm text-[#64748B] font-bold uppercase tracking-wider mb-1">Booking ID</p>
-                <p className="font-mono font-bold text-lg text-[#1E1B4B] mb-4">{bookingId}</p>
-                
-                <p className="text-sm text-[#64748B] font-bold uppercase tracking-wider mb-1">Dates</p>
-                <p className="font-medium text-[#1E1B4B]">
-                  {dateRange.from ? format(dateRange.from, 'MMM dd, yyyy') : ''} - {dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : ''}
-                </p>
-              </div>
-
-              <button 
-                onClick={() => {
-                  setBookingConfirmed(false);
-                  setShowWalletNotice(true);
-                }}
-                className="w-full bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white font-bold py-4 rounded-xl transition-all shadow-md hover:shadow-lg"
-              >
-                View Property Details
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Verification Popup */}
       <AnimatePresence>
@@ -1042,48 +717,10 @@ export default function PropertyDetail() {
             });
             setShowOTPModal(false);
             showToast("Email verified successfully!", "success");
-            // Optionally, we could auto-open the payment modal here
-            // setBookingStep(1);
-            // setShowPaymentModal(true);
           }
         }} 
       />
 
-      {/* Wallet Notice Modal */}
-      <AnimatePresence>
-        {showWalletNotice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowWalletNotice(false)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100"
-            >
-              <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                <span className="material-symbols-outlined text-4xl">account_balance_wallet</span>
-              </div>
-              <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-4">Shelterbee Wallet</h3>
-              <p className="text-[#64748B] mb-8 text-sm leading-relaxed">
-                The balance has been updated to your wallet. You can withdraw whenever you want. After a withdraw request, the amount will be transferred to your bank account in 3-4 working days.
-              </p>
-              
-              <button 
-                onClick={() => setShowWalletNotice(false)}
-                className="w-full bg-[#1E1B4B] hover:bg-[#1E1B4B]/90 text-white font-bold py-4 rounded-xl transition-all shadow-md hover:shadow-lg"
-              >
-                Got it
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -57,7 +57,7 @@ export const AdminDashboard = () => {
         // For now, let's just sum up estimatedCost for completed/confirmed bookings
         const totalRevenue = bookings
           .filter(b => b.status === 'confirmed' || b.status === 'completed')
-          .reduce((sum, b) => sum + (b.estimatedCost || 0) * 0.25, 0);
+          .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
         const pendingPayments = bookings.filter(b => b.status === 'pending').length;
         const pendingRefunds = bookings.filter(b => b.status === 'cancelled').length; // Assuming cancelled bookings need refunds
@@ -69,7 +69,7 @@ export const AdminDashboard = () => {
         });
         const revenueToday = todayBookings
           .filter(b => b.status === 'confirmed' || b.status === 'completed')
-          .reduce((sum, b) => sum + (b.estimatedCost || 0) * 0.25, 0);
+          .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
         const thisMonthBookings = bookings.filter(b => {
           const bDate = b.createdAt?.toDate?.();
@@ -77,7 +77,7 @@ export const AdminDashboard = () => {
         });
         const revenueThisMonth = thisMonthBookings
           .filter(b => b.status === 'confirmed' || b.status === 'completed')
-          .reduce((sum, b) => sum + (b.estimatedCost || 0) * 0.25, 0);
+          .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
         setDashboardStats({
           totalListings: properties.length,
@@ -131,7 +131,7 @@ export const AdminDashboard = () => {
               
               const dayRevenue = dayBookings
                 .filter(b => b.status === 'confirmed' || b.status === 'completed')
-                .reduce((sum, b) => sum + (b.estimatedCost || 0) * 0.25, 0);
+                .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
               data.push({ name: dayName, revenue: dayRevenue, bookings: dayBookings.length });
             }
@@ -151,7 +151,7 @@ export const AdminDashboard = () => {
               
               const weekRevenue = weekBookings
                 .filter(b => b.status === 'confirmed' || b.status === 'completed')
-                .reduce((sum, b) => sum + (b.estimatedCost || 0) * 0.25, 0);
+                .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
               data.push({ name: weekName, revenue: weekRevenue, bookings: weekBookings.length });
             }
@@ -168,7 +168,7 @@ export const AdminDashboard = () => {
               
               const monthRevenue = monthBookings
                 .filter(b => b.status === 'confirmed' || b.status === 'completed')
-                .reduce((sum, b) => sum + (b.estimatedCost || 0) * 0.25, 0);
+                .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
               data.push({ name: monthName, revenue: monthRevenue, bookings: monthBookings.length });
             }

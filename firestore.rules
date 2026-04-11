@@ -112,7 +112,7 @@ service cloud.firestore {
     }
     
     function isValidBooking(data) {
-      return hasRequiredFields(['propertyId', 'visitorId', 'ownerId', 'visitorName', 'visitorContact', 'isWhatsapp', 'checkIn', 'checkOut', 'nights', 'estimatedCost', 'platformFee', 'status', 'createdAt', 'updatedAt']) &&
+      return hasRequiredFields(['propertyId', 'visitorId', 'ownerId', 'visitorName', 'visitorContact', 'isWhatsapp', 'checkIn', 'checkOut', 'nights', 'totalAmount', 'status', 'createdAt', 'updatedAt', 'guests', 'govIdAcknowledged']) &&
              data.propertyId is string && data.propertyId.size() > 0 && data.propertyId.size() < 100 &&
              data.visitorId is string && data.visitorId.size() > 0 && data.visitorId.size() < 100 &&
              data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() < 100 &&
@@ -123,11 +123,20 @@ service cloud.firestore {
              (data.checkIn == null || data.checkIn is timestamp) &&
              (data.checkOut == null || data.checkOut is timestamp) &&
              data.nights is number && data.nights >= 0 &&
-             data.estimatedCost is number && data.estimatedCost >= 0 &&
-             data.platformFee is number && data.platformFee >= 0 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
              data.status in ['pending', 'confirmed', 'cancelled', 'completed'] &&
              data.createdAt is timestamp &&
-             data.updatedAt is timestamp;
+             data.updatedAt is timestamp &&
+             data.guests is list &&
+             data.govIdAcknowledged is bool;
+    }
+
+    function isValidFinancials(data) {
+      return hasRequiredFields(['platformCommission', 'receivedAmount', 'ownerId', 'visitorId', 'createdAt', 'updatedAt']) &&
+             data.platformCommission is number && data.platformCommission >= 0 &&
+             data.receivedAmount is number && data.receivedAmount >= 0 &&
+             data.ownerId is string && data.visitorId is string &&
+             data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     // ===============================================================
@@ -188,6 +197,17 @@ service cloud.firestore {
                         request.resource.data.createdAt == resource.data.createdAt);
                         
       allow delete: if isAdmin();
+    }
+
+    match /bookingFinancials/{bookingId} {
+      // Only admins and owners can read financials. Visitors cannot.
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      
+      // Financials are created along with bookings.
+      allow create: if (isAuthenticated() && isValidFinancials(request.resource.data) &&
+                    (request.resource.data.visitorId == request.auth.uid)) || isAdmin();
+                    
+      allow update, delete: if isAdmin();
     }
 
     match /wallets/{userId} {

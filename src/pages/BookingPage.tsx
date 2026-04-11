@@ -1,0 +1,674 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { format, differenceInDays } from 'date-fns';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css';
+import { useAuth } from '../contexts/AuthContext';
+import { propertyService } from '../services/propertyService';
+import { bookingService, GuestDetail } from '../services/bookingService';
+import { walletService } from '../services/walletService';
+import { showToast } from '../utils/toast';
+import { 
+  ChevronLeft, 
+  Calendar as CalendarIcon, 
+  Users, 
+  CreditCard, 
+  ShieldCheck, 
+  Plus, 
+  Trash2, 
+  Info,
+  QrCode,
+  Smartphone,
+  CheckCircle2,
+  MapPin
+} from 'lucide-react';
+
+export default function BookingPage() {
+  const { propertyId } = useParams();
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  
+  const [property, setProperty] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Step 1: Dates
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
+
+  // Step 2: Guests
+  const [guests, setGuests] = useState<GuestDetail[]>([
+    { name: '', age: 0, gender: 'Male', contactNo: '', type: 'adult' }
+  ]);
+
+  // Step 3: Payment
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'phonepe' | 'paytm'>('upi');
+
+  // Step 4: Policies
+  const [govIdAcknowledged, setGovIdAcknowledged] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  useEffect(() => {
+    if (!propertyId) return;
+    const fetchProperty = async () => {
+      try {
+        const prop = await propertyService.getPropertyById(propertyId);
+        if (prop) {
+          setProperty(prop);
+        } else {
+          showToast("Property not found", "error");
+          navigate('/');
+        }
+      } catch (error) {
+        console.error("Error fetching property:", error);
+        showToast("Failed to load property", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProperty();
+  }, [propertyId, navigate]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (!property) return null;
+
+  const nights = dateRange.from && dateRange.to ? differenceInDays(dateRange.to, dateRange.from) : 0;
+  const totalGuests = guests.length;
+  const totalAmount = nights * property.pricePerDay * totalGuests;
+  const platformCommission = totalAmount * 0.25;
+  const receivedAmount = totalAmount - platformCommission;
+
+  const handleAddGuest = () => {
+    const maxGuests = property.maxGuests || 6; // Default to 6 if not specified
+    if (guests.length >= maxGuests) {
+      showToast(`Maximum ${maxGuests} guests allowed for this property`, "error");
+      return;
+    }
+    setGuests([...guests, { name: '', age: 0, gender: 'Male', contactNo: '', type: 'adult' }]);
+  };
+
+  const handleAddChild = () => {
+    const maxGuests = property.maxGuests || 6;
+    if (guests.length >= maxGuests) {
+      showToast(`Maximum ${maxGuests} guests allowed for this property`, "error");
+      return;
+    }
+    setGuests([...guests, { name: '', age: 0, gender: 'Male', relation: '', type: 'child' }]);
+  };
+
+  const handleRemoveGuest = (index: number) => {
+    if (guests.length === 1) return;
+    const newGuests = [...guests];
+    newGuests.splice(index, 1);
+    setGuests(newGuests);
+  };
+
+  const handleGuestChange = (index: number, field: keyof GuestDetail, value: any) => {
+    const newGuests = [...guests];
+    newGuests[index] = { ...newGuests[index], [field]: value };
+    setGuests(newGuests);
+  };
+
+  const validateStep2 = () => {
+    for (const guest of guests) {
+      if (!guest.name) {
+        showToast("Please enter name for all guests", "error");
+        return false;
+      }
+      if (guest.type === 'adult' && guest.age < 18) {
+        showToast("Adult guests must be 18 or older", "error");
+        return false;
+      }
+      if (guest.type === 'child' && guest.age >= 18) {
+        showToast("Children must be under 18", "error");
+        return false;
+      }
+      if (guest.type === 'adult' && !guest.contactNo) {
+        showToast("Please enter contact number for all adults", "error");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+      const bookingId = await bookingService.createBooking({
+        propertyId: property.id,
+        visitorId: user.uid,
+        ownerId: property.ownerId,
+        visitorName: guests[0].name,
+        visitorContact: guests[0].contactNo || '',
+        isWhatsapp: true,
+        checkIn: dateRange.from || null,
+        checkOut: dateRange.to || null,
+        nights,
+        totalAmount,
+        status: 'confirmed',
+        guests,
+        govIdAcknowledged
+      }, {
+        platformCommission,
+        receivedAmount
+      });
+
+      // Process payment to owner's wallet
+      await walletService.processBookingPayment(property.ownerId, receivedAmount, bookingId);
+
+      showToast("Booking confirmed successfully!", "success");
+      navigate('/profile?tab=stay-history');
+    } catch (error) {
+      console.error("Booking failed:", error);
+      showToast("Failed to create booking. Please try again.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const steps = [
+    { id: 1, name: 'Dates', icon: CalendarIcon },
+    { id: 2, name: 'Guests', icon: Users },
+    { id: 3, name: 'Payment', icon: CreditCard },
+    { id: 4, name: 'Confirm', icon: ShieldCheck },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#F9F9F9] pt-24 pb-12 px-4 font-sans">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-6 mb-10">
+          <button 
+            onClick={() => navigate(-1)}
+            className="w-12 h-12 flex items-center justify-center bg-white hover:bg-slate-50 rounded-2xl transition-all shadow-sm border border-slate-100 group"
+          >
+            <ChevronLeft className="w-6 h-6 text-slate-600 group-hover:-translate-x-0.5 transition-transform" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-black text-[#1A1A2E] tracking-tight">Book your stay</h1>
+            <p className="text-slate-500 font-medium">{property.title}</p>
+          </div>
+        </div>
+
+        {/* Step Progress */}
+        <div className="max-w-3xl mx-auto mb-16 relative">
+          <div className="absolute top-5 left-0 right-0 h-0.5 bg-slate-200 z-0"></div>
+          <div className="flex justify-between relative z-10">
+            {steps.map((s) => {
+              const Icon = s.icon;
+              const isActive = step === s.id;
+              const isCompleted = step > s.id;
+              return (
+                <div key={s.id} className="flex flex-col items-center">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${
+                    isActive ? 'bg-[#1E1B4B] text-white shadow-lg shadow-indigo-200 scale-110' : 
+                    isCompleted ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400 border border-slate-200'
+                  }`}>
+                    {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                  </div>
+                  <span className={`mt-3 text-[10px] font-black uppercase tracking-widest ${
+                    isActive ? 'text-[#1E1B4B]' : isCompleted ? 'text-emerald-600' : 'text-slate-400'
+                  }`}>
+                    {s.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          {/* Main Form Area */}
+          <div className="lg:col-span-8">
+            <AnimatePresence mode="wait">
+              {step === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100"
+                >
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
+                      <CalendarIcon className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-2xl font-black text-[#1A1A2E]">Select your dates</h2>
+                  </div>
+                  
+                  <div className="flex justify-center bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
+                    <DayPicker
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={(range) => setDateRange(range as any)}
+                      disabled={{ before: new Date() }}
+                      className="font-sans"
+                      style={{
+                        '--rdp-accent-color': '#1E1B4B',
+                        '--rdp-background-color': '#EEF2FF',
+                      } as React.CSSProperties}
+                    />
+                  </div>
+
+                  <div className="mt-10 flex justify-end">
+                    <button
+                      disabled={!dateRange.from || !dateRange.to}
+                      onClick={() => setStep(2)}
+                      className="px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-200"
+                    >
+                      Next: Guest Details
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 2 && (
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-8"
+                >
+                  <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
+                    <div className="flex items-center justify-between mb-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <h2 className="text-2xl font-black text-[#1A1A2E]">Guest Details</h2>
+                      </div>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={handleAddGuest}
+                          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-[#1E1B4B] rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-100 transition-all"
+                        >
+                          <Plus className="w-4 h-4" /> Add Guest
+                        </button>
+                        <button 
+                          onClick={handleAddChild}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-orange-100 transition-all"
+                        >
+                          <Plus className="w-4 h-4" /> Add Child
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-10">
+                      {guests.map((guest, idx) => (
+                        <div key={idx} className="p-8 bg-slate-50/50 rounded-3xl border border-slate-100 relative group transition-all hover:bg-white hover:shadow-lg hover:shadow-slate-100">
+                          {guests.length > 1 && (
+                            <button 
+                              onClick={() => handleRemoveGuest(idx)}
+                              className="absolute -top-3 -right-3 w-10 h-10 bg-white text-red-500 rounded-xl shadow-lg flex items-center justify-center hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 border border-slate-100"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          )}
+                          <div className="flex items-center gap-3 mb-6">
+                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                              guest.type === 'adult' ? 'bg-indigo-100 text-[#1E1B4B]' : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {guest.type === 'adult' ? 'Adult' : 'Child'} {idx + 1}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+                              <input 
+                                type="text"
+                                value={guest.name}
+                                onChange={(e) => handleGuestChange(idx, 'name', e.target.value)}
+                                className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                placeholder="Enter name"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Age</label>
+                              <input 
+                                type="number"
+                                value={guest.age || ''}
+                                onChange={(e) => handleGuestChange(idx, 'age', parseInt(e.target.value))}
+                                className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                placeholder={guest.type === 'adult' ? "18+" : "Under 18"}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Gender</label>
+                              <select 
+                                value={guest.gender}
+                                onChange={(e) => handleGuestChange(idx, 'gender', e.target.value)}
+                                className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium appearance-none"
+                              >
+                                <option>Male</option>
+                                <option>Female</option>
+                                <option>Other</option>
+                              </select>
+                            </div>
+                            {guest.type === 'adult' ? (
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contact No.</label>
+                                <input 
+                                  type="tel"
+                                  value={guest.contactNo}
+                                  onChange={(e) => handleGuestChange(idx, 'contactNo', e.target.value)}
+                                  className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                  placeholder="Phone number"
+                                />
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Relation</label>
+                                <input 
+                                  type="text"
+                                  value={guest.relation}
+                                  onChange={(e) => handleGuestChange(idx, 'relation', e.target.value)}
+                                  className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                  placeholder="e.g. Son, Daughter"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-12 flex justify-between">
+                      <button
+                        onClick={() => setStep(1)}
+                        className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (validateStep2()) setStep(3);
+                        }}
+                        className="px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
+                      >
+                        Next: Payment
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 3 && (
+                <motion.div
+                  key="step3"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100"
+                >
+                  <div className="flex items-center gap-3 mb-10">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-2xl font-black text-[#1A1A2E]">Payment Simulation</h2>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-8">
+                      <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Scan to Pay securely</p>
+                        <div className="w-56 h-56 bg-white mx-auto rounded-3xl border border-slate-100 p-6 flex items-center justify-center shadow-inner">
+                          <QrCode className="w-full h-full text-[#1A1A2E]" />
+                        </div>
+                        <div className="mt-6 flex items-center justify-center gap-2 text-[#1E1B4B] font-black text-sm bg-white py-3 px-4 rounded-2xl border border-slate-100 inline-flex">
+                          <Smartphone className="w-4 h-4" />
+                          <span>shelterbee@okaxis</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Payment App</p>
+                        <div className="grid grid-cols-3 gap-4">
+                          {[
+                            { id: 'upi', name: 'UPI', color: 'indigo' },
+                            { id: 'phonepe', name: 'PhonePe', color: 'purple' },
+                            { id: 'paytm', name: 'Paytm', color: 'blue' }
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              onClick={() => setPaymentMethod(m.id as any)}
+                              className={`p-4 rounded-2xl border-2 transition-all text-center ${
+                                paymentMethod === m.id 
+                                  ? 'border-[#1E1B4B] bg-indigo-50 text-[#1E1B4B]' 
+                                  : 'border-slate-50 bg-slate-50 hover:bg-white hover:border-slate-200 text-slate-500'
+                              }`}
+                            >
+                              <span className="text-xs font-black uppercase tracking-wider">{m.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-8">
+                      <div className="p-8 indigo-gradient text-white rounded-[2rem] shadow-2xl shadow-indigo-200 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16"></div>
+                        <h3 className="text-xl font-black mb-6 relative z-10">Payment Summary</h3>
+                        <div className="space-y-4 relative z-10">
+                          <div className="flex justify-between text-sm text-white/70 font-medium">
+                            <span>Stay Duration</span>
+                            <span className="text-white font-bold">{nights} Nights</span>
+                          </div>
+                          <div className="flex justify-between text-sm text-white/70 font-medium">
+                            <span>Total Guests</span>
+                            <span className="text-white font-bold">{totalGuests} Persons</span>
+                          </div>
+                          <div className="flex justify-between text-sm text-white/70 font-medium">
+                            <span>Base Rent</span>
+                            <span className="text-white font-bold">₹{property.pricePerDay}/day</span>
+                          </div>
+                          <div className="pt-6 border-t border-white/10 flex justify-between items-end">
+                            <span className="text-sm font-bold text-white/70">Total Amount</span>
+                            <span className="text-4xl font-black">₹{totalAmount}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl flex gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                          <Info className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                          This is a simulated payment screen for demonstration. In a real application, you would be redirected to your chosen payment app to complete the transaction.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-12 flex justify-between">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => setStep(4)}
+                      className="px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
+                    >
+                      Next: Final Review
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 4 && (
+                <motion.div
+                  key="step4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-8"
+                >
+                  <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
+                    <div className="flex items-center gap-3 mb-10">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <h2 className="text-2xl font-black text-[#1A1A2E]">Terms & Policies</h2>
+                    </div>
+                    
+                    <div className="space-y-8 mb-12">
+                      <div className="p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                        <h3 className="font-black text-[#1A1A2E] text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          Cancellation Policy
+                        </h3>
+                        <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                          Free cancellation for 24 hours. After that, the platform fee is non-refundable. 
+                          Refunds for the stay amount are subject to the owner's policy and check-in status.
+                        </p>
+                      </div>
+
+                      <div className="p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                        <h3 className="font-black text-[#1A1A2E] text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                          <Info className="w-4 h-4 text-indigo-500" />
+                          Terms & Conditions
+                        </h3>
+                        <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                          By clicking "Confirm Booking", you agree to follow the house rules and maintain the property. 
+                          Any damage caused will be the responsibility of the primary guest.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4 pt-4">
+                        <label className="flex gap-4 p-6 bg-indigo-50/50 border border-indigo-100 rounded-3xl cursor-pointer group transition-all hover:bg-indigo-50">
+                          <input 
+                            type="checkbox"
+                            checked={govIdAcknowledged}
+                            onChange={(e) => setGovIdAcknowledged(e.target.checked)}
+                            className="w-6 h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
+                          />
+                          <span className="text-sm font-black text-[#1E1B4B] leading-snug">
+                            I/we have our respected Government ID's, I/we acknowledge that I/we will carry one while visiting the property.
+                          </span>
+                        </label>
+
+                        <label className="flex gap-4 p-6 rounded-3xl cursor-pointer group transition-all">
+                          <input 
+                            type="checkbox"
+                            checked={termsAccepted}
+                            onChange={(e) => setTermsAccepted(e.target.checked)}
+                            className="w-6 h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
+                          />
+                          <span className="text-sm text-slate-500 font-bold">
+                            I agree to the Terms & Conditions and Privacy Policy.
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <button
+                        onClick={() => setStep(3)}
+                        className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        disabled={!govIdAcknowledged || !termsAccepted || isSubmitting}
+                        onClick={handleConfirmBooking}
+                        className="px-12 py-5 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-[#312E81] transition-all shadow-2xl shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-4"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            Processing...
+                          </>
+                        ) : (
+                          'Confirm Booking'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Sidebar Summary */}
+          <div className="lg:col-span-4">
+            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 sticky top-24 space-y-8">
+              <div className="aspect-[4/3] rounded-3xl overflow-hidden bg-slate-100 group">
+                <img 
+                  src={property.photos?.[0] || 'https://picsum.photos/seed/prop/400/300'} 
+                  alt={property.title}
+                  className="w-full h-full object-cover bento-img"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              
+              <div className="space-y-6">
+                <div className="pb-6 border-b border-slate-100">
+                  <h3 className="text-xl font-black text-[#1A1A2E] leading-tight mb-2">{property.title}</h3>
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <MapPin className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">{property.area}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Price per day</span>
+                    <span className="text-[#1A1A2E] font-black">₹{property.pricePerDay}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nights</span>
+                    <span className="text-[#1A1A2E] font-black">{nights || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Guests</span>
+                    <span className="text-[#1A1A2E] font-black">{totalGuests}</span>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                  <div className="flex justify-between items-end">
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Amount</span>
+                    <span className="text-3xl font-black text-[#1A1A2E]">₹{totalAmount}</span>
+                  </div>
+                  <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+                    <p className="text-[10px] text-[#1E1B4B] font-bold leading-relaxed italic">
+                      * Taxes and platform fees are included in the total amount shown above.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                  <Info className="w-4 h-4" />
+                  Booking Summary
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-xs text-slate-600 font-bold">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                      <CalendarIcon className="w-4 h-4 text-indigo-500" />
+                    </div>
+                    {dateRange.from ? format(dateRange.from, 'MMM dd') : '...'} - {dateRange.to ? format(dateRange.to, 'MMM dd') : '...'}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-slate-600 font-bold">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                      <Users className="w-4 h-4 text-indigo-500" />
+                    </div>
+                    {totalGuests} Guest(s)
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

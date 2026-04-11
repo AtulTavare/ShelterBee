@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
@@ -444,7 +444,7 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
                 <div key={booking.id} className="flex justify-between items-center text-sm">
                   <span className="text-[#1A1A2E] font-medium">{booking.createdAt ? format(booking.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}</span>
                   <span className="text-gray-400">#{booking.id?.substring(0, 8).toUpperCase()}</span>
-                  <span className="font-bold text-[#1A1A2E]">₹{booking.estimatedCost}</span>
+                  <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || booking.estimatedCost}</span>
                 </div>
               ))
             )}
@@ -467,35 +467,43 @@ function StayHistoryTab() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
-  const fetchBookings = async () => {
-    if (!user) return;
-    try {
-      const userBookings = await bookingService.getBookingsByVisitor(user.uid);
-      
-      // Fetch property details for each booking
-      const bookingsWithProperties = await Promise.all(
-        userBookings.map(async (booking) => {
-          const property = await propertyService.getPropertyById(booking.propertyId);
-          return { ...booking, property };
-        })
-      );
-      
-      // Sort by checkIn date descending
-      bookingsWithProperties.sort((a, b) => {
-        if (!a.checkIn || !b.checkIn) return 0;
-        return b.checkIn.getTime() - a.checkIn.getTime();
-      });
-
-      setBookings(bookingsWithProperties);
-    } catch (error) {
-      console.error("Error fetching bookings:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchBookings();
+    if (!user) return;
+    setLoading(true);
+    
+    const q = query(collection(db, 'bookings'), where('visitorId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      try {
+        const userBookings = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          checkIn: doc.data().checkIn?.toDate() || null,
+          checkOut: doc.data().checkOut?.toDate() || null,
+        })) as Booking[];
+
+        // Fetch property details for each booking
+        const bookingsWithProperties = await Promise.all(
+          userBookings.map(async (booking) => {
+            const property = await propertyService.getPropertyById(booking.propertyId);
+            return { ...booking, property };
+          })
+        );
+        
+        // Sort by checkIn date descending
+        bookingsWithProperties.sort((a, b) => {
+          if (!a.checkIn || !b.checkIn) return 0;
+          return b.checkIn.getTime() - a.checkIn.getTime();
+        });
+
+        setBookings(bookingsWithProperties);
+      } catch (error) {
+        console.error("Error syncing bookings:", error);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const handleCancelBooking = async (booking: Booking) => {
@@ -512,9 +520,9 @@ function StayHistoryTab() {
       setCancellingId(booking.id!);
       try {
         await bookingService.updateBookingStatus(booking.id!, 'cancelled');
-        await walletService.processRefund(booking.visitorId, booking.ownerId, booking.estimatedCost, booking.estimatedCost * 0.75, booking.id!);
-        await fetchBookings();
-        showToast("An error occurred", "error");
+        const amount = booking.totalAmount || (booking as any).estimatedCost || 0;
+        await walletService.processRefund(booking.visitorId, booking.ownerId, amount, amount * 0.75, booking.id!);
+        showToast("Booking cancelled successfully", "success");
       } catch (error) {
         console.error("Error cancelling booking:", error);
         showToast("An error occurred", "error");
@@ -577,7 +585,7 @@ function StayHistoryTab() {
                     </p>
                   </div>
                   <div className="flex justify-between items-center mt-4">
-                    <span className="font-bold text-[#1A1A2E]">₹{booking.estimatedCost}</span>
+                    <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || booking.estimatedCost}</span>
                     <div className="flex gap-3">
                       {canCancel && (
                         <button 
@@ -586,6 +594,14 @@ function StayHistoryTab() {
                           className="text-sm font-bold text-red-500 hover:text-red-600 disabled:opacity-50"
                         >
                           {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
+                        </button>
+                      )}
+                      {!canCancel && booking.status === 'confirmed' && (
+                        <button 
+                          onClick={() => showToast("Cancellation request window will be available soon.", "success")}
+                          className="text-sm font-bold text-orange-500 hover:text-orange-600"
+                        >
+                          Apply for Cancellation & Refund
                         </button>
                       )}
                       <button className="text-sm font-bold text-[#F59E0B] hover:text-amber-600">View Receipt</button>
@@ -713,7 +729,7 @@ function PaymentsTab() {
                       {booking.status === 'confirmed' ? 'Paid' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                     </span>
                   </td>
-                  <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{booking.estimatedCost}</td>
+                  <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{booking.totalAmount || booking.estimatedCost}</td>
                 </tr>
               ))}
             </tbody>
@@ -782,7 +798,16 @@ function FavouritesTab() {
     try {
       const allOwnerBookings = await bookingService.getBookingsByOwner(user!.uid);
       const propBookings = allOwnerBookings.filter(b => b.propertyId === propertyId);
-      setSelectedPropertyBookings(propBookings);
+      
+      // Fetch financials for each booking (Owners are allowed to see this)
+      const bookingsWithFinancials = await Promise.all(
+        propBookings.map(async (booking) => {
+          const financials = await bookingService.getBookingFinancials(booking.id!);
+          return { ...booking, ...financials };
+        })
+      );
+
+      setSelectedPropertyBookings(bookingsWithFinancials);
     } catch (error) {
       console.error("Error fetching bookings:", error);
     } finally {
@@ -1045,9 +1070,24 @@ function FavouritesTab() {
                         <p className="font-bold text-[#1A1A2E]">{booking.visitorName}</p>
                         <p className="text-sm text-gray-500">Contact: {booking.visitorContact}</p>
                         <p className="text-sm text-gray-500">
-                          {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'N/A'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'N/A'}
+                          {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'N/A'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'N/A'} ({booking.nights} nights)
                         </p>
-                        <p className="text-sm font-medium mt-1">Revenue: ₹{booking.estimatedCost * 0.75}</p>
+                        <p className="text-sm font-medium mt-1">Total Amount: ₹{booking.totalAmount || booking.estimatedCost}</p>
+                        <p className="text-sm font-medium text-emerald-600">Your Revenue: ₹{booking.receivedAmount || (booking.estimatedCost * 0.75)}</p>
+                        
+                        {booking.guests && booking.guests.length > 0 && (
+                          <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <p className="text-xs font-bold text-[#1E1B4B] uppercase tracking-wider mb-2">Guest Details</p>
+                            <div className="space-y-2">
+                              {booking.guests.map((guest: any, idx: number) => (
+                                <div key={idx} className="text-xs text-gray-600 flex justify-between">
+                                  <span>{guest.name} ({guest.age}, {guest.gender})</span>
+                                  <span className="text-gray-400">{guest.relation || guest.contact || 'Guest'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
