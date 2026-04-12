@@ -49,7 +49,57 @@ export default function ListProperty() {
     aadhaarBack: null as File | null,
     propertyProof: null as File | null,
     termsAccepted: false,
+    // New fields
+    guests: 4,
+    bedrooms: 1,
+    beds: 1,
+    bathrooms: 1,
+    gender: [] as string[],
   });
+
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [showResubmitConfirm, setShowResubmitConfirm] = useState(false);
+  const [resubmitAgreed, setResubmitAgreed] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get('edit');
+    if (editId) {
+      setIsEditMode(true);
+      setPropertyId(editId);
+      fetchPropertyData(editId);
+    }
+  }, []);
+
+  const fetchPropertyData = async (id: string) => {
+    const property = await propertyService.getPropertyById(id);
+    if (property) {
+      setFormData({
+        title: property.title,
+        type: property.type,
+        area: property.area,
+        address: property.address,
+        price: property.pricePerDay.toString(),
+        photos: [], // We can't easily convert URLs back to Files, so we'll handle this specially
+        description: property.description,
+        weProvideCompulsoryAmenities: true,
+        amenities: property.amenities.filter(a => !COMPULSORY_AMENITIES.includes(a)),
+        otherAmenities: '',
+        aadhaarFront: null,
+        aadhaarBack: null,
+        propertyProof: null,
+        termsAccepted: true,
+        guests: property.guests || 4,
+        bedrooms: property.bedrooms || 1,
+        beds: property.beds || 1,
+        bathrooms: property.bathrooms || 1,
+        gender: property.gender || [],
+      });
+      // Store existing photos to show them
+      (window as any)._existingPhotos = property.photos;
+    }
+  };
 
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -65,7 +115,7 @@ export default function ListProperty() {
         return;
       }
     } else if (step === 3) {
-      if (formData.photos.length !== 5) {
+      if (!isEditMode && formData.photos.length !== 5) {
         showToast("Please upload exactly 5 images.", "error");
         return;
       }
@@ -74,12 +124,16 @@ export default function ListProperty() {
         return;
       }
     } else if (step === 4) {
+      if (formData.gender.length === 0) {
+        showToast("Please select at least one gender specification.", "error");
+        return;
+      }
       if (!formData.weProvideCompulsoryAmenities) {
         showToast("Please confirm that you provide the compulsory amenities.", "error");
         return;
       }
     } else if (step === 5) {
-      if (!formData.aadhaarFront || !formData.aadhaarBack || !formData.propertyProof) {
+      if (!isEditMode && (!formData.aadhaarFront || !formData.aadhaarBack || !formData.propertyProof)) {
         showToast("Please upload all required documents.", "error");
         return;
       }
@@ -170,7 +224,11 @@ export default function ListProperty() {
       });
       
       const photoUrls = await Promise.all(photoUploadPromises);
-      const uploadedPhotoUrls = photoUrls.filter(url => url !== null) as string[];
+      let uploadedPhotoUrls = photoUrls.filter(url => url !== null) as string[];
+
+      if (isEditMode && uploadedPhotoUrls.length === 0) {
+        uploadedPhotoUrls = (window as any)._existingPhotos || [];
+      }
 
       // Compress and convert documents to Base64 in parallel
       const docUploadPromises = [];
@@ -204,7 +262,7 @@ export default function ListProperty() {
 
       await Promise.all(docUploadPromises);
 
-      await propertyService.addProperty({
+      const propertyData = {
         ownerId: user.uid,
         title: formData.title || 'Untitled Property',
         type: formData.type || 'Room',
@@ -215,10 +273,25 @@ export default function ListProperty() {
         photos: uploadedPhotoUrls,
         amenities: [...COMPULSORY_AMENITIES, ...formData.amenities],
         description: formData.description || 'No description provided.',
-        aadhaarFront: aadhaarFrontUrl,
-        aadhaarBack: aadhaarBackUrl,
-        propertyProof: propertyProofUrl,
-      });
+        aadhaarFront: aadhaarFrontUrl || (isEditMode ? (await propertyService.getPropertyById(propertyId!))?.aadhaarFront : ''),
+        aadhaarBack: aadhaarBackUrl || (isEditMode ? (await propertyService.getPropertyById(propertyId!))?.aadhaarBack : ''),
+        propertyProof: propertyProofUrl || (isEditMode ? (await propertyService.getPropertyById(propertyId!))?.propertyProof : ''),
+        guests: formData.guests,
+        bedrooms: formData.bedrooms,
+        beds: formData.beds,
+        bathrooms: formData.bathrooms,
+        gender: formData.gender,
+        submissionType: isEditMode ? 'changes approval' : 'new listing' as any,
+      };
+
+      if (isEditMode && propertyId) {
+        await propertyService.updateProperty(propertyId, {
+          ...propertyData,
+          status: 'Pending', // Back to pending for approval
+        });
+      } else {
+        await propertyService.addProperty(propertyData);
+      }
       
       setIsSubmitted(true);
     } catch (error: any) {
@@ -236,7 +309,7 @@ export default function ListProperty() {
       icon: <Home className="w-10 h-10 text-primary mb-6" />
     },
     {
-      title: "Set your price",
+      title: "Tell us more about your place",
       description: "Decide how you want to charge. You can set a price per day or per month. Don't forget to include a security deposit if required to protect your property.",
       icon: <IndianRupee className="w-10 h-10 text-primary mb-6" />
     },
@@ -246,7 +319,7 @@ export default function ListProperty() {
       icon: <UploadCloud className="w-10 h-10 text-primary mb-6" />
     },
     {
-      title: "Describe your property",
+      title: "Tell us property features & rules",
       description: "Highlight what makes your place special. Select the amenities you offer, and feel free to add any other amenities not listed to give guests a complete picture.",
       icon: <FileText className="w-10 h-10 text-primary mb-6" />
     },
@@ -401,6 +474,34 @@ export default function ListProperty() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-8"
                 >
+                  <div className="grid grid-cols-1 gap-6">
+                    {[
+                      { label: 'Guests', key: 'guests' },
+                      { label: 'Bedrooms', key: 'bedrooms' },
+                      { label: 'Beds', key: 'beds' },
+                      { label: 'Bathrooms', key: 'bathrooms' }
+                    ].map((item) => (
+                      <div key={item.key} className="flex items-center justify-between p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl">
+                        <span className="font-bold text-on-surface">{item.label}</span>
+                        <div className="flex items-center gap-4">
+                          <button 
+                            onClick={() => setFormData(prev => ({ ...prev, [item.key]: Math.max(1, (prev as any)[item.key] - 1) }))}
+                            className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors"
+                          >
+                            -
+                          </button>
+                          <span className="font-bold w-4 text-center">{(formData as any)[item.key]}</span>
+                          <button 
+                            onClick={() => setFormData(prev => ({ ...prev, [item.key]: (prev as any)[item.key] + 1 }))}
+                            className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-on-surface mb-2">
                       Daily Rent (₹)
@@ -489,6 +590,36 @@ export default function ListProperty() {
                   className="space-y-8"
                 >
                   <div>
+                    <label className="block text-sm font-bold text-on-surface mb-4">Gender Specifications</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+                      {[
+                        { id: 'Male', icon: 'male' },
+                        { id: 'Female', icon: 'female' },
+                        { id: 'Other', icon: 'transgender' },
+                        { id: 'Everybody', icon: 'groups' }
+                      ].map((g) => (
+                        <button
+                          key={g.id}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              gender: prev.gender.includes(g.id) 
+                                ? prev.gender.filter(x => x !== g.id)
+                                : [...prev.gender, g.id]
+                            }));
+                          }}
+                          className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
+                            formData.gender.includes(g.id) 
+                              ? 'border-primary bg-primary-container/20 text-primary' 
+                              : 'border-outline-variant hover:bg-surface-container text-on-surface-variant'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-2xl">{g.icon}</span>
+                          <span className="text-xs font-bold">{g.id}</span>
+                        </button>
+                      ))}
+                    </div>
+
                     <label className="block text-sm font-medium text-on-surface mb-4">Compulsory Amenities</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
                       {COMPULSORY_AMENITIES.map(amenity => (
@@ -660,16 +791,65 @@ export default function ListProperty() {
               </button>
             ) : (
               <button 
-                onClick={handleSubmit}
+                onClick={() => isEditMode ? setShowResubmitConfirm(true) : handleSubmit(new Event('submit') as any)}
                 disabled={!formData.termsAccepted || isSubmitting}
                 className={`flex items-center gap-2 font-bold px-8 py-3 rounded-xl shadow-lg transition-colors ${formData.termsAccepted && !isSubmitting ? 'bg-primary text-on-primary hover:bg-primary/90' : 'bg-surface-variant text-on-surface-variant cursor-not-allowed'}`}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Listing'} <CheckCircle2 className="w-4 h-4" />
+                {isSubmitting ? 'Submitting...' : (isEditMode ? 'Resubmit' : 'Submit Listing')} <CheckCircle2 className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Resubmit Confirmation Modal */}
+      <AnimatePresence>
+        {showResubmitConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResubmitConfirm(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100">
+              <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="material-symbols-outlined text-3xl">verified_user</span>
+              </div>
+              <h3 className="text-2xl font-bold text-[#1E1B4B] mb-4">Confirm Resubmission</h3>
+              <p className="text-[#64748B] mb-6 text-sm leading-relaxed">
+                Your property will be sent to the admin dashboard for verification. Only after successful verification your property will be updated with the changes on website.
+              </p>
+              
+              <label className="flex items-start gap-3 cursor-pointer p-4 border border-outline-variant rounded-xl hover:bg-slate-50 transition-colors mb-8 text-left">
+                <input 
+                  type="checkbox" 
+                  className="mt-1 w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
+                  checked={resubmitAgreed}
+                  onChange={(e) => setResubmitAgreed(e.target.checked)}
+                />
+                <span className="text-xs font-medium text-on-surface">
+                  I agree that the information provided is accurate and I understand it will be reviewed by admin.
+                </span>
+              </label>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowResubmitConfirm(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowResubmitConfirm(false);
+                    handleSubmit(new Event('submit') as any);
+                  }}
+                  disabled={!resubmitAgreed || isSubmitting}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-on-primary font-bold py-3 rounded-xl transition-all shadow-md disabled:opacity-50"
+                >
+                  Resubmit
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Verification Popup */}
       <AnimatePresence>

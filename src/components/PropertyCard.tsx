@@ -68,7 +68,7 @@ export default function PropertyCard({
         <div className="flex gap-3 mb-4">
           <div className="flex flex-col">
             <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Rent</span>
-            <span className="text-base font-extrabold text-on-secondary-fixed">₹{property.pricePerDay}<small className="text-[10px] font-medium">/mo</small></span>
+            <span className="text-base font-extrabold text-on-secondary-fixed">₹{property.pricePerDay}<small className="text-[10px] font-bold">/day</small></span>
           </div>
           <div className="w-px h-6 bg-surface-container-high self-center"></div>
           <div className="flex flex-col">

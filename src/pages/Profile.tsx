@@ -9,6 +9,7 @@ import { propertyService } from '../services/propertyService';
 import { emailService } from '../services/emailService';
 import { userService } from '../services/userService';
 import { reviewService, Review } from '../services/reviewService';
+import { Bed } from 'lucide-react';
 import { emailTemplates } from '../services/emailTemplates';
 import { format } from 'date-fns';
 import { 
@@ -36,7 +37,7 @@ import {
 } from 'lucide-react';
 
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
@@ -799,6 +800,7 @@ function PaymentsTab() {
 
 function FavouritesTab() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBookingsModal, setShowBookingsModal] = useState(false);
@@ -826,12 +828,29 @@ function FavouritesTab() {
     fetchMyProperties();
   }, [user]);
 
-  const toggleAvailability = async (id: string, currentStatus: boolean) => {
+  const [showHideModal, setShowHideModal] = useState(false);
+  const [selectedPropertyToHide, setSelectedPropertyToHide] = useState<any>(null);
+  const [hideOption, setHideOption] = useState<'date' | 'manual' | 'permanent'>('manual');
+  const [unavailabilityDate, setUnavailabilityDate] = useState('');
+
+  const handleHideProperty = async () => {
+    if (!selectedPropertyToHide) return;
     try {
-      await propertyService.updateProperty(id, { isAvailable: !currentStatus });
+      if (hideOption === 'permanent') {
+        await propertyService.deleteProperty(selectedPropertyToHide.id);
+        showToast("Property deleted permanently", "success");
+      } else {
+        const until = hideOption === 'date' ? unavailabilityDate : 'manual';
+        await propertyService.updateProperty(selectedPropertyToHide.id, { 
+          isAvailable: false,
+          unavailabilityUntil: until
+        });
+        showToast("Property hidden from website", "success");
+      }
       fetchMyProperties();
+      setShowHideModal(false);
     } catch (error) {
-      console.error("Error updating availability:", error);
+      console.error("Error hiding property:", error);
       showToast("An error occurred", "error");
     }
   };
@@ -880,12 +899,17 @@ function FavouritesTab() {
     // Realtime reviews for owner
     const reviewsQ = query(
       collection(db, 'reviews'),
-      where('propertyId', '==', propertyId),
-      orderBy('createdAt', 'desc')
+      where('propertyId', '==', propertyId)
     );
 
     const unsubscribe = onSnapshot(reviewsQ, (snapshot) => {
-      const reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const reviews = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a: any, b: any) => {
+          const dateA = a.createdAt?.seconds || 0;
+          const dateB = b.createdAt?.seconds || 0;
+          return dateB - dateA;
+        });
       setSelectedPropertyReviews(reviews);
       setLoadingReviews(false);
     }, (error) => {
@@ -1001,7 +1025,23 @@ function FavouritesTab() {
                     View Details
                   </Link>
                   <button 
-                    onClick={() => toggleAvailability(property.id, property.isAvailable !== false)}
+                    onClick={() => navigate(`/list-property?edit=${property.id}`)}
+                    className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    Edit Property
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (property.isAvailable !== false) {
+                        setSelectedPropertyToHide(property);
+                        setShowHideModal(true);
+                      } else {
+                        propertyService.updateProperty(property.id, { isAvailable: true, unavailabilityUntil: null }).then(() => {
+                          showToast("Property is now available", "success");
+                          fetchMyProperties();
+                        });
+                      }
+                    }}
                     className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
                   >
                     {property.isAvailable !== false ? 'Hide Listing' : 'Make Available'}
@@ -1031,7 +1071,57 @@ function FavouritesTab() {
         </div>
       )}
 
-      {/* Reviews Modal */}
+      {/* Hide Property Modal */}
+      <AnimatePresence>
+        {showHideModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowHideModal(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100">
+              <h3 className="text-2xl font-bold text-[#1E1B4B] mb-6 text-center">Hide Property</h3>
+              
+              <div className="space-y-4 mb-8">
+                <p className="text-sm text-gray-500 mb-4">Select how long you want to hide this property from the website.</p>
+                
+                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'manual' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="hideOption" checked={hideOption === 'manual'} onChange={() => setHideOption('manual')} className="w-4 h-4 text-amber-500" />
+                  <span className="font-medium text-sm">Until I make it available</span>
+                </label>
+
+                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'date' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="hideOption" checked={hideOption === 'date'} onChange={() => setHideOption('date')} className="w-4 h-4 text-amber-500" />
+                  <span className="font-medium text-sm">Unavailable until specific date</span>
+                </label>
+
+                {hideOption === 'date' && (
+                  <input 
+                    type="date" 
+                    value={unavailabilityDate}
+                    onChange={(e) => setUnavailabilityDate(e.target.value)}
+                    className="w-full mt-2 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                )}
+
+                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'permanent' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="hideOption" checked={hideOption === 'permanent'} onChange={() => setHideOption('permanent')} className="w-4 h-4 text-red-500" />
+                  <span className="font-medium text-sm text-red-600">Permanently (Delete Property)</span>
+                </label>
+              </div>
+
+              <div className="flex gap-4">
+                <button onClick={() => setShowHideModal(false)} className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
+                <button 
+                  onClick={handleHideProperty}
+                  disabled={hideOption === 'date' && !unavailabilityDate}
+                  className={`flex-1 py-3 rounded-xl font-bold text-white transition-all shadow-md ${hideOption === 'permanent' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'} disabled:opacity-50`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showReviewsModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1777,31 +1867,33 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
         const wallet = await walletService.getWallet(user.uid);
         const txns = await walletService.getTransactions(user.uid);
         
-        let totalRevenue = 0;
-        let totalVisitors = 0;
-        let totalOccupancy = 0;
-        let totalRatings = 0;
-        let ratingCount = 0;
-        let rejections = 0;
-
-        // In a real app, we would fetch bookings for these properties
-        // For now, we'll calculate basic stats
+        // Fetch all bookings for owner's properties
+        const allBookings = await bookingService.getBookingsByOwner(user.uid);
+        const completedBookings = allBookings.filter(b => b.status === 'completed');
         
+        // Fetch reviews for owner's properties
+        const reviewsSnapshot = await getDocs(query(collection(db, 'reviews'), where('propertyOwnerId', '==', user.uid)));
+        const reviews = reviewsSnapshot.docs.map(doc => doc.data());
+        
+        const totalRatings = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+        const averageRating = reviews.length > 0 ? (totalRatings / reviews.length).toFixed(1) : 0;
+
         const pendingPayments = txns
           .filter(t => t.type === 'debit' && t.status === 'pending')
           .reduce((sum, t) => sum + t.amount, 0);
 
         setStats({
           totalListings: properties.length,
-          availableListings: properties.filter(p => p.status === 'Approved').length,
+          availableListings: properties.filter(p => p.status === 'Approved' && p.isAvailable !== false).length,
           pendingListings: properties.filter(p => p.status === 'Pending').length,
           walletBalance: wallet?.availableBalance || 0,
           pendingPayments,
           totalRevenue: wallet?.availableBalance || 0, // Simplified
-          averageRating: 4.5, // Mock
-          totalVisitors: 12, // Mock
-          occupancyRate: 75, // Mock
-          rejections: 1 // Mock
+          averageRating,
+          totalVisitors: completedBookings.length,
+          occupancyRate: properties.length > 0 ? Math.round((completedBookings.length / (properties.length * 30)) * 100) : 0, // Mock occupancy over 30 days
+          rejections: properties.filter(p => p.status === 'Rejected').length,
+          reviewCount: reviews.length
         });
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
@@ -1983,7 +2075,7 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
             <span className="font-medium">Average Rating</span>
           </div>
           <h3 className="text-3xl font-extrabold text-[#1A1A2E] mb-1">{stats?.averageRating}</h3>
-          <p className="text-sm text-gray-500 font-medium">Based on 24 reviews</p>
+          <p className="text-sm text-gray-500 font-medium">Based on {stats?.reviewCount || 0} reviews</p>
         </div>
       </div>
 

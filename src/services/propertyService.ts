@@ -22,6 +22,14 @@ export interface Property {
   aadhaarFront?: string;
   aadhaarBack?: string;
   propertyProof?: string;
+  // New fields
+  guests?: number;
+  bedrooms?: number;
+  beds?: number;
+  bathrooms?: number;
+  gender?: string[]; // Male, Female, Other
+  submissionType?: 'new listing' | 'changes approval';
+  unavailabilityUntil?: any; // Date or 'permanently' or 'manual'
 }
 
 export const propertyService = {

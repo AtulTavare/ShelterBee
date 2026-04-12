@@ -51,15 +51,25 @@ export const AdminPendingApprovals = () => {
         try {
           const ownerProfile = await userService.getUserProfile(property.ownerId);
           if (ownerProfile?.email) {
-            const template = emailTemplates.getPropertyApproval(
-              ownerProfile.displayName || 'Owner',
-              property.title,
-              property.address || property.area
-            );
+            const propertyLink = `${window.location.origin}/property/${property.id}`;
+            const isUpdate = property.submissionType === 'changes approval';
+            
             await emailService.sendEmail({
               to: ownerProfile.email,
-              subject: template.subject,
-              html: template.html
+              subject: isUpdate ? `Changes Approved: ${property.title}` : `Property Approved: ${property.title}`,
+              html: `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #10b981;">${isUpdate ? 'Changes Approved!' : 'Property Approved!'}</h2>
+                  <p>Hello ${ownerProfile.displayName || 'Owner'},</p>
+                  <p>Great news! Your ${isUpdate ? 'recent changes for' : 'listing for'} <strong>${property.title}</strong> has been approved by our admin team.</p>
+                  <p>Your property is now live and visible to visitors on ShelterBee.</p>
+                  <div style="margin: 30px 0;">
+                    <a href="${propertyLink}" style="background-color: #1e1b4b; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View Your Property</a>
+                  </div>
+                  <p>Link: <a href="${propertyLink}">${propertyLink}</a></p>
+                  <p>Best regards,<br/>The ShelterBee Team</p>
+                </div>
+              `
             });
           }
         } catch (e) {
@@ -68,6 +78,7 @@ export const AdminPendingApprovals = () => {
       }
 
       setSelectedProperty(null);
+      showToast("Property approved successfully", "success");
     } catch (error) {
       console.error("Error approving property:", error);
       showToast("An error occurred", "error");
@@ -124,10 +135,17 @@ export const AdminPendingApprovals = () => {
           <div key={prop.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedProperty(prop)}>
             <div className="h-48 relative">
               <img src={prop.photos?.[0] || 'https://picsum.photos/seed/placeholder/400/300'} alt={prop.title} className="w-full h-full object-cover" />
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                 <span className="px-2.5 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
                   Pending
                 </span>
+                {prop.submissionType && (
+                  <span className={`px-2.5 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-wider shadow-sm ${
+                    prop.submissionType === 'changes approval' ? 'bg-blue-500' : 'bg-purple-500'
+                  }`}>
+                    {prop.submissionType}
+                  </span>
+                )}
               </div>
             </div>
             <div className="p-5 flex-1 flex flex-col">

@@ -2,13 +2,13 @@ import { showToast } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAreaInfo } from '../services/geminiService';
 import { propertyService } from '../services/propertyService';
 import { useAuth } from '../contexts/AuthContext';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
 import { doc, updateDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { reviewService, Review } from '../services/reviewService';
+import { Users, Bed } from 'lucide-react';
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -27,8 +27,6 @@ export default function PropertyDetail() {
     ownerBehavior: 0,
     comfort: 0
   });
-  const [areaInfo, setAreaInfo] = useState<{text: string, grounding: any[]} | null>(null);
-  const [loadingAreaInfo, setLoadingAreaInfo] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -48,31 +46,7 @@ export default function PropertyDetail() {
       try {
         const prop = await propertyService.getPropertyById(id);
         if (prop) {
-          // Append demo images from Unsplash
-          const demoImages = [
-            "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1600607687931-cecebd808ce3?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80"
-          ];
-          
-          const photos = prop.photos || [];
-          const enhancedProp = {
-            ...prop,
-            photos: [...photos, ...demoImages.slice(0, Math.max(0, 5 - photos.length))]
-          };
-          
-          setProperty(enhancedProp);
-          
-          // Fetch area info from Gemini
-          if (prop.area) {
-            setLoadingAreaInfo(true);
-            getAreaInfo(prop.area).then(info => {
-              if (info) setAreaInfo(info);
-              setLoadingAreaInfo(false);
-            });
-          }
+          setProperty(prop);
         } else {
           navigate('/');
         }
@@ -87,12 +61,17 @@ export default function PropertyDetail() {
     // Fetch reviews in realtime
     const reviewsQ = query(
       collection(db, 'reviews'),
-      where('propertyId', '==', id),
-      orderBy('createdAt', 'desc')
+      where('propertyId', '==', id)
     );
 
     const unsubscribeReviews = onSnapshot(reviewsQ, (snapshot) => {
-      const fetchedReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+      const fetchedReviews = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Review))
+        .sort((a, b) => {
+          const dateA = a.createdAt?.seconds || 0;
+          const dateB = b.createdAt?.seconds || 0;
+          return dateB - dateA;
+        });
       setReviews(fetchedReviews);
 
       if (fetchedReviews.length > 0) {
@@ -151,8 +130,8 @@ export default function PropertyDetail() {
         </button>
 
         {/* Dynamic Hero Bento Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-12 gap-2 h-[350px] md:h-[450px] mb-8">
-          <div className="md:col-span-7 rounded-3xl overflow-hidden group relative bg-slate-100">
+        <section className="grid grid-cols-1 md:grid-cols-12 gap-[6px] h-[480px] mb-6 overflow-hidden relative z-0">
+          <div className="md:col-span-7 rounded-[12px] overflow-hidden group relative bg-slate-100 h-full">
             <AnimatePresence mode="wait">
               <motion.img 
                 key={currentSlide}
@@ -161,31 +140,31 @@ export default function PropertyDetail() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.8 }}
                 alt="Main Property View" 
-                className="w-full h-full object-cover bento-img absolute inset-0" 
+                className="w-full h-full object-cover absolute inset-0" 
                 src={property.photos?.[currentSlide] || 'https://picsum.photos/seed/placeholder/800/600'} 
                 referrerPolicy="no-referrer" 
               />
             </AnimatePresence>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent z-10"></div>
           </div>
-          <div className="md:col-span-5 grid grid-cols-2 grid-rows-2 gap-2">
-            <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Interior 1" className="w-full h-full object-cover bento-img" src={property.photos?.[1] || 'https://picsum.photos/seed/placeholder1/400/300'} referrerPolicy="no-referrer" />
+          <div className="md:col-span-5 grid grid-cols-2 grid-rows-2 gap-[6px] h-full">
+            <div className="overflow-hidden group relative">
+              <img alt="Interior 1" className="w-full h-full object-cover rounded-tr-[12px]" src={property.photos?.[1] || 'https://picsum.photos/seed/placeholder1/400/300'} referrerPolicy="no-referrer" />
             </div>
-            <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Interior 2" className="w-full h-full object-cover bento-img" src={property.photos?.[2] || 'https://picsum.photos/seed/placeholder2/400/300'} referrerPolicy="no-referrer" />
+            <div className="overflow-hidden group relative">
+              <img alt="Interior 2" className="w-full h-full object-cover" src={property.photos?.[2] || 'https://picsum.photos/seed/placeholder2/400/300'} referrerPolicy="no-referrer" />
             </div>
-            <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Interior 3" className="w-full h-full object-cover bento-img" src={property.photos?.[3] || 'https://picsum.photos/seed/placeholder3/400/300'} referrerPolicy="no-referrer" />
+            <div className="overflow-hidden group relative">
+              <img alt="Interior 3" className="w-full h-full object-cover" src={property.photos?.[3] || 'https://picsum.photos/seed/placeholder3/400/300'} referrerPolicy="no-referrer" />
             </div>
-            <div className="rounded-3xl overflow-hidden group relative">
-              <img alt="Exterior" className="w-full h-full object-cover bento-img" src={property.photos?.[4] || 'https://picsum.photos/seed/placeholder4/400/300'} referrerPolicy="no-referrer" />
+            <div className="overflow-hidden group relative">
+              <img alt="Exterior" className="w-full h-full object-cover rounded-br-[12px]" src={property.photos?.[4] || 'https://picsum.photos/seed/placeholder4/400/300'} referrerPolicy="no-referrer" />
             </div>
           </div>
         </section>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 relative">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 relative mt-6">
           {/* Left Column: Details */}
           <div className="lg:col-span-8 space-y-10">
             {/* Premium Header */}
@@ -216,11 +195,51 @@ export default function PropertyDetail() {
               </div>
             </div>
 
+            {/* Property Details Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Guests</p>
+                  <p className="text-sm font-bold text-[#1E1B4B]">{property.guests || 4}</p>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
+                  <Bed className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Bedrooms</p>
+                  <p className="text-sm font-bold text-[#1E1B4B]">{property.bedrooms || 1}</p>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
+                  <span className="material-symbols-outlined text-xl">bed</span>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Beds</p>
+                  <p className="text-sm font-bold text-[#1E1B4B]">{property.beds || 1}</p>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
+                  <span className="material-symbols-outlined text-xl">bathroom</span>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Bathrooms</p>
+                  <p className="text-sm font-bold text-[#1E1B4B]">{property.bathrooms || 1}</p>
+                </div>
+              </div>
+            </div>
+
             {/* Description */}
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-xl font-extrabold text-[#1E1B4B]">Property Overview</h2>
+                <h2 className="text-xl font-extrabold text-[#1E1B4B]">Place Overview</h2>
               </div>
               <p className="text-[#64748B] leading-relaxed text-sm font-medium opacity-90 whitespace-pre-line">
                 {property.description.replace(/[*_~`#!]/g, '').replace(/ +/g, ' ').trim()}
@@ -228,42 +247,66 @@ export default function PropertyDetail() {
             </div>
 
             {/* Amenities */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
                 <h2 className="text-xl font-extrabold text-[#1E1B4B]">Signature Amenities</h2>
-                <div className="flex flex-wrap gap-[20px]">
-                  {property.amenities.map((amenity: string, idx: number) => {
-                    const lower = amenity.toLowerCase();
-                    let icon = 'check_circle';
-                    if (lower.includes('wifi') || lower.includes('wi-fi') || lower.includes('internet')) icon = 'wifi';
-                    else if (lower.includes('ac') || lower.includes('air conditioning') || lower.includes('a/c')) icon = 'ac_unit';
-                    else if (lower.includes('pool') || lower.includes('swimming')) icon = 'pool';
-                    else if (lower.includes('gym') || lower.includes('fitness')) icon = 'fitness_center';
-                    else if (lower.includes('parking') || lower.includes('garage')) icon = 'local_parking';
-                    else if (lower.includes('kitchen')) icon = 'kitchen';
-                    else if (lower.includes('tv') || lower.includes('television')) icon = 'tv';
-                    else if (lower.includes('washer') || lower.includes('laundry')) icon = 'local_laundry_service';
-                    else if (lower.includes('security') || lower.includes('guard') || lower.includes('cctv')) icon = 'security';
-                    else if (lower.includes('balcony') || lower.includes('patio')) icon = 'balcony';
-                    else if (lower.includes('pet')) icon = 'pets';
-                    else if (lower.includes('elevator') || lower.includes('lift')) icon = 'elevator';
-                    else if (lower.includes('heating') || lower.includes('heater')) icon = 'hvac';
-                    else if (lower.includes('workspace') || lower.includes('desk')) icon = 'desk';
-                    else if (lower.includes('water') || lower.includes('purifier')) icon = 'water_drop';
-                    else if (lower.includes('power') || lower.includes('backup')) icon = 'power';
-                    else if (lower.includes('bed') || lower.includes('mattress')) icon = 'bed';
-                    else if (lower.includes('food') || lower.includes('meal')) icon = 'restaurant';
-                    else if (lower.includes('cleaning') || lower.includes('housekeeping')) icon = 'cleaning_services';
+              </div>
 
-                    return (
+              <div className="space-y-6">
+                {/* Compulsory Amenities */}
+                <div>
+                  
+                  <div className="flex flex-wrap gap-x-8 gap-y-4">
+                    {property.amenities.filter((a: string) => ['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).map((amenity: string) => (
                       <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                        <span className="material-symbols-outlined text-[#F59E0B] text-xl">{icon}</span>
+                        <span className="material-symbols-outlined text-[#F59E0B] text-xl">
+                          {amenity.includes('Water') ? 'water_drop' : 'bolt'}
+                        </span>
                         <span className="font-medium text-sm">{amenity}</span>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
+
+                {/* Additional Amenities */}
+                {property.amenities.filter((a: string) => !['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).length > 0 && (
+                  <div>
+                    
+                    <div className="flex flex-wrap gap-x-8 gap-y-4">
+                      {property.amenities.filter((a: string) => !['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).map((amenity: string) => {
+                        const lower = amenity.toLowerCase();
+                        let icon = 'check_circle';
+                        if (lower.includes('wifi') || lower.includes('wi-fi') || lower.includes('internet')) icon = 'wifi';
+                        else if (lower.includes('ac') || lower.includes('air conditioning') || lower.includes('a/c')) icon = 'ac_unit';
+                        else if (lower.includes('pool') || lower.includes('swimming')) icon = 'pool';
+                        else if (lower.includes('gym') || lower.includes('fitness')) icon = 'fitness_center';
+                        else if (lower.includes('parking') || lower.includes('garage')) icon = 'local_parking';
+                        else if (lower.includes('kitchen')) icon = 'kitchen';
+                        else if (lower.includes('tv') || lower.includes('television')) icon = 'tv';
+                        else if (lower.includes('washer') || lower.includes('laundry')) icon = 'local_laundry_service';
+                        else if (lower.includes('security') || lower.includes('guard') || lower.includes('cctv')) icon = 'security';
+                        else if (lower.includes('balcony') || lower.includes('patio')) icon = 'balcony';
+                        else if (lower.includes('pet')) icon = 'pets';
+                        else if (lower.includes('elevator') || lower.includes('lift')) icon = 'elevator';
+                        else if (lower.includes('heating') || lower.includes('heater')) icon = 'hvac';
+                        else if (lower.includes('workspace') || lower.includes('desk')) icon = 'desk';
+                        else if (lower.includes('water') || lower.includes('purifier')) icon = 'water_drop';
+                        else if (lower.includes('power') || lower.includes('backup')) icon = 'power';
+                        else if (lower.includes('bed') || lower.includes('mattress')) icon = 'bed';
+                        else if (lower.includes('food') || lower.includes('meal')) icon = 'restaurant';
+                        else if (lower.includes('cleaning') || lower.includes('housekeeping')) icon = 'cleaning_services';
+
+                        return (
+                          <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
+                            <span className="material-symbols-outlined text-[#F59E0B] text-xl">{icon}</span>
+                            <span className="font-medium text-sm">{amenity}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -271,104 +314,59 @@ export default function PropertyDetail() {
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-xl font-extrabold text-[#1E1B4B]">House Guidelines</h2>
+                <h2 className="text-xl font-extrabold text-[#1E1B4B]">About Place</h2>
               </div>
               <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">schedule</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Check-in / Out</div>
-                      <p className="text-xs text-[#64748B] font-medium">In: 12 PM | Out: 11 AM</p>
-                    </div>
-                  </div>
                   <div className="flex gap-4">
                     <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
                       <span className="material-symbols-outlined text-[#F59E0B] text-lg">groups</span>
                     </div>
                     <div className="space-y-1">
                       <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Occupancy</div>
-                      <p className="text-xs text-[#64748B] font-medium">Maximum 6 residents</p>
+                      <p className="text-xs text-[#64748B] font-medium">Maximum {property.guests} residents</p>
                     </div>
                   </div>
                   <div className="flex gap-4">
                     <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">smoke_free</span>
+                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">bed</span>
                     </div>
                     <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Smoking</div>
-                      <p className="text-xs text-[#64748B] font-medium">Strictly prohibited</p>
+                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Bedrooms</div>
+                      <p className="text-xs text-[#64748B] font-medium">{property.bedrooms} Bedrooms</p>
                     </div>
                   </div>
                   <div className="flex gap-4">
                     <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">pets</span>
+                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">bed</span>
                     </div>
                     <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Pets</div>
-                      <p className="text-xs text-[#64748B] font-medium">Case-by-case approval</p>
+                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Beds</div>
+                      <p className="text-xs text-[#64748B] font-medium">{property.beds} Beds</p>
                     </div>
                   </div>
-                </div>
-                <div className="pt-8 border-t border-slate-50">
-                  <h3 className="font-extrabold text-[#1E1B4B] mb-4 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-lg">list_alt</span>
-                    Mandatory Regulations
-                  </h3>
-                  <ul className="grid md:grid-cols-2 gap-4 text-sm font-medium text-[#64748B]">
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] mt-1.5"></span>
-                      Quiet hours: 10 PM - 7 AM
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] mt-1.5"></span>
-                      No subletting permitted
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] mt-1.5"></span>
-                      Valid ID proof required
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] mt-1.5"></span>
-                      Structural changes restricted
-                    </li>
-                  </ul>
+                  <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">bathroom</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Bathrooms</div>
+                      <p className="text-xs text-[#64748B] font-medium">{property.bathrooms} Bathrooms</p>
+                    </div>
+                  </div>
+                  {property.gender && property.gender.length > 0 && (
+                    <div className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[#F59E0B] text-lg">person_pin</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Gender Preference</div>
+                        <p className="text-xs text-[#64748B] font-medium">{property.gender.join(', ')}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-
-            {/* Area Info (Gemini Maps Grounding) */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-xl font-extrabold text-[#1E1B4B]">About {property.area}</h2>
-              </div>
-              
-              {loadingAreaInfo ? (
-                <div className="animate-pulse flex space-x-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                  <div className="flex-1 space-y-3 py-1">
-                    <div className="h-3 bg-slate-200 rounded w-3/4"></div>
-                    <div className="h-3 bg-slate-200 rounded"></div>
-                    <div className="h-3 bg-slate-200 rounded w-5/6"></div>
-                  </div>
-                </div>
-              ) : areaInfo ? (
-                <div className="bg-[#1E1B4B]/5 rounded-2xl p-6 border border-[#1E1B4B]/10 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#1E1B4B]/10 rounded-full blur-2xl -mr-8 -mt-8" />
-                  <div className="flex items-start gap-3 relative z-10">
-                    <div className="bg-[#1E1B4B]/10 p-2 rounded-lg mt-1 shadow-sm">
-                      <span className="material-symbols-outlined text-[#1E1B4B] text-xl">explore</span>
-                    </div>
-                    <div className="text-[#64748B] leading-relaxed text-sm font-medium">
-                      {areaInfo.text}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[#64748B] italic bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-sm">No area information available at the moment.</p>
-              )}
             </div>
 
             {/* Premium Locked Section */}
@@ -568,8 +566,8 @@ export default function PropertyDetail() {
                           <span className="material-symbols-outlined text-[#F59E0B]">verified_user</span>
                         </div>
                         <div>
-                          <p className="text-white font-bold text-sm">Ready to Book</p>
-                          <p className="text-white/60 text-xs">Complete the steps to unlock owner details.</p>
+                          <p className="text-white font-bold text-sm">Available to Book</p>
+                          
                         </div>
                       </div>
                     </div>
