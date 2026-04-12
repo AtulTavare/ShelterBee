@@ -237,11 +237,6 @@ export default function HostAuth() {
       <div className="w-full lg:w-7/12 flex flex-col min-h-screen relative">
         <div className="flex-grow flex flex-col items-center justify-start p-6 sm:p-12 pt-12 sm:pt-24">
           
-          <div className="mb-8 text-center">
-            <h2 className="text-2xl font-bold text-[#1A1A2E]">Property Owner Authentication</h2>
-            <p className="text-gray-500 text-sm">Exclusive access for Shelterbee hosts</p>
-          </div>
-
           {/* Form Card */}
           <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 sm:p-12 border border-gray-50 relative z-10">
             
