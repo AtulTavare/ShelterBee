@@ -10,6 +10,8 @@ import { db } from '../firebase';
 import { reviewService, Review } from '../services/reviewService';
 import { Users, Bed } from 'lucide-react';
 
+import { getAvatarUrl } from '../utils/avatar';
+
 export default function PropertyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -453,7 +455,7 @@ export default function PropertyDetail() {
                         <div key={review.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                           <div className="flex items-center gap-4">
                             <img 
-                              src={review.visitorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.visitorName}&backgroundColor=b6e3f4`} 
+                              src={review.visitorAvatar || getAvatarUrl(review.visitorName)} 
                               alt={review.visitorName} 
                               className="w-12 h-12 rounded-full bg-slate-100" 
                               referrerPolicy="no-referrer" 

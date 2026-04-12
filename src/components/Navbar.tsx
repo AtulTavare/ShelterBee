@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { showConfirm } from '../utils/toast';
 
+import { getAvatarUrl } from '../utils/avatar';
+
 export default function Navbar() {
   const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
@@ -11,6 +13,7 @@ export default function Navbar() {
   const authMode = searchParams.get('mode') === 'login' ? 'login' : 'register';
 
   const [showAuthDropdown, setShowAuthDropdown] = useState(false);
+  const [guestSeed] = useState(() => Math.random().toString());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,13 +57,13 @@ export default function Navbar() {
         </div>
         
         <div className="flex items-center gap-4">
-          {location.pathname === '/auth' ? (
+          {location.pathname === '/auth' || location.pathname === '/host-auth' ? (
             <div className="hidden sm:flex items-center gap-4 mr-4">
               <span className="text-gray-500 text-sm font-medium">
                 {authMode === 'register' ? 'Already have an account?' : "Don't have an account?"}
               </span>
               <Link 
-                to={`/auth?mode=${authMode === 'register' ? 'login' : 'register'}`}
+                to={`${location.pathname}?mode=${authMode === 'register' ? 'login' : 'register'}`}
                 state={location.state}
                 className="text-[#8B5A2B] font-bold hover:text-[#F59E0B] transition-colors text-sm"
               >
@@ -78,13 +81,20 @@ export default function Navbar() {
                 </Link>
               )
             ) : (
-              <Link 
-                to="/auth?mode=login" 
-                state={{ returnTo: '/list-property' }}
-                className="hidden lg:block bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
-              >
-                Become a Host
-              </Link>
+              <div className="hidden lg:flex items-center gap-3">
+                <Link 
+                  to="/host-auth?mode=register" 
+                  className="bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
+                >
+                  Become a Host
+                </Link>
+                <Link 
+                  to="/auth?mode=login" 
+                  className="bg-[#FFF8E1] text-[#8B5A2B] border border-[#FFE082] px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
+                >
+                  Book a Property
+                </Link>
+              </div>
             )
           )}
           
@@ -95,11 +105,11 @@ export default function Navbar() {
                   <span className="text-sm font-bold text-on-secondary-fixed">{profile?.displayName || user.email?.split('@')[0]}</span>
                 </Link>
                 <Link to={(profile?.role === 'admin' || user?.email === 'tavareatul7192@gmail.com') ? '/admin-secret-dashboard' : '/profile'} className="cursor-pointer">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" className="w-9 h-9 rounded-full border border-outline-variant hover:border-primary transition-colors" />
-                  ) : (
-                    <span className="material-symbols-outlined text-on-secondary-fixed text-3xl hover:text-primary transition-colors">account_circle</span>
-                  )}
+                  <img 
+                    src={user.photoURL || getAvatarUrl(user.email || user.uid, profile?.gender, profile?.role)} 
+                    alt="Profile" 
+                    className="w-9 h-9 rounded-full border border-outline-variant hover:border-primary transition-colors bg-gray-100" 
+                  />
                 </Link>
                 <button 
                   onClick={handleLogout}
@@ -111,11 +121,22 @@ export default function Navbar() {
               </div>
             ) : (
               <>
-                <button 
-                  onClick={() => setShowAuthDropdown(!showAuthDropdown)}
+                <Link 
+                  to="/auth?mode=login"
                   className="flex items-center gap-2 hover:text-primary transition-colors"
                 >
-                  <span className="material-symbols-outlined text-on-secondary-fixed text-3xl">account_circle</span>
+                  <img 
+                    src={getAvatarUrl(`guest-${guestSeed}`)} 
+                    alt="Guest Profile" 
+                    className="w-9 h-9 rounded-full border border-outline-variant hover:border-primary transition-colors bg-gray-100" 
+                  />
+                </Link>
+                
+                <button 
+                  onClick={() => setShowAuthDropdown(!showAuthDropdown)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <span className="material-symbols-outlined text-on-secondary-fixed text-2xl">expand_more</span>
                 </button>
                 
                 {showAuthDropdown && (

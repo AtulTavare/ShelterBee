@@ -277,5 +277,23 @@ export const emailTemplates = {
       subject: `Refund Processed: ₹${amount} credited to your wallet 💰`,
       html: baseLayout(content)
     };
+  },
+
+  getPropertySubmission: (ownerName: string, gender: string) => {
+    const salutation = gender === 'Female' ? 'Mrs.' : 'Mr.';
+    const content = `
+      <h1>Property Listing Submitted! 🏠</h1>
+      <p>Hello <span class="highlight">${salutation} ${ownerName}</span>,</p>
+      <p>We got your new property details to list on ShelterBee, your property will be live after verification.</p>
+      <div class="details-box">
+        <p>We will notify you once our team verify your property documents. Then you can see your property available for bookings on the platform website.</p>
+      </div>
+      <p>Thank you for choosing ShelterBee!</p>
+      <p>— shelterBee</p>
+    `;
+    return {
+      subject: `Property Listing Submitted Successfully! 🏠`,
+      html: baseLayout(content)
+    };
   }
 };

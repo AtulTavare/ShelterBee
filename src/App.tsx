@@ -7,6 +7,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/Home';
 import Auth from './pages/Auth';
+import HostAuth from './pages/HostAuth';
 import PropertyDetail from './pages/PropertyDetail';
 import ListProperty from './pages/ListProperty';
 import Listings from './pages/Listings';
@@ -50,6 +51,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/host-auth" element={<HostAuth />} />
             <Route path="/property/:id" element={<PropertyDetail />} />
             <Route path="/list-property" element={<ListProperty />} />
             <Route path="/listings" element={<Listings />} />

@@ -10,8 +10,10 @@ const AMENITIES_LIST = ['AC', 'WiFi', 'Attached Bathroom', 'Meals Included', 'Pa
 
 import { propertyService } from '../services/propertyService';
 import { storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import { emailService } from '../services/emailService';
+import { emailTemplates } from '../services/emailTemplates';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -215,52 +217,57 @@ export default function ListProperty() {
     
     setIsSubmitting(true);
     try {
-      // Compress and convert photos to Base64 in parallel
-      const photoUploadPromises = formData.photos.map(async (file) => {
-        if (file) {
-          return await compressImage(file);
+      // Fetch existing property data once if in edit mode
+      let existingProperty = null;
+      if (isEditMode && propertyId) {
+        existingProperty = await propertyService.getPropertyById(propertyId);
+      }
+
+      // 1. Upload Photos to Firebase Storage
+      const uploadedPhotoUrls = await Promise.all(
+        formData.photos.map(async (file, index) => {
+          if (!file) return null;
+          try {
+            const compressedDataUrl = await compressImage(file);
+            const response = await fetch(compressedDataUrl);
+            const blob = await response.blob();
+            const path = `properties/${user.uid}/${Date.now()}_photo_${index}.jpg`;
+            const storageRef = ref(storage, path);
+            await uploadBytes(storageRef, blob);
+            return await getDownloadURL(storageRef);
+          } catch (err) {
+            console.error("Error uploading photo:", err);
+            return null;
+          }
+        })
+      );
+      
+      let finalPhotoUrls = uploadedPhotoUrls.filter(url => url !== null) as string[];
+
+      if (isEditMode && finalPhotoUrls.length === 0) {
+        finalPhotoUrls = existingProperty?.photos || (window as any)._existingPhotos || [];
+      }
+
+      // 2. Upload Documents to Firebase Storage
+      const uploadDoc = async (file: File | null, name: string) => {
+        if (!file) return '';
+        try {
+          const compressedDataUrl = await compressImage(file);
+          const response = await fetch(compressedDataUrl);
+          const blob = await response.blob();
+          const path = `documents/${user.uid}/${Date.now()}_${name}.jpg`;
+          const storageRef = ref(storage, path);
+          await uploadBytes(storageRef, blob);
+          return await getDownloadURL(storageRef);
+        } catch (err) {
+          console.error(`Error uploading ${name}:`, err);
+          return '';
         }
-        return null;
-      });
-      
-      const photoUrls = await Promise.all(photoUploadPromises);
-      let uploadedPhotoUrls = photoUrls.filter(url => url !== null) as string[];
+      };
 
-      if (isEditMode && uploadedPhotoUrls.length === 0) {
-        uploadedPhotoUrls = (window as any)._existingPhotos || [];
-      }
-
-      // Compress and convert documents to Base64 in parallel
-      const docUploadPromises = [];
-      
-      let aadhaarFrontUrl = '';
-      if (formData.aadhaarFront) {
-        docUploadPromises.push(
-          compressImage(formData.aadhaarFront).then(url => {
-            aadhaarFrontUrl = url;
-          })
-        );
-      }
-
-      let aadhaarBackUrl = '';
-      if (formData.aadhaarBack) {
-        docUploadPromises.push(
-          compressImage(formData.aadhaarBack).then(url => {
-            aadhaarBackUrl = url;
-          })
-        );
-      }
-
-      let propertyProofUrl = '';
-      if (formData.propertyProof) {
-        docUploadPromises.push(
-          compressImage(formData.propertyProof).then(url => {
-            propertyProofUrl = url;
-          })
-        );
-      }
-
-      await Promise.all(docUploadPromises);
+      const aadhaarFrontUrl = await uploadDoc(formData.aadhaarFront, 'aadhaar_front');
+      const aadhaarBackUrl = await uploadDoc(formData.aadhaarBack, 'aadhaar_back');
+      const propertyProofUrl = await uploadDoc(formData.propertyProof, 'property_proof');
 
       const propertyData = {
         ownerId: user.uid,
@@ -269,13 +276,13 @@ export default function ListProperty() {
         area: formData.area || 'Unknown Area',
         address: formData.address || 'Address not provided',
         pricePerDay: Number(formData.price) || 0,
-        deposit: 0,
-        photos: uploadedPhotoUrls,
+        deposit: Number(formData.price) * 2,
+        photos: finalPhotoUrls,
         amenities: [...COMPULSORY_AMENITIES, ...formData.amenities],
         description: formData.description || 'No description provided.',
-        aadhaarFront: aadhaarFrontUrl || (isEditMode ? (await propertyService.getPropertyById(propertyId!))?.aadhaarFront : ''),
-        aadhaarBack: aadhaarBackUrl || (isEditMode ? (await propertyService.getPropertyById(propertyId!))?.aadhaarBack : ''),
-        propertyProof: propertyProofUrl || (isEditMode ? (await propertyService.getPropertyById(propertyId!))?.propertyProof : ''),
+        aadhaarFront: aadhaarFrontUrl || (isEditMode ? existingProperty?.aadhaarFront : ''),
+        aadhaarBack: aadhaarBackUrl || (isEditMode ? existingProperty?.aadhaarBack : ''),
+        propertyProof: propertyProofUrl || (isEditMode ? existingProperty?.propertyProof : ''),
         guests: formData.guests,
         bedrooms: formData.bedrooms,
         beds: formData.beds,
@@ -289,8 +296,24 @@ export default function ListProperty() {
           ...propertyData,
           status: 'Pending', // Back to pending for approval
         });
+        showToast("Property updates submitted for approval!", "success");
       } else {
         await propertyService.addProperty(propertyData);
+        showToast("Property listed successfully! Waiting for approval.", "success");
+      }
+
+      // Send Email Notification
+      if (profile) {
+        try {
+          const emailContent = emailTemplates.getPropertySubmission(profile.displayName || 'Owner', profile.gender || 'Other');
+          await emailService.sendEmail({
+            to: user.email!,
+            subject: emailContent.subject,
+            html: emailContent.html
+          });
+        } catch (emailErr) {
+          console.error("Failed to send submission email:", emailErr);
+        }
       }
       
       setIsSubmitted(true);

@@ -40,6 +40,8 @@ import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTP
 import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
+import { getAvatarUrl } from '../utils/avatar';
+
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
 
 export default function Profile() {
@@ -1154,7 +1156,7 @@ function FavouritesTab() {
                   selectedPropertyReviews.map((review) => (
                     <div key={review.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       <div className="flex items-center gap-4">
-                        <img src={review.visitorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.visitorName}`} alt={review.visitorName} className="w-12 h-12 rounded-full bg-slate-200" referrerPolicy="no-referrer" />
+                        <img src={review.visitorAvatar || getAvatarUrl(review.visitorName)} alt={review.visitorName} className="w-12 h-12 rounded-full bg-slate-200" referrerPolicy="no-referrer" />
                         <div>
                           <h4 className="font-bold text-[#1E1B4B]">{review.visitorName}</h4>
                           <p className="text-xs text-[#64748B]">{review.date}</p>
@@ -2153,7 +2155,7 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
         propertyId: booking.propertyId,
         visitorId: booking.visitorId,
         visitorName: profile?.displayName || 'Anonymous',
-        visitorAvatar: profile?.photoURL || '',
+        visitorAvatar: profile?.photoURL || getAvatarUrl(profile?.displayName || 'Anonymous', profile?.gender, profile?.role),
         text,
         rating,
         ratings,
