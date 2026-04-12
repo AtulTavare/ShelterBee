@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, 
   Clock, 
@@ -7,68 +8,29 @@ import {
   Shield, 
   CreditCard, 
   MapPin, 
-  Key,
-  HelpCircle
+  Key, 
+  HelpCircle,
+  UserCheck,
+  LayoutDashboard,
+  CheckCircle
 } from 'lucide-react';
+import { helpArticles } from '../data/helpArticles';
 
-const articles = [
-  {
-    id: 1,
-    title: "Understanding our Cancellation & Refund Policy",
-    excerpt: "Learn about the timelines and refund percentages for different cancellation scenarios on ShelterBee.",
-    category: "Policies",
-    readTime: "5 min read",
-    icon: <Shield className="w-6 h-6 text-indigo-500" />,
-    bgColor: "bg-indigo-50"
-  },
-  {
-    id: 2,
-    title: "How to Securely Pay for Your Booking",
-    excerpt: "A step-by-step guide on using our integrated payment gateway and keeping your financial data safe.",
-    category: "Payments",
-    readTime: "4 min read",
-    icon: <CreditCard className="w-6 h-6 text-amber-500" />,
-    bgColor: "bg-amber-50"
-  },
-  {
-    id: 3,
-    title: "Finding the Perfect Location for Your Stay",
-    excerpt: "Tips on using our map features and filters to find a stay that fits your commute and lifestyle.",
-    category: "Search",
-    readTime: "6 min read",
-    icon: <MapPin className="w-6 h-6 text-emerald-500" />,
-    bgColor: "bg-emerald-50"
-  },
-  {
-    id: 4,
-    title: "Check-in & Check-out: What You Need to Know",
-    excerpt: "Everything about timing, identity verification, and coordinating with your host for a smooth arrival.",
-    category: "Guest Experience",
-    readTime: "3 min read",
-    icon: <Key className="w-6 h-6 text-rose-500" />,
-    bgColor: "bg-rose-50"
-  },
-  {
-    id: 5,
-    title: "Resolving Disputes with Your Host",
-    excerpt: "Our process for handling disagreements and how we ensure a fair outcome for both parties.",
-    category: "Support",
-    readTime: "7 min read",
-    icon: <HelpCircle className="w-6 h-6 text-blue-500" />,
-    bgColor: "bg-blue-50"
-  },
-  {
-    id: 6,
-    title: "Safety Standards for ShelterBee Properties",
-    excerpt: "The criteria we use to verify properties and the safety measures we require from our hosts.",
-    category: "Safety",
-    readTime: "5 min read",
-    icon: <Shield className="w-6 h-6 text-emerald-500" />,
-    bgColor: "bg-emerald-50"
-  }
-];
+const iconMap: { [key: string]: React.ReactNode } = {
+  Shield: <Shield className="w-6 h-6" />,
+  CreditCard: <CreditCard className="w-6 h-6" />,
+  MapPin: <MapPin className="w-6 h-6" />,
+  Key: <Key className="w-6 h-6" />,
+  HelpCircle: <HelpCircle className="w-6 h-6" />,
+  BookOpen: <BookOpen className="w-6 h-6" />,
+  UserCheck: <UserCheck className="w-6 h-6" />,
+  LayoutDashboard: <LayoutDashboard className="w-6 h-6" />,
+  CheckCircle: <CheckCircle className="w-6 h-6" />
+};
 
 export default function HelpArticles() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-slate-50 pt-28 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -100,20 +62,21 @@ export default function HelpArticles() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {articles.map((article, index) => (
+          {helpArticles.map((article, index) => (
             <motion.div 
               key={article.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
+              onClick={() => navigate(`/help-articles/${article.id}`)}
               className="group bg-white rounded-3xl p-8 shadow-sm border border-slate-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 cursor-pointer"
             >
-              <div className={`w-14 h-14 rounded-2xl ${article.bgColor} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                {article.icon}
+              <div className={`w-14 h-14 rounded-2xl ${article.bgColor} ${article.textColor} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
+                {iconMap[article.iconName]}
               </div>
               
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">{article.category}</span>
+                <span className={`text-xs font-bold ${article.textColor} uppercase tracking-widest`}>{article.category}</span>
                 <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                 <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
                   <Clock className="w-3 h-3" />
@@ -125,7 +88,7 @@ export default function HelpArticles() {
                 {article.title}
               </h3>
               
-              <p className="text-slate-600 leading-relaxed mb-8">
+              <p className="text-slate-600 leading-relaxed mb-8 line-clamp-2">
                 {article.excerpt}
               </p>
 

@@ -1761,12 +1761,16 @@ function SecurityTab() {
           </h3>
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-xl">
-              <h4 className="font-bold text-[#1A1A2E] text-sm mb-2">How is my data protected?</h4>
-              <p className="text-sm text-gray-600">We use industry-standard encryption to protect your personal and payment information. We never share your data with third parties without your explicit consent.</p>
+              <h4 className="font-bold text-[#1A1A2E] text-sm mb-2">Is it safe to book?</h4>
+              <p className="text-sm text-gray-600">Yes, stays are verified before approval and basic safety checks are done to ensure your security.</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-xl">
-              <h4 className="font-bold text-[#1A1A2E] text-sm mb-2">What happens if a host cancels?</h4>
-              <p className="text-sm text-gray-600">If a host cancels your booking, you will receive a full refund including the platform fee. We will also assist you in finding alternative accommodations.</p>
+              <h4 className="font-bold text-[#1A1A2E] text-sm mb-2">What if my payment fails?</h4>
+              <p className="text-sm text-gray-600">You can retry or use another method. Your booking is not confirmed until the payment succeeds.</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <h4 className="font-bold text-[#1A1A2E] text-sm mb-2">Are there any hidden charges?</h4>
+              <p className="text-sm text-gray-600">No hidden charges. The total price is shown before you make the payment.</p>
             </div>
           </div>
         </section>

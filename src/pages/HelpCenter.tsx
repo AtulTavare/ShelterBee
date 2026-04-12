@@ -14,36 +14,80 @@ import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { showToast } from '../utils/toast';
 
-const faqs = [
+const visitorFaqs = [
   {
-    question: "How do I book a stay on ShelterBee?",
-    answer: "Booking is simple! Browse our listings, select your preferred stay, choose your dates, and click 'Book Now'. You'll need to provide guest details and complete the payment to confirm your booking."
+    question: "How do I book a stay?",
+    answer: "Search → select dates → click “Book Now” → complete payment"
   },
   {
-    question: "What is the cancellation policy?",
-    answer: "Our standard policy allows for a 75% refund if cancelled more than 24 hours before check-in, and a 50% refund if cancelled between 24 and 6 hours before check-in. No refunds are provided for cancellations within 6 hours of check-in."
+    question: "Can I cancel my booking?",
+    answer: "Yes, based on stay’s cancellation policy and refund depends on timing."
   },
   {
-    question: "How do I become a host?",
-    answer: "Click on 'Become a Host' in the navbar. You'll need to register as an owner, provide property details, upload high-quality photos, and set your pricing. Our team will review your listing before it goes live."
+    question: "When will I get full stays details?",
+    answer: "After booking confirmation. Location, contact information, name of owner shared before check-in."
   },
   {
-    question: "Are the properties verified?",
-    answer: "Yes, we work closely with our channel partners to ensure every listing meets our quality and safety standards. We also encourage guests to leave honest reviews to help maintain our community standards."
+    question: "What if my payment fails?",
+    answer: "Retry or use another method. Booking is not confirmed until payment succeeds."
   },
   {
-    question: "What payment methods do you accept?",
-    answer: "We accept all major credit/debit cards, UPI, and net banking through our secure payment gateway partners."
+    question: "Is it safe to book?",
+    answer: "Yes, stays are verified before approval. Basic safety checks are done."
   },
   {
-    question: "How can I contact my host?",
-    answer: "Once your booking is confirmed, you will receive the host's contact information in your confirmation email and it will also be available in your profile under 'Stay History'."
+    question: "Can I contact the owner?",
+    answer: "Yes, after booking confirmation. Details will be shared securely."
+  },
+  {
+    question: "Are there any hidden charges?",
+    answer: "No hidden charges. Total price shown before payment."
+  },
+  {
+    question: "What if stay is not available after booking?",
+    answer: "You’ll get refund or alternate property option. Support will assist you."
+  }
+];
+
+const ownerFaqs = [
+  {
+    question: "How do I list my property?",
+    answer: "Click “Become host” → fill details → submit for approval"
+  },
+  {
+    question: "When will my property go live?",
+    answer: "After admin verification. Usually within 24–48 hours."
+  },
+  {
+    question: "Why was my property rejected?",
+    answer: "Due to incorrect info, poor quality stay presentation, or verification issues. You can edit and resubmit again for approval."
+  },
+  {
+    question: "How do I get bookings?",
+    answer: "Once live, guests can find and book your property. You will be get notified when guest book your property."
+  },
+  {
+    question: "When do I get paid?",
+    answer: "After guest check-in, you get paid."
+  },
+  {
+    question: "Can I edit my property later?",
+    answer: "Yes, you can update details anytime. Some changes may need approval (documentation, address information)."
+  },
+  {
+    question: "Do I need to provide documents?",
+    answer: "Yes, ID proof and property proof required for verification and trust."
+  },
+  {
+    question: "How do I manage bookings?",
+    answer: "Use dashboard to view and manage requests. Accept or track bookings easily."
   }
 ];
 
 export default function HelpCenter() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openVisitorIndex, setOpenVisitorIndex] = useState<number | null>(null);
+  const [openOwnerIndex, setOpenOwnerIndex] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -52,7 +96,12 @@ export default function HelpCenter() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredFaqs = faqs.filter(faq => 
+  const filteredVisitorFaqs = visitorFaqs.filter(faq => 
+    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredOwnerFaqs = ownerFaqs.filter(faq => 
     faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
     faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -111,38 +160,74 @@ export default function HelpCenter() {
       </section>
 
       {/* FAQs Section */}
-      <section className="max-w-4xl mx-auto px-4 py-16">
-        <h2 className="text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Frequently Asked Questions</h2>
-        <div className="space-y-4">
-          {filteredFaqs.length > 0 ? (
-            filteredFaqs.map((faq, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"
-              >
-                <button 
-                  onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                  className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+      <section className="max-w-4xl mx-auto px-4 py-16 space-y-16">
+        {/* Visitor FAQs */}
+        <div>
+          <h2 className="text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Regarding Stay Bookings</h2>
+          <div className="space-y-4">
+            {filteredVisitorFaqs.length > 0 ? (
+              filteredVisitorFaqs.map((faq, index) => (
+                <motion.div 
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"
                 >
-                  <span className="font-bold text-[#1E1B4B]">{faq.question}</span>
-                  {openIndex === index ? <ChevronUp className="text-amber-500" /> : <ChevronDown className="text-slate-400" />}
-                </button>
-                {openIndex === index && (
-                  <div className="px-6 pb-5 text-slate-600 leading-relaxed border-t border-slate-50 pt-4">
-                    {faq.answer}
-                  </div>
-                )}
-              </motion.div>
-            ))
-          ) : (
-            <div className="text-center py-12 text-slate-500">
-              No results found for "{searchQuery}". Try a different search term.
-            </div>
-          )}
+                  <button 
+                    onClick={() => setOpenVisitorIndex(openVisitorIndex === index ? null : index)}
+                    className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <span className="font-bold text-[#1E1B4B]">{faq.question}</span>
+                    {openVisitorIndex === index ? <ChevronUp className="text-amber-500" /> : <ChevronDown className="text-slate-400" />}
+                  </button>
+                  {openVisitorIndex === index && (
+                    <div className="px-6 pb-5 text-slate-600 leading-relaxed border-t border-slate-50 pt-4">
+                      {faq.answer}
+                    </div>
+                  )}
+                </motion.div>
+              ))
+            ) : null}
+          </div>
         </div>
+
+        {/* Owner FAQs */}
+        <div>
+          <h2 className="text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Regarding Property Holdings</h2>
+          <div className="space-y-4">
+            {filteredOwnerFaqs.length > 0 ? (
+              filteredOwnerFaqs.map((faq, index) => (
+                <motion.div 
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"
+                >
+                  <button 
+                    onClick={() => setOpenOwnerIndex(openOwnerIndex === index ? null : index)}
+                    className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <span className="font-bold text-[#1E1B4B]">{faq.question}</span>
+                    {openOwnerIndex === index ? <ChevronUp className="text-amber-500" /> : <ChevronDown className="text-slate-400" />}
+                  </button>
+                  {openOwnerIndex === index && (
+                    <div className="px-6 pb-5 text-slate-600 leading-relaxed border-t border-slate-50 pt-4">
+                      {faq.answer}
+                    </div>
+                  )}
+                </motion.div>
+              ))
+            ) : null}
+          </div>
+        </div>
+
+        {filteredVisitorFaqs.length === 0 && filteredOwnerFaqs.length === 0 && (
+          <div className="text-center py-12 text-slate-500">
+            No results found for "{searchQuery}". Try a different search term.
+          </div>
+        )}
       </section>
 
       {/* Contact Form Section */}

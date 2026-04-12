@@ -71,12 +71,12 @@ export default function Home() {
   const fourSortedProps = getFourSortedProps();
 
   const faqs = [
-    { q: "How do I book a property?", a: "You can book a property by navigating to the property details page and clicking the 'Book Now' button. You will need to be logged in to complete the booking." },
-    { q: "Is the security deposit refundable?", a: "Yes, the security deposit is fully refundable at the end of your tenure, subject to no damages to the property as per the agreement." },
-    { q: "Are the properties verified?", a: "Absolutely. We physically verify all properties listed with the 'Verified' badge to ensure they match the photos and descriptions." },
-    { q: "Can I list my own property?", a: "Yes! Click on the 'Admin' or 'Profile' section to access the property listing form. It takes less than 5 minutes to list your space." },
-    { q: "What documents are required for renting?", a: "Typically, you will need a government-issued ID (like Aadhaar or PAN card) and a passport-sized photograph for the rental agreement." },
-    { q: "Are there any brokerage charges?", a: "Shelterbee charges zero brokerage on properties listed directly by owners. For agent-listed properties, a nominal fee may apply, which is clearly mentioned." }
+    { q: "How do I book a stay?", a: "Search → select dates → click “Book Now” → complete payment" },
+    { q: "Can I cancel my booking?", a: "Yes, based on stay’s cancellation policy and refund depends on timing." },
+    { q: "When will I get full stays details?", a: "After booking confirmation. Location, contact information, name of owner shared before check-in." },
+    { q: "How do I list my property?", a: "Click “Become host” → fill details → submit for approval" },
+    { q: "When will my property go live?", a: "After admin verification. Usually within 24–48 hours." },
+    { q: "Do I need to provide documents?", a: "Yes, ID proof and property proof required for verification and trust." }
   ];
 
   return (

@@ -195,46 +195,6 @@ export default function PropertyDetail() {
               </div>
             </div>
 
-            {/* Property Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Guests</p>
-                  <p className="text-sm font-bold text-[#1E1B4B]">{property.guests || 4}</p>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
-                  <Bed className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Bedrooms</p>
-                  <p className="text-sm font-bold text-[#1E1B4B]">{property.bedrooms || 1}</p>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
-                  <span className="material-symbols-outlined text-xl">bed</span>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Beds</p>
-                  <p className="text-sm font-bold text-[#1E1B4B]">{property.beds || 1}</p>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[#1E1B4B]">
-                  <span className="material-symbols-outlined text-xl">bathroom</span>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Bathrooms</p>
-                  <p className="text-sm font-bold text-[#1E1B4B]">{property.bathrooms || 1}</p>
-                </div>
-              </div>
-            </div>
-
             {/* Description */}
             <div className="space-y-4">
               <div className="flex items-center gap-3">
@@ -310,58 +270,55 @@ export default function PropertyDetail() {
               </div>
             </div>
 
-            {/* House Rules */}
+            {/* About Place */}
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
                 <h2 className="text-xl font-extrabold text-[#1E1B4B]">About Place</h2>
               </div>
-              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
+              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-8">
+                <div className="space-y-8">
                   <div className="flex gap-4">
                     <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
                       <span className="material-symbols-outlined text-[#F59E0B] text-lg">groups</span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Occupancy</div>
-                      <p className="text-xs text-[#64748B] font-medium">Maximum {property.guests} residents</p>
+                    <div className="space-y-4 flex-1">
+                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Occupancy & Capacity</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-12">
+                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                          <span className="text-sm font-medium text-[#64748B]">Maximum Residents</span>
+                          <span className="text-sm font-bold text-[#1E1B4B]">{property.guests || 4} Persons</span>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                          <span className="text-sm font-medium text-[#64748B]">Bedrooms Provided</span>
+                          <span className="text-sm font-bold text-[#1E1B4B]">{property.bedrooms || 1} Rooms</span>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                          <span className="text-sm font-medium text-[#64748B]">Total Beds</span>
+                          <span className="text-sm font-bold text-[#1E1B4B]">{property.beds || 1} Beds</span>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                          <span className="text-sm font-medium text-[#64748B]">Bathrooms</span>
+                          <span className="text-sm font-bold text-[#1E1B4B]">{property.bathrooms || 1} Baths</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">bed</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Bedrooms</div>
-                      <p className="text-xs text-[#64748B] font-medium">{property.bedrooms} Bedrooms</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">bed</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Beds</div>
-                      <p className="text-xs text-[#64748B] font-medium">{property.beds} Beds</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">bathroom</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Bathrooms</div>
-                      <p className="text-xs text-[#64748B] font-medium">{property.bathrooms} Bathrooms</p>
-                    </div>
-                  </div>
+
                   {property.gender && property.gender.length > 0 && (
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 pt-8 border-t border-slate-50">
                       <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
                         <span className="material-symbols-outlined text-[#F59E0B] text-lg">person_pin</span>
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-4 flex-1">
                         <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Gender Preference</div>
-                        <p className="text-xs text-[#64748B] font-medium">{property.gender.join(', ')}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {property.gender.map((g: string) => (
+                            <span key={g} className="px-3 py-1.5 rounded-xl bg-slate-50 text-[#1E1B4B] text-[10px] font-black uppercase tracking-wider border border-slate-100">
+                              {g}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -649,41 +606,57 @@ export default function PropertyDetail() {
           </div>
         </div>
 
-        {/* FAQ Section */}
-        <section className="mt-20 border-t border-slate-200 pt-16">
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-extrabold text-[#1E1B4B] mb-4">Frequently Asked Questions</h2>
-              <p className="text-[#64748B]">Everything you need to know about booking and staying with Shelterbee.</p>
-            </div>
-            
-            <div className="space-y-4">
-              {[
-                {
-                  q: "What is the platform fee for?",
-                  a: "The platform fee is a one-time charge to unlock the direct contact details of the property owner and secure your booking intent. It also covers our verification process to ensure a safe transaction."
-                },
-                {
-                  q: "Is the platform fee refundable?",
-                  a: "Yes, the platform fee is 100% refundable if you visit the property and decide not to proceed with the rent/lease, or if the owner cancels the viewing."
-                },
-                {
-                  q: "How do I contact the owner after paying?",
-                  a: "Once the payment is successful, the owner's exact address, phone number, and a direct WhatsApp link will be instantly revealed on this page."
-                },
-                {
-                  q: "Can I visit the property before paying the rent?",
-                  a: "Absolutely! The booking process here is to secure a verified visit and direct contact. You only pay the actual rent to the owner after you have visited and approved the property."
-                }
-              ].map((faq) => (
-                <div key={faq.q} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-                  <h4 className="text-lg font-bold text-[#1E1B4B] mb-2">{faq.q}</h4>
-                  <p className="text-[#64748B] text-sm leading-relaxed">{faq.a}</p>
+            {/* FAQ Section */}
+            <section className="mt-20 border-t border-slate-200 pt-16">
+              <div className="max-w-3xl mx-auto">
+                <div className="text-center mb-10">
+                  <h2 className="text-3xl font-extrabold text-[#1E1B4B] mb-4">Regarding Stay Bookings</h2>
+                  <p className="text-[#64748B]">Common questions about booking this property.</p>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
+                
+                <div className="space-y-4">
+                  {[
+                    {
+                      q: "How do I book a stay?",
+                      a: "Search → select dates → click “Book Now” → complete payment"
+                    },
+                    {
+                      q: "Can I cancel my booking?",
+                      a: "Yes, based on stay’s cancellation policy and refund depends on timing."
+                    },
+                    {
+                      q: "When will I get full stays details?",
+                      a: "After booking confirmation. Location, contact information, name of owner shared before check-in."
+                    },
+                    {
+                      q: "What if my payment fails?",
+                      a: "Retry or use another method. Booking is not confirmed until payment succeeds."
+                    },
+                    {
+                      q: "Is it safe to book?",
+                      a: "Yes, stays are verified before approval. Basic safety checks are done."
+                    },
+                    {
+                      q: "Can I contact the owner?",
+                      a: "Yes, after booking confirmation. Details will be shared securely."
+                    },
+                    {
+                      q: "Are there any hidden charges?",
+                      a: "No hidden charges. Total price shown before payment."
+                    },
+                    {
+                      q: "What if stay is not available after booking?",
+                      a: "You’ll get refund or alternate property option. Support will assist you."
+                    }
+                  ].map((faq) => (
+                    <div key={faq.q} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+                      <h4 className="text-lg font-bold text-[#1E1B4B] mb-2">{faq.q}</h4>
+                      <p className="text-[#64748B] text-sm leading-relaxed">{faq.a}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
 
       </div>
 

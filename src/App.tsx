@@ -15,6 +15,7 @@ import Profile from './pages/Profile';
 import BookingPage from './pages/BookingPage';
 import HelpCenter from './pages/HelpCenter';
 import HelpArticles from './pages/HelpArticles';
+import ArticleDetail from './pages/ArticleDetail';
 import ReportConcern from './pages/ReportConcern';
 import HostingRules from './pages/HostingRules';
 import LearnToHost from './pages/LearnToHost';
@@ -57,6 +58,7 @@ function AppContent() {
             <Route path="/book/:propertyId" element={<BookingPage />} />
             <Route path="/help-center" element={<HelpCenter />} />
             <Route path="/help-articles" element={<HelpArticles />} />
+            <Route path="/help-articles/:id" element={<ArticleDetail />} />
             <Route path="/report-concern" element={<ReportConcern />} />
             <Route path="/hosting-rules" element={<HostingRules />} />
             <Route path="/learn-to-host" element={<LearnToHost />} />
