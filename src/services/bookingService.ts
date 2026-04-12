@@ -111,6 +111,22 @@ export const bookingService = {
     }
   },
 
+  async getBookingsByProperty(propertyId: string) {
+    try {
+      const q = query(collection(db, 'bookings'), where('propertyId', '==', propertyId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        checkIn: doc.data().checkIn?.toDate() || null,
+        checkOut: doc.data().checkOut?.toDate() || null,
+      })) as Booking[];
+    } catch (error) {
+      console.error("Error fetching property bookings:", error);
+      throw error;
+    }
+  },
+
   async getAllBookings() {
     try {
       const querySnapshot = await getDocs(collection(db, 'bookings'));

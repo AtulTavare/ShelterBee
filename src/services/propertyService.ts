@@ -30,6 +30,10 @@ export interface Property {
   gender?: string[]; // Male, Female, Other
   submissionType?: 'new listing' | 'changes approval';
   unavailabilityUntil?: any; // Date or 'permanently' or 'manual'
+  availabilityStatus?: 'available' | 'unavailable';
+  unavailableFrom?: string; // ISO string
+  unavailableTo?: string; // ISO string
+  unavailabilityOption?: 'today' | 'range' | 'manual';
 }
 
 export const propertyService = {
@@ -47,22 +51,26 @@ export const propertyService = {
     try {
       const q = query(collection(db, 'properties'), where('status', '==', 'Approved'));
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        let createdAt = null;
-        if (data.createdAt) {
-          if (typeof data.createdAt.toDate === 'function') {
-            createdAt = data.createdAt.toDate();
-          } else if (typeof data.createdAt === 'string' || typeof data.createdAt === 'number') {
-            createdAt = new Date(data.createdAt);
+      const now = new Date();
+      
+      return querySnapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          let createdAt = null;
+          if (data.createdAt) {
+            if (typeof data.createdAt.toDate === 'function') {
+              createdAt = data.createdAt.toDate();
+            } else if (typeof data.createdAt === 'string' || typeof data.createdAt === 'number') {
+              createdAt = new Date(data.createdAt);
+            }
           }
-        }
-        return {
-          id: doc.id,
-          ...data,
-          createdAt,
-        };
-      }) as Property[];
+          return {
+            id: doc.id,
+            ...data,
+            createdAt,
+          };
+        })
+        .filter(prop => this.isPropertyAvailable(prop as Property, now)) as Property[];
     } catch (error) {
       console.error("Error fetching approved properties:", error);
       throw error;
@@ -109,5 +117,25 @@ export const propertyService = {
   async deleteProperty(id: string) {
     const docRef = doc(db, 'properties', id);
     await deleteDoc(docRef);
+  },
+
+  isPropertyAvailable(property: Property, date: Date = new Date()) {
+    if (property.status !== 'Approved') return false;
+    if (property.availabilityStatus === 'unavailable') {
+      if (property.unavailabilityOption === 'manual') return false;
+      
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      if (property.unavailableFrom && property.unavailableTo) {
+        const from = new Date(property.unavailableFrom);
+        const to = new Date(property.unavailableTo);
+        from.setHours(0, 0, 0, 0);
+        to.setHours(23, 59, 59, 999);
+        
+        if (checkDate >= from && checkDate <= to) return false;
+      }
+    }
+    return true;
   }
 };

@@ -42,7 +42,7 @@ import { db } from '../firebase';
 
 import { getAvatarUrl } from '../utils/avatar';
 
-type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals';
+type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals' | 'new-bookings';
 
 export default function Profile() {
   const { user, profile, loading } = useAuth();
@@ -75,6 +75,7 @@ export default function Profile() {
 
   const tabs = isOwner ? [
     { id: 'dashboard', label: 'Dashboard', icon: Building2 },
+    { id: 'new-bookings', label: 'New Bookings', icon: Calendar },
     { id: 'favourites', label: 'My Listings', icon: Heart },
     { id: 'approvals', label: 'Property Approvals', icon: CheckCircle2 },
     { id: 'wallet', label: 'Wallet', icon: WalletIcon },
@@ -162,6 +163,7 @@ export default function Profile() {
               {activeTab === 'history' && <StayHistoryTab />}
               {activeTab === 'payments' && <PaymentsTab />}
               {activeTab === 'favourites' && <FavouritesTab />}
+              {activeTab === 'new-bookings' && <NewBookingsTab />}
               {activeTab === 'approvals' && <PropertyApprovalsTab />}
               {activeTab === 'security' && <SecurityTab />}
             </motion.div>
@@ -187,6 +189,178 @@ export default function Profile() {
           }
         }} 
       />
+    </div>
+  );
+}
+
+function NewBookingsTab() {
+  const { user } = useAuth();
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+
+  const fetchBookings = async () => {
+    if (!user) return;
+    try {
+      const allOwnerBookings = await bookingService.getBookingsByOwner(user.uid);
+      // Sort by date descending
+      const sorted = allOwnerBookings.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+      setBookings(sorted);
+    } catch (error) {
+      console.error("Error fetching owner bookings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBookings();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F59E0B]"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">New Bookings</h2>
+      {bookings.length === 0 ? (
+        <div className="text-center py-12">
+          <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No bookings yet</h3>
+          <p className="text-gray-500">You haven't received any bookings for your properties yet.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {bookings.map((booking) => (
+            <div 
+              key={booking.id} 
+              onClick={() => setSelectedBooking(booking)}
+              className="border border-gray-100 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer bg-slate-50/50 hover:bg-white"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="font-bold text-[#1A1A2E] text-lg">{booking.visitorName}</h3>
+                  <p className="text-sm text-[#F59E0B] font-bold">{booking.status.toUpperCase()}</p>
+                </div>
+                <div className="bg-white p-2 rounded-xl border border-slate-100">
+                  <Calendar className="w-5 h-5 text-[#1E1B4B]" />
+                </div>
+              </div>
+              
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>{booking.checkIn ? format(booking.checkIn, 'MMM dd') : 'N/A'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Users className="w-4 h-4" />
+                  <span>{booking.guests?.length || 1} Guest(s)</span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Amount</span>
+                <span className="font-black text-[#1A1A2E]">₹{booking.totalAmount}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Booking Detail Modal */}
+      <AnimatePresence>
+        {selectedBooking && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedBooking(null)} />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-[#1E1B4B]">Booking Details</h3>
+                <button onClick={() => setSelectedBooking(null)} className="text-gray-400 hover:text-gray-600">
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Visitor Information</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Name</span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{selectedBooking.visitorName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Contact</span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{selectedBooking.visitorContact}</span>
+                    </div>
+                    {selectedBooking.whatsappNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">WhatsApp</span>
+                        <span className="text-sm font-bold text-[#1A1A2E]">{selectedBooking.whatsappNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Stay Details</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Check-in</span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{selectedBooking.checkIn ? format(selectedBooking.checkIn, 'PPP') : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Check-out</span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{selectedBooking.checkOut ? format(selectedBooking.checkOut, 'PPP') : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Duration</span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{selectedBooking.nights} Nights</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Guest List</h4>
+                  <div className="space-y-3">
+                    {selectedBooking.guests?.map((guest: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-200 last:border-0">
+                        <div>
+                          <p className="text-sm font-bold text-[#1A1A2E]">{guest.name}</p>
+                          <p className="text-xs text-gray-500">{guest.age} years • {guest.gender}</p>
+                        </div>
+                        <span className="text-[10px] font-black bg-white px-2 py-1 rounded-md border border-slate-100 uppercase tracking-wider text-gray-400">
+                          {guest.type}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-between items-center">
+                  <span className="text-lg font-bold text-[#1E1B4B]">Total Revenue</span>
+                  <span className="text-2xl font-black text-[#F59E0B]">₹{selectedBooking.totalAmount}</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setSelectedBooking(null)}
+                className="w-full mt-8 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
+              >
+                Close Details
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -832,29 +1006,42 @@ function FavouritesTab() {
 
   const [showHideModal, setShowHideModal] = useState(false);
   const [selectedPropertyToHide, setSelectedPropertyToHide] = useState<any>(null);
-  const [hideOption, setHideOption] = useState<'date' | 'manual' | 'permanent'>('manual');
-  const [unavailabilityDate, setUnavailabilityDate] = useState('');
+  const [hideOption, setHideOption] = useState<'today' | 'manual' | 'range'>('manual');
+  const [unavailabilityFrom, setUnavailabilityFrom] = useState('');
+  const [unavailabilityTo, setUnavailabilityTo] = useState('');
 
   const handleHideProperty = async () => {
     if (!selectedPropertyToHide) return;
-    try {
-      if (hideOption === 'permanent') {
-        await propertyService.deleteProperty(selectedPropertyToHide.id);
-        showToast("Property deleted permanently", "success");
-      } else {
-        const until = hideOption === 'date' ? unavailabilityDate : 'manual';
-        await propertyService.updateProperty(selectedPropertyToHide.id, { 
-          isAvailable: false,
-          unavailabilityUntil: until
-        });
-        showToast("Property hidden from website", "success");
-      }
-      fetchMyProperties();
-      setShowHideModal(false);
-    } catch (error) {
-      console.error("Error hiding property:", error);
-      showToast("An error occurred", "error");
+    
+    let from = '';
+    let to = '';
+    
+    if (hideOption === 'today') {
+      from = new Date().toISOString().split('T')[0];
+      to = new Date().toISOString().split('T')[0];
+    } else if (hideOption === 'range') {
+      from = unavailabilityFrom;
+      to = unavailabilityTo;
     }
+
+    const toDateStr = hideOption === 'manual' ? 'I make it available' : (to || 'today');
+
+    showConfirm(`Your property will be unavailable and will not visible to others publicly till ${toDateStr}. Are you sure?`, async () => {
+      try {
+        await propertyService.updateProperty(selectedPropertyToHide.id, { 
+          availabilityStatus: 'unavailable',
+          unavailabilityOption: hideOption,
+          unavailableFrom: from,
+          unavailableTo: to
+        });
+        showToast(`Property hidden from website`, "success");
+        fetchMyProperties();
+        setShowHideModal(false);
+      } catch (error) {
+        console.error("Error hiding property:", error);
+        showToast("An error occurred", "error");
+      }
+    });
   };
 
   const removeListing = async (id: string) => {
@@ -1007,9 +1194,9 @@ function FavouritesTab() {
                     {property.status}
                   </span>
                   <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
-                    property.isAvailable !== false ? 'bg-blue-500 text-white' : 'bg-gray-500 text-white'
+                    property.availabilityStatus !== 'unavailable' ? 'bg-blue-500 text-white' : 'bg-gray-500 text-white'
                   }`}>
-                    {property.isAvailable !== false ? 'Available' : 'Hidden'}
+                    {property.availabilityStatus !== 'unavailable' ? 'Available' : 'Hidden'}
                   </span>
                 </div>
               </div>
@@ -1034,11 +1221,11 @@ function FavouritesTab() {
                   </button>
                   <button 
                     onClick={() => {
-                      if (property.isAvailable !== false) {
+                      if (property.availabilityStatus !== 'unavailable') {
                         setSelectedPropertyToHide(property);
                         setShowHideModal(true);
                       } else {
-                        propertyService.updateProperty(property.id, { isAvailable: true, unavailabilityUntil: null }).then(() => {
+                        propertyService.updateProperty(property.id, { availabilityStatus: 'available', unavailabilityOption: null, unavailableFrom: null, unavailableTo: null }).then(() => {
                           showToast("Property is now available", "success");
                           fetchMyProperties();
                         });
@@ -1046,7 +1233,7 @@ function FavouritesTab() {
                     }}
                     className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
                   >
-                    {property.isAvailable !== false ? 'Hide Listing' : 'Make Available'}
+                    {property.availabilityStatus !== 'unavailable' ? 'Hide Listing' : 'Make Available'}
                   </button>
                   <button 
                     onClick={() => viewBookings(property.id, property.title)}
@@ -1084,38 +1271,53 @@ function FavouritesTab() {
               <div className="space-y-4 mb-8">
                 <p className="text-sm text-gray-500 mb-4">Select how long you want to hide this property from the website.</p>
                 
+                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'today' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="hideOption" checked={hideOption === 'today'} onChange={() => setHideOption('today')} className="w-4 h-4 text-amber-500" />
+                  <span className="font-medium text-sm">Only for today</span>
+                </label>
+
                 <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'manual' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                   <input type="radio" name="hideOption" checked={hideOption === 'manual'} onChange={() => setHideOption('manual')} className="w-4 h-4 text-amber-500" />
                   <span className="font-medium text-sm">Until I make it available</span>
                 </label>
 
-                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'date' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                  <input type="radio" name="hideOption" checked={hideOption === 'date'} onChange={() => setHideOption('date')} className="w-4 h-4 text-amber-500" />
-                  <span className="font-medium text-sm">Unavailable until specific date</span>
+                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'range' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="hideOption" checked={hideOption === 'range'} onChange={() => setHideOption('range')} className="w-4 h-4 text-amber-500" />
+                  <span className="font-medium text-sm">Specific date range</span>
                 </label>
 
-                {hideOption === 'date' && (
-                  <input 
-                    type="date" 
-                    value={unavailabilityDate}
-                    onChange={(e) => setUnavailabilityDate(e.target.value)}
-                    className="w-full mt-2 p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
-                    min={new Date().toISOString().split('T')[0]}
-                  />
+                {hideOption === 'range' && (
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">From</label>
+                      <input 
+                        type="date" 
+                        value={unavailabilityFrom}
+                        onChange={(e) => setUnavailabilityFrom(e.target.value)}
+                        className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-sm"
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">To</label>
+                      <input 
+                        type="date" 
+                        value={unavailabilityTo}
+                        onChange={(e) => setUnavailabilityTo(e.target.value)}
+                        className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-sm"
+                        min={unavailabilityFrom || new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                  </div>
                 )}
-
-                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${hideOption === 'permanent' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                  <input type="radio" name="hideOption" checked={hideOption === 'permanent'} onChange={() => setHideOption('permanent')} className="w-4 h-4 text-red-500" />
-                  <span className="font-medium text-sm text-red-600">Permanently (Delete Property)</span>
-                </label>
               </div>
 
               <div className="flex gap-4">
                 <button onClick={() => setShowHideModal(false)} className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
                 <button 
                   onClick={handleHideProperty}
-                  disabled={hideOption === 'date' && !unavailabilityDate}
-                  className={`flex-1 py-3 rounded-xl font-bold text-white transition-all shadow-md ${hideOption === 'permanent' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'} disabled:opacity-50`}
+                  disabled={hideOption === 'range' && (!unavailabilityFrom || !unavailabilityTo)}
+                  className={`flex-1 py-3 rounded-xl font-bold text-white transition-all shadow-md bg-amber-500 hover:bg-amber-600 disabled:opacity-50`}
                 >
                   Confirm
                 </button>

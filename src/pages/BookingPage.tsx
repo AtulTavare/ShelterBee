@@ -36,6 +36,7 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bookedDates, setBookedDates] = useState<Date[]>([]);
 
   // Step 1: Dates
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -57,23 +58,38 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!propertyId) return;
-    const fetchProperty = async () => {
+    const fetchPropertyData = async () => {
       try {
         const prop = await propertyService.getPropertyById(propertyId);
         if (prop) {
           setProperty(prop);
+          
+          // Fetch bookings to disable dates
+          const bookings = await bookingService.getBookingsByProperty(propertyId);
+          const dates: Date[] = [];
+          bookings.forEach(booking => {
+            if (booking.status === 'confirmed' || booking.status === 'pending') {
+              let current = new Date(booking.checkIn);
+              const end = new Date(booking.checkOut);
+              while (current <= end) {
+                dates.push(new Date(current));
+                current.setDate(current.getDate() + 1);
+              }
+            }
+          });
+          setBookedDates(dates);
         } else {
           showToast("Property not found", "error");
           navigate('/');
         }
       } catch (error) {
-        console.error("Error fetching property:", error);
+        console.error("Error fetching property data:", error);
         showToast("Failed to load property", "error");
       } finally {
         setLoading(false);
       }
     };
-    fetchProperty();
+    fetchPropertyData();
   }, [propertyId, navigate]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -310,7 +326,18 @@ export default function BookingPage() {
                       mode="range"
                       selected={dateRange}
                       onSelect={(range) => setDateRange(range as any)}
-                      disabled={{ before: new Date() }}
+                      disabled={[
+                        { before: new Date() },
+                        ...bookedDates,
+                        ...(property.availabilityStatus === 'unavailable' ? [
+                          property.unavailabilityOption === 'manual' 
+                            ? { after: new Date(0) } 
+                            : (property.unavailableFrom && property.unavailableTo ? {
+                                from: new Date(property.unavailableFrom),
+                                to: new Date(property.unavailableTo)
+                              } : [])
+                        ] : [])
+                      ].flat()}
                       className="font-sans"
                       style={{
                         '--rdp-accent-color': '#1E1B4B',

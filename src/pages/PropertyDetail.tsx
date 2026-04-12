@@ -177,9 +177,33 @@ export default function PropertyDetail() {
               </div>
               <div className="space-y-1.5">
                 <h1 className="text-3xl md:text-4xl font-extrabold text-[#1E1B4B] tracking-tight">{property.title}</h1>
-                <div className="flex items-center text-[#64748B] gap-1">
-                  <span className="material-symbols-outlined text-lg text-[#F59E0B]">location_on</span>
-                  <span className="text-base font-medium">{property.area}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-[#64748B] gap-1">
+                    <span className="material-symbols-outlined text-lg text-[#F59E0B]">location_on</span>
+                    <span className="text-base font-medium">{property.area}</span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const shareData = {
+                        title: property.title,
+                        text: `Hey, take a look at this property i found on ShelterBee. check this out !`,
+                        url: window.location.href,
+                      };
+                      
+                      if (navigator.share) {
+                        navigator.share(shareData).catch(console.error);
+                      } else {
+                        // Fallback: Copy to clipboard
+                        navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`)
+                          .then(() => showToast("Link copied to clipboard!", "success"))
+                          .catch(() => showToast("Failed to copy link", "error"));
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 text-[#1E1B4B] hover:bg-slate-100 transition-all border border-slate-200 group"
+                  >
+                    <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">share</span>
+                    <span className="text-sm font-bold">Share</span>
+                  </button>
                 </div>
               </div>
             </div>

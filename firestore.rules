@@ -108,7 +108,11 @@ service cloud.firestore {
              data.amenities is list && data.amenities.size() <= 50 &&
              data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
              data.status in ['Pending', 'Approved', 'Rejected'] &&
-             data.createdAt is timestamp;
+             data.createdAt is timestamp &&
+             (!('availabilityStatus' in data) || data.availabilityStatus in ['available', 'unavailable']) &&
+             (!('unavailabilityOption' in data) || data.unavailabilityOption in ['today', 'manual', 'range', null]) &&
+             (!('unavailableFrom' in data) || data.unavailableFrom is string || data.unavailableFrom == null) &&
+             (!('unavailableTo' in data) || data.unavailableTo is string || data.unavailableTo == null);
     }
     
     function isValidBooking(data) {
@@ -232,6 +236,40 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.visitorId == request.auth.uid;
       allow update: if isAdmin() || (isAuthenticated() && resource.data.propertyId != null && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerId == request.auth.uid);
       allow delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /feedbacks/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if true; // Anyone can send feedback
+      allow update, delete: if isAdmin();
+    }
+
+    match /support_inquiries/{inquiryId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /wallet_transactions/{transactionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /walletTransactions/{transactionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
     }
   }
 }
