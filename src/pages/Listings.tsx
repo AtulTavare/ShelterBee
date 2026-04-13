@@ -146,7 +146,7 @@ export default function Listings() {
       {/* Main Content */}
       <main className="pt-0">
         {/* Hero Slideshow */}
-        <section className="relative h-screen w-full overflow-hidden mb-12">
+        <section className="relative h-[50vh] md:h-screen w-full overflow-hidden mb-8 md:mb-12">
           <div className="relative h-full w-full overflow-hidden group bg-black">
             <AnimatePresence mode="wait">
               {topProperties.length > 0 && (
@@ -166,25 +166,25 @@ export default function Listings() {
                     animate={{ scale: 1.05 }}
                     transition={{ duration: 5, ease: "linear" }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-on-secondary-fixed/90 via-on-secondary-fixed/40 to-transparent"></div>
-                  <div className="relative h-full flex flex-col justify-center px-16 max-w-4xl">
+                  <div className="absolute inset-0 bg-gradient-to-b md:bg-gradient-to-r from-on-secondary-fixed/90 via-on-secondary-fixed/40 to-transparent"></div>
+                  <div className="relative h-full flex flex-col justify-center px-4 md:px-16 max-w-4xl">
                     <motion.div
                       initial={{ y: 30, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
                     >
-                      <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary-container text-on-primary-container rounded-full text-xs font-bold uppercase tracking-widest mb-6">
+                      <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary-container text-on-primary-container rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest mb-4 md:mb-6">
                         <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
                         Featured Listing
                       </span>
-                      <h1 className="text-6xl font-extrabold text-white leading-tight tracking-tight mb-4">
+                      <h1 className="text-2xl md:text-6xl font-extrabold text-white leading-tight tracking-tight mb-4">
                         {topProperties[currentSlide].title}
                       </h1>
-                      <p className="text-xl text-white/80 max-w-xl mb-8 leading-relaxed">
+                      <p className="text-base md:text-xl text-white/80 max-w-xl mb-6 md:mb-8 leading-relaxed line-clamp-2 md:line-clamp-none">
                         {topProperties[currentSlide].description}
                       </p>
                       <div className="flex gap-4">
-                        <Link to={`/property/${topProperties[currentSlide].id}`} className="bg-primary-container text-on-primary-container px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
+                        <Link to={`/property/${topProperties[currentSlide].id}`} className="bg-primary-container text-on-primary-container px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold text-base md:text-lg flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
                           View Details
                           <span className="material-symbols-outlined">arrow_forward</span>
                         </Link>
@@ -195,13 +195,13 @@ export default function Listings() {
               )}
             </AnimatePresence>
             {/* Navigation Indicators */}
-            <div className="absolute bottom-10 left-16 flex gap-3 z-10">
+            <div className="absolute bottom-6 md:bottom-10 left-6 md:left-16 flex gap-2 md:gap-3 z-10">
               {topProperties.map((prop, idx) => (
                 <button 
                   key={prop.id}
                   onClick={() => setCurrentSlide(idx)}
-                  className="relative h-1.5 rounded-full overflow-hidden transition-all bg-white/30"
-                  style={{ width: idx === currentSlide ? '48px' : '48px' }}
+                  className="relative h-1 md:h-1.5 rounded-full overflow-hidden transition-all bg-white/30"
+                  style={{ width: idx === currentSlide ? '32px' : '32px', mdWidth: '48px' } as any}
                 >
                   {idx === currentSlide && (
                     <motion.div 
@@ -249,7 +249,7 @@ export default function Listings() {
         />
 
         {/* Discovery Grid */}
-        <div className="px-8 pb-24 max-w-7xl mx-auto mt-8">
+        <div className="px-4 md:px-8 pb-24 max-w-7xl mx-auto mt-8">
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -258,15 +258,15 @@ export default function Listings() {
             <section className="space-y-8">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
                 <div>
-                  <h2 className="text-3xl font-extrabold text-on-secondary-fixed tracking-tight">Top Stays for You</h2>
-                  <p className="text-on-surface-variant font-medium">Showing {filteredProperties.length} results matching your criteria</p>
+                  <h2 className="text-xl md:text-3xl font-extrabold text-on-secondary-fixed tracking-tight">Top Stays for You</h2>
+                  <p className="text-xs md:text-base text-on-surface-variant font-medium">Showing {filteredProperties.length} results matching your criteria</p>
                 </div>
-                <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-outline-variant/10">
+                <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-outline-variant/10 w-full md:w-auto">
                   <span className="text-sm font-bold text-on-surface-variant">Sort by:</span>
                   <select 
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="border-none text-sm font-bold focus:ring-0 cursor-pointer p-0 pr-8 bg-transparent"
+                    className="flex-1 md:flex-none border-none text-sm font-bold focus:ring-0 cursor-pointer p-0 pr-8 bg-transparent"
                   >
                     <option>Highest Rated</option>
                     <option>Price: Low to High</option>
@@ -276,12 +276,12 @@ export default function Listings() {
               </div>
               {/* Cards Grid */}
               {filteredProperties.length === 0 ? (
-                <div className="bg-white rounded-[2rem] p-16 text-center flex flex-col items-center justify-center border border-outline-variant/10 shadow-sm">
-                  <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-                    <span className="material-symbols-outlined text-5xl text-primary">search_off</span>
+                <div className="bg-white rounded-[2rem] p-8 md:p-16 text-center flex flex-col items-center justify-center border border-outline-variant/10 shadow-sm">
+                  <div className="w-20 h-20 md:w-24 md:h-24 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                    <span className="material-symbols-outlined text-4xl md:text-5xl text-primary">search_off</span>
                   </div>
-                  <h3 className="text-2xl font-extrabold text-on-secondary-fixed mb-4 tracking-tight">No properties found</h3>
-                  <p className="text-on-surface-variant max-w-md mb-8">We couldn't find any properties matching your current filters. Try adjusting your criteria.</p>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-on-secondary-fixed mb-4 tracking-tight">No properties found</h3>
+                  <p className="text-sm md:text-base text-on-surface-variant max-w-md mb-8">We couldn't find any properties matching your current filters. Try adjusting your criteria.</p>
                   <button 
                     onClick={() => {
                       setPriceRange(maxPropertyPrice);
@@ -293,13 +293,13 @@ export default function Listings() {
                       setDateRange({ from: undefined, to: undefined });
                       setShowFavoritesOnly(false);
                     }}
-                    className="bg-primary-container text-on-primary-container px-8 py-4 rounded-xl font-bold hover:shadow-lg transition-all"
+                    className="w-full md:w-auto bg-primary-container text-on-primary-container px-8 py-4 rounded-xl font-bold hover:shadow-lg transition-all"
                   >
                     Clear all filters
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {filteredProperties.slice(0, visibleCount).map((property, index) => (
                     <PropertyCard
                       key={property.id}

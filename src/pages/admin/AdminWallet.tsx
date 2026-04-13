@@ -167,61 +167,96 @@ export const AdminWallet = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-slate-100">
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">User ID</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reason</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+            <>
+              {/* Desktop Table */}
+              <table className="w-full text-left border-collapse hidden md:table">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">User ID</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reason</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingSettlements.map((txn) => (
+                    <tr key={txn.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
+                        {txn.createdAt ? format(txn.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-900 font-semibold">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                            {txn.userId.substring(0, 2).toUpperCase()}
+                          </div>
+                          {txn.userId.substring(0, 8)}...
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-600 capitalize font-medium">
+                        <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-600">
+                          {txn.reason.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">
+                        +₹{txn.amount.toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button 
+                          onClick={() => setConfirmAction({ type: 'settle', id: txn.id! })} 
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors border border-emerald-200/50"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Mark Settled
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden divide-y divide-slate-100">
                 {pendingSettlements.map((txn) => (
-                  <tr key={txn.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
-                      {txn.createdAt ? format(txn.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-slate-900 font-semibold">
+                  <div key={txn.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
                           {txn.userId.substring(0, 2).toUpperCase()}
                         </div>
-                        {txn.userId.substring(0, 8)}...
+                        <span className="text-xs font-bold text-slate-900">{txn.userId.substring(0, 8)}...</span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-slate-600 capitalize font-medium">
-                      <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-600">
-                        {txn.reason.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">
-                      +₹{txn.amount.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
+                      <span className="text-sm font-bold text-emerald-600">+₹{txn.amount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {txn.createdAt ? format(txn.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          {txn.reason.replace('_', ' ')}
+                        </span>
+                      </div>
                       <button 
                         onClick={() => setConfirmAction({ type: 'settle', id: txn.id! })} 
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors border border-emerald-200/50"
+                        className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-bold border border-emerald-200/50"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Mark Settled
+                        Settle
                       </button>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-                {pendingSettlements.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-8 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-400">
-                        <CheckCircle2 className="w-8 h-8 mb-2 opacity-20" />
-                        <p className="text-sm font-medium">No pending settlements</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              </div>
+
+              {pendingSettlements.length === 0 && (
+                <div className="p-8 text-center">
+                  <div className="flex flex-col items-center justify-center text-slate-400">
+                    <CheckCircle2 className="w-8 h-8 mb-2 opacity-20" />
+                    <p className="text-sm font-medium">No pending settlements</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -239,85 +274,140 @@ export const AdminWallet = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-slate-100">
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">User ID</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bank Details</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+            <>
+              {/* Desktop Table */}
+              <table className="w-full text-left border-collapse hidden md:table">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">User ID</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bank Details</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {withdrawalRequests.map((req) => (
+                    <tr key={req.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
+                        {req.requestedAt ? format(req.requestedAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-900 font-semibold">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                            {req.userId.substring(0, 2).toUpperCase()}
+                          </div>
+                          {req.userId.substring(0, 8)}...
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="text-xs font-bold text-slate-700">{req.bankAccount.bankName}</div>
+                        <div className="text-[11px] text-slate-500 font-medium font-mono mt-0.5">
+                          {req.bankAccount.accountNumber} <span className="text-slate-300">•</span> {req.bankAccount.ifsc}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm font-black text-slate-900">
+                        ₹{req.amount.toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                          req.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' :
+                          req.status === 'pending' ? 'bg-orange-50 text-orange-700 border border-orange-200/50' :
+                          'bg-red-50 text-red-700 border border-red-200/50'
+                        }`}>
+                          {req.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {req.status === 'pending' ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button 
+                              onClick={() => setConfirmAction({ type: 'withdraw', id: req.id!, action: 'completed' })} 
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-lg transition-colors border border-transparent hover:border-emerald-200" 
+                              title="Mark Completed"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => setConfirmAction({ type: 'withdraw', id: req.id!, action: 'rejected' })} 
+                              className="p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-transparent hover:border-red-200" 
+                              title="Reject"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-medium">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden divide-y divide-slate-100">
                 {withdrawalRequests.map((req) => (
-                  <tr key={req.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
-                      {req.requestedAt ? format(req.requestedAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-slate-900 font-semibold">
+                  <div key={req.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
                           {req.userId.substring(0, 2).toUpperCase()}
                         </div>
-                        {req.userId.substring(0, 8)}...
+                        <span className="text-xs font-bold text-slate-900">{req.userId.substring(0, 8)}...</span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="text-xs font-bold text-slate-700">{req.bankAccount.bankName}</div>
-                      <div className="text-[11px] text-slate-500 font-medium font-mono mt-0.5">
+                      <span className="text-sm font-black text-slate-900">₹{req.amount.toLocaleString()}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div className="text-[10px] font-bold text-slate-700">{req.bankAccount.bankName}</div>
+                      <div className="text-[10px] text-slate-500 font-medium font-mono">
                         {req.bankAccount.accountNumber} <span className="text-slate-300">•</span> {req.bankAccount.ifsc}
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm font-black text-slate-900">
-                      ₹{req.amount.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                        req.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' :
-                        req.status === 'pending' ? 'bg-orange-50 text-orange-700 border border-orange-200/50' :
-                        'bg-red-50 text-red-700 border border-red-200/50'
-                      }`}>
-                        {req.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      {req.status === 'pending' ? (
-                        <div className="flex items-center justify-end gap-1.5">
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {req.requestedAt ? format(req.requestedAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
+                          req.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                          req.status === 'pending' ? 'bg-orange-50 text-orange-700' :
+                          'bg-red-50 text-red-700'
+                        }`}>
+                          {req.status}
+                        </span>
+                      </div>
+                      {req.status === 'pending' && (
+                        <div className="flex gap-2">
                           <button 
                             onClick={() => setConfirmAction({ type: 'withdraw', id: req.id!, action: 'completed' })} 
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-lg transition-colors border border-transparent hover:border-emerald-200" 
-                            title="Mark Completed"
+                            className="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg"
                           >
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => setConfirmAction({ type: 'withdraw', id: req.id!, action: 'rejected' })} 
-                            className="p-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-transparent hover:border-red-200" 
-                            title="Reject"
+                            className="p-1.5 text-red-600 bg-red-50 rounded-lg"
                           >
                             <XCircle className="w-4 h-4" />
                           </button>
                         </div>
-                      ) : (
-                        <span className="text-xs text-slate-400 font-medium">-</span>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-                {withdrawalRequests.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-400">
-                        <Landmark className="w-8 h-8 mb-2 opacity-20" />
-                        <p className="text-sm font-medium">No withdrawal requests</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              </div>
+
+              {withdrawalRequests.length === 0 && (
+                <div className="p-8 text-center">
+                  <div className="flex flex-col items-center justify-center text-slate-400">
+                    <Landmark className="w-8 h-8 mb-2 opacity-20" />
+                    <p className="text-sm font-medium">No withdrawal requests</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

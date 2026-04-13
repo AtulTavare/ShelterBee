@@ -61,6 +61,12 @@ body {
   color: var(--color-on-surface);
 }
 
+@media (max-width: 767px) {
+  html {
+    font-size: 90%;
+  }
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }

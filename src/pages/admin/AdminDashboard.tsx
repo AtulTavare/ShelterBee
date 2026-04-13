@@ -216,17 +216,17 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+            <div key={stat.label} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
               <div className="flex flex-col">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{stat.label}</div>
-                <div className="text-xl font-bold tracking-tight text-slate-900">{stat.value}</div>
+                <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{stat.label}</div>
+                <div className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">{stat.value}</div>
               </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg} group-hover:scale-110 transition-transform duration-300`}>
-                <Icon className={`w-6 h-6 ${stat.color}`} strokeWidth={2} />
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg} group-hover:scale-110 transition-transform duration-300`}>
+                <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} strokeWidth={2} />
               </div>
             </div>
           );
@@ -236,20 +236,20 @@ export const AdminDashboard = () => {
       {/* Deep Analytics Grid */}
       <div>
         <h2 className="text-lg font-bold tracking-tight text-slate-900 mb-4">Deep Analytics</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {analyticsCards.map((card) => {
             const Icon = card.icon;
             return (
               <div 
                 key={card.key} 
                 onClick={() => setSelectedAnalytic({ key: card.key, title: card.title })}
-                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center cursor-pointer hover:border-blue-200 hover:shadow-md transition-all duration-300 group"
+                className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center cursor-pointer hover:border-blue-200 hover:shadow-md transition-all duration-300 group"
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${card.bg} group-hover:-translate-y-1 transition-transform duration-300`}>
-                  <Icon className={`w-5 h-5 ${card.color}`} strokeWidth={2} />
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-2 sm:mb-3 ${card.bg} group-hover:-translate-y-1 transition-transform duration-300`}>
+                  <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${card.color}`} strokeWidth={2} />
                 </div>
-                <div className="text-lg font-bold tracking-tight text-slate-900 mb-1">{card.value}</div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{card.title}</div>
+                <div className="text-base sm:text-lg font-bold tracking-tight text-slate-900 mb-0.5 sm:mb-1">{card.value}</div>
+                <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">{card.title}</div>
               </div>
             );
           })}
@@ -260,12 +260,12 @@ export const AdminDashboard = () => {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="text-lg font-bold tracking-tight text-slate-900">Trends & Distribution</h2>
-          <div className="flex bg-slate-100 p-1 rounded-lg">
+          <div className="flex bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
             {(['daily', 'weekly', 'monthly'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTimeframe(t)}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
                   timeframe === t ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
@@ -385,9 +385,9 @@ export const AdminDashboard = () => {
               {analyticDetails[selectedAnalytic.key] && analyticDetails[selectedAnalytic.key].length > 0 ? (
                 <div className="space-y-3">
                   {analyticDetails[selectedAnalytic.key].map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 justify-between items-center hover:border-blue-200 transition-colors">
+                    <div key={item.id || idx} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:border-blue-200 transition-colors">
                       {Object.entries(item).filter(([k]) => k !== 'id').map(([k, v]) => (
-                        <div key={k} className="flex-1 min-w-[100px]">
+                        <div key={k} className="w-full sm:flex-1 min-w-0">
                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{k}</div>
                           <div className="font-semibold text-slate-800 text-sm truncate">{v as React.ReactNode}</div>
                         </div>

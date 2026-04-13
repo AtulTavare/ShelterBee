@@ -262,22 +262,22 @@ export default function BookingPage() {
     <div className="min-h-screen bg-[#F9F9F9] pt-24 pb-12 px-4 font-sans">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-6 mb-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 mb-8 md:mb-10">
           <button 
             onClick={() => navigate(-1)}
-            className="w-12 h-12 flex items-center justify-center bg-white hover:bg-slate-50 rounded-2xl transition-all shadow-sm border border-slate-100 group"
+            className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-white hover:bg-slate-50 rounded-xl sm:rounded-2xl transition-all shadow-sm border border-slate-100 group"
           >
-            <ChevronLeft className="w-6 h-6 text-slate-600 group-hover:-translate-x-0.5 transition-transform" />
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 group-hover:-translate-x-0.5 transition-transform" />
           </button>
           <div>
-            <h1 className="text-3xl font-black text-[#1A1A2E] tracking-tight">Book your stay</h1>
-            <p className="text-slate-500 font-medium">{property.title}</p>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#1A1A2E] tracking-tight">Book your stay</h1>
+            <p className="text-sm sm:text-base text-slate-500 font-medium">{property.title}</p>
           </div>
         </div>
 
         {/* Step Progress */}
-        <div className="max-w-3xl mx-auto mb-16 relative">
-          <div className="absolute top-5 left-0 right-0 h-0.5 bg-slate-200 z-0"></div>
+        <div className="max-w-3xl mx-auto mb-10 md:mb-16 relative px-2">
+          <div className="absolute top-4 sm:top-5 left-8 right-8 h-0.5 bg-slate-200 z-0"></div>
           <div className="flex justify-between relative z-10">
             {steps.map((s) => {
               const Icon = s.icon;
@@ -285,13 +285,13 @@ export default function BookingPage() {
               const isCompleted = step > s.id;
               return (
                 <div key={s.id} className="flex flex-col items-center">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-500 ${
                     isActive ? 'bg-[#1E1B4B] text-white shadow-lg shadow-indigo-200 scale-110' : 
                     isCompleted ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400 border border-slate-200'
                   }`}>
-                    {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                    {isCompleted ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </div>
-                  <span className={`mt-3 text-[10px] font-black uppercase tracking-widest ${
+                  <span className={`mt-2 sm:mt-3 text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${
                     isActive ? 'text-[#1E1B4B]' : isCompleted ? 'text-emerald-600' : 'text-slate-400'
                   }`}>
                     {s.name}
@@ -312,16 +312,16 @@ export default function BookingPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100"
+                  className="bg-white rounded-[1.5rem] sm:rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100"
                 >
-                  <div className="flex items-center gap-3 mb-8">
+                  <div className="flex items-center gap-3 mb-6 sm:mb-8">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
                       <CalendarIcon className="w-5 h-5" />
                     </div>
-                    <h2 className="text-2xl font-black text-[#1A1A2E]">Select your dates</h2>
+                    <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Select your dates</h2>
                   </div>
                   
-                  <div className="flex justify-center bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
+                  <div className="flex justify-center bg-slate-50/50 rounded-2xl sm:rounded-3xl p-2 sm:p-6 border border-slate-100 overflow-x-auto">
                     <DayPicker
                       mode="range"
                       selected={dateRange}
@@ -338,7 +338,7 @@ export default function BookingPage() {
                               } : [])
                         ] : [])
                       ].flat()}
-                      className="font-sans"
+                      className="font-sans scale-90 sm:scale-100"
                       style={{
                         '--rdp-accent-color': '#1E1B4B',
                         '--rdp-background-color': '#EEF2FF',
@@ -346,11 +346,11 @@ export default function BookingPage() {
                     />
                   </div>
 
-                  <div className="mt-10 flex justify-end">
+                  <div className="mt-8 sm:mt-10 flex justify-end">
                     <button
                       disabled={!dateRange.from || !dateRange.to}
                       onClick={() => setStep(2)}
-                      className="px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-200"
+                      className="w-full sm:w-auto px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-200"
                     >
                       Next: Guest Details
                     </button>
@@ -364,39 +364,39 @@ export default function BookingPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
+                  className="space-y-6 sm:space-y-8"
                 >
-                  <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
-                    <div className="flex items-center justify-between mb-10">
+                  <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 sm:mb-10 gap-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
                           <Users className="w-5 h-5" />
                         </div>
-                        <h2 className="text-2xl font-black text-[#1A1A2E]">Guest Details</h2>
+                        <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Guest Details</h2>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                         <button 
                           onClick={handleAddGuest}
-                          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-[#1E1B4B] rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-100 transition-all"
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 text-[#1E1B4B] rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-indigo-100 transition-all"
                         >
-                          <Plus className="w-4 h-4" /> Add Guest
+                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" /> Add Guest
                         </button>
                         <button 
                           onClick={handleAddChild}
-                          className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-orange-100 transition-all"
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-orange-100 transition-all"
                         >
-                          <Plus className="w-4 h-4" /> Add Child
+                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" /> Add Child
                         </button>
                       </div>
                     </div>
 
-                    <div className="space-y-10">
+                    <div className="space-y-8 sm:space-y-10">
                       {guests.map((guest, idx) => (
-                        <div key={idx} className="p-8 bg-slate-50/50 rounded-3xl border border-slate-100 relative group transition-all hover:bg-white hover:shadow-lg hover:shadow-slate-100">
+                        <div key={idx} className="p-6 sm:p-8 bg-slate-50/50 rounded-2xl sm:rounded-3xl border border-slate-100 relative group transition-all hover:bg-white hover:shadow-lg hover:shadow-slate-100">
                           {guests.length > 1 && (
                             <button 
                               onClick={() => handleRemoveGuest(idx)}
-                              className="absolute -top-3 -right-3 w-10 h-10 bg-white text-red-500 rounded-xl shadow-lg flex items-center justify-center hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 border border-slate-100"
+                              className="absolute -top-3 -right-3 w-10 h-10 bg-white text-red-500 rounded-xl shadow-lg flex items-center justify-center hover:bg-red-50 transition-all sm:opacity-0 sm:group-hover:opacity-100 border border-slate-100 z-10"
                             >
                               <Trash2 className="w-5 h-5" />
                             </button>
@@ -408,14 +408,14 @@ export default function BookingPage() {
                               {guest.type === 'adult' ? 'Adult' : 'Child'} {idx + 1}
                             </span>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                             <div className="space-y-2">
                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
                               <input 
                                 type="text"
                                 value={guest.name}
                                 onChange={(e) => handleGuestChange(idx, 'name', e.target.value)}
-                                className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
                                 placeholder="Enter name"
                               />
                             </div>
@@ -425,7 +425,7 @@ export default function BookingPage() {
                                 type="number"
                                 value={guest.age || ''}
                                 onChange={(e) => handleGuestChange(idx, 'age', parseInt(e.target.value))}
-                                className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
                                 placeholder={guest.type === 'adult' ? "18+" : "Under 18"}
                               />
                             </div>
@@ -434,7 +434,7 @@ export default function BookingPage() {
                               <select 
                                 value={guest.gender}
                                 onChange={(e) => handleGuestChange(idx, 'gender', e.target.value)}
-                                className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium appearance-none"
+                                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium appearance-none"
                               >
                                 <option>Male</option>
                                 <option>Female</option>
@@ -448,7 +448,7 @@ export default function BookingPage() {
                                   type="tel"
                                   value={guest.contactNo}
                                   onChange={(e) => handleGuestChange(idx, 'contactNo', e.target.value)}
-                                  className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                  className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
                                   placeholder="Phone number"
                                 />
                               </div>
@@ -459,7 +459,7 @@ export default function BookingPage() {
                                   type="text"
                                   value={guest.relation}
                                   onChange={(e) => handleGuestChange(idx, 'relation', e.target.value)}
-                                  className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                                  className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
                                   placeholder="e.g. Son, Daughter"
                                 />
                               </div>
@@ -469,10 +469,10 @@ export default function BookingPage() {
                       ))}
                     </div>
 
-                    <div className="mt-12 flex justify-between">
+                    <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row justify-between gap-4">
                       <button
                         onClick={() => setStep(1)}
-                        className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
+                        className="order-2 sm:order-1 px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
                       >
                         Back
                       </button>
@@ -480,7 +480,7 @@ export default function BookingPage() {
                         onClick={() => {
                           if (validateStep2()) setStep(3);
                         }}
-                        className="px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
+                        className="order-1 sm:order-2 px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
                       >
                         Next: Payment
                       </button>
@@ -495,23 +495,23 @@ export default function BookingPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100"
+                  className="bg-white rounded-[1.5rem] sm:rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100"
                 >
-                  <div className="flex items-center gap-3 mb-10">
+                  <div className="flex items-center gap-3 mb-8 sm:mb-10">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
                       <CreditCard className="w-5 h-5" />
                     </div>
-                    <h2 className="text-2xl font-black text-[#1A1A2E]">Payment Simulation</h2>
+                    <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Payment Simulation</h2>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                    <div className="space-y-8">
-                      <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Scan to Pay securely</p>
-                        <div className="w-56 h-56 bg-white mx-auto rounded-3xl border border-slate-100 p-6 flex items-center justify-center shadow-inner">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12">
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="p-6 sm:p-8 bg-slate-50 rounded-2xl sm:rounded-3xl border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 sm:mb-6">Scan to Pay securely</p>
+                        <div className="w-48 h-48 sm:w-56 sm:h-56 bg-white mx-auto rounded-2xl sm:rounded-3xl border border-slate-100 p-4 sm:p-6 flex items-center justify-center shadow-inner">
                           <QrCode className="w-full h-full text-[#1A1A2E]" />
                         </div>
-                        <div className="mt-6 flex items-center justify-center gap-2 text-[#1E1B4B] font-black text-sm bg-white py-3 px-4 rounded-2xl border border-slate-100 inline-flex">
+                        <div className="mt-4 sm:mt-6 flex items-center justify-center gap-2 text-[#1E1B4B] font-black text-xs bg-white py-3 px-4 rounded-2xl border border-slate-100 inline-flex">
                           <Smartphone className="w-4 h-4" />
                           <span>shelterbee@okaxis</span>
                         </div>
@@ -519,7 +519,7 @@ export default function BookingPage() {
 
                       <div className="space-y-4">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Payment App</p>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-2 sm:gap-4">
                           {[
                             { id: 'upi', name: 'UPI', color: 'indigo' },
                             { id: 'phonepe', name: 'PhonePe', color: 'purple' },
@@ -528,64 +528,64 @@ export default function BookingPage() {
                             <button
                               key={m.id}
                               onClick={() => setPaymentMethod(m.id as any)}
-                              className={`p-4 rounded-2xl border-2 transition-all text-center ${
+                              className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all text-center ${
                                 paymentMethod === m.id 
                                   ? 'border-[#1E1B4B] bg-indigo-50 text-[#1E1B4B]' 
                                   : 'border-slate-50 bg-slate-50 hover:bg-white hover:border-slate-200 text-slate-500'
                               }`}
                             >
-                              <span className="text-xs font-black uppercase tracking-wider">{m.name}</span>
+                              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider">{m.name}</span>
                             </button>
                           ))}
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="p-8 indigo-gradient text-white rounded-[2rem] shadow-2xl shadow-indigo-200 relative overflow-hidden">
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="p-6 sm:p-8 indigo-gradient text-white rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl shadow-indigo-200 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16"></div>
-                        <h3 className="text-xl font-black mb-6 relative z-10">Payment Summary</h3>
-                        <div className="space-y-4 relative z-10">
-                          <div className="flex justify-between text-sm text-white/70 font-medium">
+                        <h3 className="text-lg sm:text-xl font-black mb-4 sm:mb-6 relative z-10">Payment Summary</h3>
+                        <div className="space-y-3 sm:space-y-4 relative z-10">
+                          <div className="flex justify-between text-xs sm:text-sm text-white/70 font-medium">
                             <span>Stay Duration</span>
                             <span className="text-white font-bold">{nights} Nights</span>
                           </div>
-                          <div className="flex justify-between text-sm text-white/70 font-medium">
+                          <div className="flex justify-between text-xs sm:text-sm text-white/70 font-medium">
                             <span>Total Guests</span>
                             <span className="text-white font-bold">{totalGuests} Persons</span>
                           </div>
-                          <div className="flex justify-between text-sm text-white/70 font-medium">
+                          <div className="flex justify-between text-xs sm:text-sm text-white/70 font-medium">
                             <span>Base Rent</span>
                             <span className="text-white font-bold">₹{property.pricePerDay}/day</span>
                           </div>
-                          <div className="pt-6 border-t border-white/10 flex justify-between items-end">
-                            <span className="text-sm font-bold text-white/70">Total Amount</span>
-                            <span className="text-4xl font-black">₹{totalAmount}</span>
+                          <div className="pt-4 sm:pt-6 border-t border-white/10 flex justify-between items-end">
+                            <span className="text-xs sm:text-sm font-bold text-white/70">Total Amount</span>
+                            <span className="text-3xl sm:text-4xl font-black">₹{totalAmount}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl flex gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
-                          <Info className="w-5 h-5" />
+                      <div className="p-4 sm:p-6 bg-amber-50 border border-amber-100 rounded-2xl sm:rounded-3xl flex gap-3 sm:gap-4">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                          <Info className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
-                        <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                        <p className="text-[10px] sm:text-xs text-amber-800 leading-relaxed font-medium">
                           This is a simulated payment screen for demonstration. In a real application, you would be redirected to your chosen payment app to complete the transaction.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-12 flex justify-between">
+                  <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row justify-between gap-4">
                     <button
                       onClick={() => setStep(2)}
-                      className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
+                      className="order-2 sm:order-1 px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
                     >
                       Back
                     </button>
                     <button
                       onClick={() => setStep(4)}
-                      className="px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
+                      className="order-1 sm:order-2 px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
                     >
                       Next: Final Review
                     </button>
@@ -599,81 +599,81 @@ export default function BookingPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
+                  className="space-y-6 sm:space-y-8"
                 >
-                  <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
-                    <div className="flex items-center gap-3 mb-10">
+                  <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
+                    <div className="flex items-center gap-3 mb-8 sm:mb-10">
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#1E1B4B]">
                         <ShieldCheck className="w-5 h-5" />
                       </div>
-                      <h2 className="text-2xl font-black text-[#1A1A2E]">Terms & Policies</h2>
+                      <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Terms & Policies</h2>
                     </div>
                     
-                    <div className="space-y-8 mb-12">
-                      <div className="p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
-                        <h3 className="font-black text-[#1A1A2E] text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <div className="space-y-6 sm:space-y-8 mb-10 sm:mb-12">
+                      <div className="p-6 sm:p-8 bg-slate-50/50 rounded-2xl sm:rounded-3xl border border-slate-100">
+                        <h3 className="font-black text-[#1A1A2E] text-xs sm:text-sm uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                           Cancellation Policy
                         </h3>
-                        <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
                           Free cancellation for 24 hours. After that, the platform fee is non-refundable. 
                           Refunds for the stay amount are subject to the owner's policy and check-in status.
                         </p>
                       </div>
 
-                      <div className="p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
-                        <h3 className="font-black text-[#1A1A2E] text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <div className="p-6 sm:p-8 bg-slate-50/50 rounded-2xl sm:rounded-3xl border border-slate-100">
+                        <h3 className="font-black text-[#1A1A2E] text-xs sm:text-sm uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
                           <Info className="w-4 h-4 text-indigo-500" />
                           Terms & Conditions
                         </h3>
-                        <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
                           By clicking "Confirm Booking", you agree to follow the house rules and maintain the property. 
                           Any damage caused will be the responsibility of the primary guest.
                         </p>
                       </div>
 
                       <div className="space-y-4 pt-4">
-                        <label className="flex gap-4 p-6 bg-indigo-50/50 border border-indigo-100 rounded-3xl cursor-pointer group transition-all hover:bg-indigo-50">
+                        <label className="flex gap-3 sm:gap-4 p-4 sm:p-6 bg-indigo-50/50 border border-indigo-100 rounded-2xl sm:rounded-3xl cursor-pointer group transition-all hover:bg-indigo-50">
                           <input 
                             type="checkbox"
                             checked={govIdAcknowledged}
                             onChange={(e) => setGovIdAcknowledged(e.target.checked)}
-                            className="w-6 h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
+                            className="w-5 h-5 sm:w-6 sm:h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
                           />
-                          <span className="text-sm font-black text-[#1E1B4B] leading-snug">
+                          <span className="text-xs sm:text-sm font-black text-[#1E1B4B] leading-snug">
                             I/we have our respected Government ID's, I/we acknowledge that I/we will carry one while visiting the property.
                           </span>
                         </label>
 
-                        <label className="flex gap-4 p-6 rounded-3xl cursor-pointer group transition-all">
+                        <label className="flex gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl sm:rounded-3xl cursor-pointer group transition-all">
                           <input 
                             type="checkbox"
                             checked={termsAccepted}
                             onChange={(e) => setTermsAccepted(e.target.checked)}
-                            className="w-6 h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
+                            className="w-5 h-5 sm:w-6 sm:h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
                           />
-                          <span className="text-sm text-slate-500 font-bold">
+                          <span className="text-xs sm:text-sm text-slate-500 font-bold">
                             I agree to the Terms & Conditions and Privacy Policy.
                           </span>
                         </label>
                       </div>
                     </div>
 
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row justify-between gap-4">
                       <button
                         onClick={() => setStep(3)}
-                        className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
+                        className="order-2 sm:order-1 px-8 py-4 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all"
                       >
                         Back
                       </button>
                       <button
                         disabled={!govIdAcknowledged || !termsAccepted || isSubmitting}
                         onClick={handleConfirmBooking}
-                        className="px-12 py-5 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-[#312E81] transition-all shadow-2xl shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-4"
+                        className="order-1 sm:order-2 px-8 sm:px-12 py-4 sm:py-5 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-[#312E81] transition-all shadow-2xl shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 sm:gap-4"
                       >
                         {isSubmitting ? (
                           <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                             Processing...
                           </>
                         ) : (

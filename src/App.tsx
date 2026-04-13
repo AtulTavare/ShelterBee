@@ -45,8 +45,8 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans text-on-surface">
-      {!isAdminRoute && <Navbar />}
-      <main className={`flex-grow ${!isAdminRoute ? 'pt-20' : ''}`}>
+      <Navbar />
+      <main className="flex-grow pt-16 md:pt-20">
         <MaintenanceGuard>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -86,7 +86,7 @@ function AppContent() {
           </Routes>
         </MaintenanceGuard>
       </main>
-      {!isAdminRoute && <Footer />}
+      <Footer />
     </div>
   );
 }

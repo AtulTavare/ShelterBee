@@ -153,69 +153,27 @@ export default function ListProperty() {
     }));
   };
 
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      // Safety check for non-image files
-      if (!file.type.startsWith('image/')) {
-        console.warn("Skipping compression for non-image file:", file.name);
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = (e) => reject(e);
-        reader.readAsDataURL(file);
-        return;
-      }
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('image', file);
 
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          
-          // Compress to JPEG with 0.6 quality
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-          resolve(dataUrl);
-        };
-        img.onerror = (error) => {
-          console.error("Image load error:", error);
-          reject(error);
-        };
-      };
-      reader.onerror = (error) => {
-        console.error("FileReader error:", error);
-        reject(error);
-      };
-      
-      // Safety timeout for compression
-      setTimeout(() => reject(new Error("Compression timeout")), 10000);
+    const response = await fetch('/api/upload-image', {
+      method: 'POST',
+      body: formData,
     });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to upload image to Cloudinary');
+    }
+
+    const data = await response.json();
+    return data.url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Starting property submission...");
+    console.log("Starting property submission with Cloudinary...");
     if (!user) {
       navigate('/auth', { state: { returnTo: '/list-property' } });
       return;
@@ -236,21 +194,15 @@ export default function ListProperty() {
         existingProperty = await propertyService.getPropertyById(propertyId);
       }
 
-      // 1. Upload Photos to Firebase Storage
-      console.log("Uploading photos...");
-      showToast("Compressing and uploading photos...", "info");
+      // 1. Upload Photos to Cloudinary
+      console.log("Uploading photos to Cloudinary...");
+      showToast("Uploading photos...", "info");
       const uploadedPhotoUrls = await Promise.all(
         formData.photos.map(async (file, index) => {
           if (!file) return null;
           try {
-            console.log(`Processing photo ${index + 1}...`);
-            const compressedDataUrl = await compressImage(file);
-            const response = await fetch(compressedDataUrl);
-            const blob = await response.blob();
-            const path = `properties/${user.uid}/${Date.now()}_photo_${index}.jpg`;
-            const storageRef = ref(storage, path);
-            await uploadBytes(storageRef, blob);
-            const url = await getDownloadURL(storageRef);
+            console.log(`Uploading photo ${index + 1} to Cloudinary...`);
+            const url = await uploadToCloudinary(file);
             console.log(`Photo ${index + 1} uploaded:`, url);
             return url;
           } catch (err) {
@@ -266,19 +218,13 @@ export default function ListProperty() {
         finalPhotoUrls = existingProperty?.photos || (window as any)._existingPhotos || [];
       }
 
-      // 2. Upload Documents to Firebase Storage
-      console.log("Uploading documents...");
+      // 2. Upload Documents to Cloudinary
+      console.log("Uploading documents to Cloudinary...");
       const uploadDoc = async (file: File | null, name: string) => {
         if (!file) return '';
         try {
-          console.log(`Processing document: ${name}...`);
-          const compressedDataUrl = await compressImage(file);
-          const response = await fetch(compressedDataUrl);
-          const blob = await response.blob();
-          const path = `documents/${user.uid}/${Date.now()}_${name}.jpg`;
-          const storageRef = ref(storage, path);
-          await uploadBytes(storageRef, blob);
-          const url = await getDownloadURL(storageRef);
+          console.log(`Uploading document ${name} to Cloudinary...`);
+          const url = await uploadToCloudinary(file);
           console.log(`Document ${name} uploaded:`, url);
           return url;
         } catch (err) {
@@ -407,16 +353,16 @@ export default function ListProperty() {
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background flex flex-col">
       {/* Progress Bar at the top */}
-      <div className="bg-surface px-8 py-4 border-b border-outline-variant sticky top-[80px] z-10">
+      <div className="bg-surface px-4 md:px-8 py-4 border-b border-outline-variant sticky top-[64px] md:top-[80px] z-10">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between mb-2">
             {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className={`text-xs font-semibold ${step >= i ? 'text-primary' : 'text-on-surface-variant/50'}`}>
+              <div key={i} className={`text-[10px] md:text-xs font-semibold ${step >= i ? 'text-primary' : 'text-on-surface-variant/50'}`}>
                 Step {i}
               </div>
             ))}
           </div>
-          <div className="h-2 bg-surface-variant rounded-full overflow-hidden">
+          <div className="h-1.5 md:h-2 bg-surface-variant rounded-full overflow-hidden">
             <motion.div 
               className="h-full bg-primary"
               initial={{ width: 0 }}
@@ -429,7 +375,7 @@ export default function ListProperty() {
 
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full">
         {/* Left Side: Details */}
-        <div className="lg:w-5/12 p-8 lg:p-16 bg-surface-container-lowest lg:border-r border-outline-variant flex flex-col justify-center">
+        <div className="lg:w-5/12 p-6 md:p-8 lg:p-16 bg-surface-container-lowest lg:border-r border-outline-variant flex flex-col justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={`detail-${step}`}
@@ -438,19 +384,23 @@ export default function ListProperty() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              {stepDetails[step - 1].icon}
-              <h1 className="text-3xl lg:text-4xl font-extrabold text-on-surface mb-6 leading-tight">
-                {stepDetails[step - 1].title}
-              </h1>
-              <p className="text-on-surface-variant text-lg whitespace-pre-line leading-relaxed">
-                {stepDetails[step - 1].description}
-              </p>
+              <div className="flex flex-col items-start">
+                <div className="scale-75 md:scale-100 origin-left">
+                  {stepDetails[step - 1].icon}
+                </div>
+                <h1 className="text-xl md:text-3xl lg:text-4xl font-extrabold text-on-surface mb-3 md:mb-6 leading-tight">
+                  {stepDetails[step - 1].title}
+                </h1>
+                <p className="text-xs md:text-base lg:text-lg text-on-surface-variant whitespace-pre-line leading-relaxed">
+                  {stepDetails[step - 1].description}
+                </p>
+              </div>
             </motion.div>
           </AnimatePresence>
         </div>
 
         {/* Right Side: Inputs */}
-        <div className="lg:w-7/12 p-8 lg:p-16 flex flex-col justify-between overflow-y-auto">
+        <div className="lg:w-7/12 p-6 md:p-8 lg:p-16 flex flex-col justify-between overflow-y-auto">
           <div className="max-w-xl w-full mx-auto flex-1">
             <AnimatePresence mode="wait">
               {step === 1 && (
@@ -818,11 +768,11 @@ export default function ListProperty() {
           </div>
 
           {/* Navigation Buttons */}
-          <div className="max-w-xl w-full mx-auto mt-12 pt-6 border-t border-outline-variant flex justify-between items-center">
+          <div className="max-w-xl w-full mx-auto mt-6 md:mt-12 pt-4 md:pt-6 border-t border-outline-variant flex justify-between items-center gap-3 md:gap-4">
             <button 
               onClick={handlePrev}
               disabled={step === 1}
-              className={`flex items-center gap-2 font-medium px-6 py-3 rounded-xl transition-colors ${step === 1 ? 'text-on-surface-variant/50 cursor-not-allowed' : 'text-on-surface hover:bg-surface-container-high bg-surface-container-lowest border border-outline-variant'}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 font-medium px-4 md:px-6 py-2.5 md:py-3 rounded-xl transition-colors ${step === 1 ? 'text-on-surface-variant/50 cursor-not-allowed' : 'text-on-surface hover:bg-surface-container-high bg-surface-container-lowest border border-outline-variant'}`}
             >
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
@@ -830,7 +780,7 @@ export default function ListProperty() {
             {step < 6 ? (
               <button 
                 onClick={handleNext}
-                className="flex items-center gap-2 font-bold px-8 py-3 rounded-xl bg-on-secondary-fixed text-white hover:bg-on-secondary-fixed/90 transition-colors shadow-lg"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 font-bold px-4 md:px-8 py-2.5 md:py-3 rounded-xl bg-on-secondary-fixed text-white hover:bg-on-secondary-fixed/90 transition-colors shadow-lg"
               >
                 Next Step <ChevronRight className="w-4 h-4" />
               </button>
@@ -838,7 +788,7 @@ export default function ListProperty() {
               <button 
                 onClick={() => isEditMode ? setShowResubmitConfirm(true) : handleSubmit(new Event('submit') as any)}
                 disabled={!formData.termsAccepted || isSubmitting}
-                className={`flex items-center gap-2 font-bold px-8 py-3 rounded-xl shadow-lg transition-colors ${formData.termsAccepted && !isSubmitting ? 'bg-primary text-on-primary hover:bg-primary/90' : 'bg-surface-variant text-on-surface-variant cursor-not-allowed'}`}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-2 font-bold px-4 md:px-8 py-2.5 md:py-3 rounded-xl shadow-lg transition-colors ${formData.termsAccepted && !isSubmitting ? 'bg-primary text-on-primary hover:bg-primary/90' : 'bg-surface-variant text-on-surface-variant cursor-not-allowed'}`}
               >
                 {isSubmitting ? 'Submitting...' : (isEditMode ? 'Resubmit' : 'Submit Listing')} <CheckCircle2 className="w-4 h-4" />
               </button>

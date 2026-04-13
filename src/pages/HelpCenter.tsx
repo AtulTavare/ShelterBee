@@ -142,7 +142,7 @@ export default function HelpCenter() {
           <motion.h1 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-5xl font-extrabold text-white mb-6"
+            className="text-3xl md:text-5xl font-extrabold text-white mb-6"
           >
             How can we help you?
           </motion.h1>
@@ -163,7 +163,7 @@ export default function HelpCenter() {
       <section className="max-w-4xl mx-auto px-4 py-16 space-y-16">
         {/* Visitor FAQs */}
         <div>
-          <h2 className="text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Regarding Stay Bookings</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Regarding Stay Bookings</h2>
           <div className="space-y-4">
             {filteredVisitorFaqs.length > 0 ? (
               filteredVisitorFaqs.map((faq, index) => (
@@ -194,7 +194,7 @@ export default function HelpCenter() {
 
         {/* Owner FAQs */}
         <div>
-          <h2 className="text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Regarding Property Holdings</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#1E1B4B] mb-8 text-center">Regarding Property Holdings</h2>
           <div className="space-y-4">
             {filteredOwnerFaqs.length > 0 ? (
               filteredOwnerFaqs.map((faq, index) => (
@@ -235,7 +235,7 @@ export default function HelpCenter() {
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2">
             <div className="bg-[#1E1B4B] p-10 text-white">
-              <h2 className="text-3xl font-bold mb-6">Have a query other than this?</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-6">Have a query other than this?</h2>
               <p className="text-indigo-100 mb-8 leading-relaxed">
                 Feel free to contact us. Write about your problem, our team will contact you back & try best to resolve it.
               </p>

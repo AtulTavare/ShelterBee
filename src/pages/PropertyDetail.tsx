@@ -132,7 +132,7 @@ export default function PropertyDetail() {
         </button>
 
         {/* Dynamic Hero Bento Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-12 gap-[6px] h-[480px] mb-6 overflow-hidden relative z-0">
+        <section className="grid grid-cols-1 md:grid-cols-12 gap-[6px] h-[260px] md:h-[480px] mb-6 overflow-hidden relative z-0">
           <div className="md:col-span-7 rounded-[12px] overflow-hidden group relative bg-slate-100 h-full">
             <AnimatePresence mode="wait">
               <motion.img 
@@ -148,8 +148,18 @@ export default function PropertyDetail() {
               />
             </AnimatePresence>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent z-10"></div>
+            
+            {/* Mobile Slide Indicators */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 md:hidden">
+              {property.photos?.map((_: any, idx: number) => (
+                <div 
+                  key={idx} 
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${currentSlide === idx ? 'bg-white w-4' : 'bg-white/50'}`}
+                />
+              ))}
+            </div>
           </div>
-          <div className="md:col-span-5 grid grid-cols-2 grid-rows-2 gap-[6px] h-full">
+          <div className="hidden md:grid md:col-span-5 grid-cols-2 grid-rows-2 gap-[6px] h-full">
             <div className="overflow-hidden group relative">
               <img alt="Interior 1" className="w-full h-full object-cover rounded-tr-[12px]" src={property.photos?.[1] || 'https://picsum.photos/seed/placeholder1/400/300'} referrerPolicy="no-referrer" />
             </div>
@@ -176,7 +186,7 @@ export default function PropertyDetail() {
                 <span className="px-3 py-1 rounded-full bg-slate-100 text-[#1E1B4B] text-[9px] font-extrabold uppercase tracking-widest border border-slate-200">Managed by Shelterbee</span>
               </div>
               <div className="space-y-1.5">
-                <h1 className="text-3xl md:text-4xl font-extrabold text-[#1E1B4B] tracking-tight">{property.title}</h1>
+                <h1 className="text-2xl md:text-4xl font-extrabold text-[#1E1B4B] tracking-tight">{property.title}</h1>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center text-[#64748B] gap-1">
                     <span className="material-symbols-outlined text-lg text-[#F59E0B]">location_on</span>
@@ -209,15 +219,41 @@ export default function PropertyDetail() {
             </div>
 
             {/* Price Highlight Mobile */}
-            <div className="lg:hidden p-6 rounded-2xl bg-white border border-slate-100 shadow-lg shadow-slate-200/50">
-              <div className="text-[9px] font-black text-[#64748B] uppercase tracking-[0.2em] mb-1">Per Day</div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-4xl font-black text-[#1E1B4B] tracking-tighter">₹{property.pricePerDay}</span>
-                <span className="text-base font-bold text-[#64748B]">/day</span>
-              </div>
-              <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-widest">Base Price</span>
-                <span className="text-xs font-bold text-[#1E1B4B]">₹{property.pricePerDay}</span>
+            <div className="lg:hidden p-4 md:p-6 rounded-2xl bg-white border border-slate-100 shadow-lg shadow-slate-200/50 sticky bottom-4 z-40">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[8px] md:text-[9px] font-black text-[#64748B] uppercase tracking-[0.2em] mb-1">Per Day</div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl md:text-3xl font-black text-[#1E1B4B] tracking-tighter">₹{property.pricePerDay}</span>
+                    <span className="text-xs md:text-sm font-bold text-[#64748B]">/day</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    if (!user) {
+                      navigate('/auth?mode=login', { state: { returnTo: `/property/${id}` } });
+                      return;
+                    }
+                    if (profile?.emailVerified === false) {
+                      setShowVerificationPopup(true);
+                      return;
+                    }
+                    if (profile?.role === 'owner') {
+                      if (property.ownerId === user.uid) {
+                        navigate('/profile?tab=favourites');
+                      } else {
+                        navigate('/list-property');
+                      }
+                      return;
+                    }
+                    navigate(`/book/${id}`);
+                  }}
+                  className="bg-[#F59E0B] text-[#1E1B4B] px-6 md:px-8 py-2.5 md:py-3 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest shadow-lg shadow-[#F59E0B]/30"
+                >
+                  {profile?.role === 'owner' 
+                    ? (property.ownerId === user?.uid ? 'Edit' : 'List')
+                    : (isUnlocked ? 'Contact' : 'Book Now')}
+                </button>
               </div>
             </div>
 
@@ -233,23 +269,23 @@ export default function PropertyDetail() {
             </div>
 
             {/* Amenities */}
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-xl font-extrabold text-[#1E1B4B]">Signature Amenities</h2>
+                <h2 className="text-lg md:text-xl font-extrabold text-[#1E1B4B]">Signature Amenities</h2>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 {/* Compulsory Amenities */}
                 <div>
                   
-                  <div className="flex flex-wrap gap-x-8 gap-y-4">
+                  <div className="flex flex-wrap gap-x-6 md:gap-x-8 gap-y-3 md:gap-y-4">
                     {property.amenities.filter((a: string) => ['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).map((amenity: string) => (
                       <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                        <span className="material-symbols-outlined text-[#F59E0B] text-xl">
+                        <span className="material-symbols-outlined text-[#F59E0B] text-lg md:text-xl">
                           {amenity.includes('Water') ? 'water_drop' : 'bolt'}
                         </span>
-                        <span className="font-medium text-sm">{amenity}</span>
+                        <span className="font-medium text-xs md:text-sm">{amenity}</span>
                       </div>
                     ))}
                   </div>
@@ -259,7 +295,7 @@ export default function PropertyDetail() {
                 {property.amenities.filter((a: string) => !['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).length > 0 && (
                   <div>
                     
-                    <div className="flex flex-wrap gap-x-8 gap-y-4">
+                    <div className="flex flex-wrap gap-x-6 md:gap-x-8 gap-y-3 md:gap-y-4">
                       {property.amenities.filter((a: string) => !['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).map((amenity: string) => {
                         const lower = amenity.toLowerCase();
                         let icon = 'check_circle';
@@ -285,8 +321,8 @@ export default function PropertyDetail() {
 
                         return (
                           <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                            <span className="material-symbols-outlined text-[#F59E0B] text-xl">{icon}</span>
-                            <span className="font-medium text-sm">{amenity}</span>
+                            <span className="material-symbols-outlined text-[#F59E0B] text-lg md:text-xl">{icon}</span>
+                            <span className="font-medium text-xs md:text-sm">{amenity}</span>
                           </div>
                         );
                       })}
@@ -300,32 +336,32 @@ export default function PropertyDetail() {
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-xl font-extrabold text-[#1E1B4B]">About Place</h2>
+                <h2 className="text-lg md:text-xl font-extrabold text-[#1E1B4B]">About Place</h2>
               </div>
-              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-8">
-                <div className="space-y-8">
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[#F59E0B] text-lg">groups</span>
+              <div className="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm space-y-6 md:space-y-8">
+                <div className="space-y-6 md:space-y-8">
+                  <div className="flex gap-3 md:gap-4">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#F59E0B]/5 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-[#F59E0B] text-base md:text-lg">groups</span>
                     </div>
-                    <div className="space-y-4 flex-1">
-                      <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Occupancy & Capacity</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-12">
-                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                          <span className="text-sm font-medium text-[#64748B]">Maximum Residents</span>
-                          <span className="text-sm font-bold text-[#1E1B4B]">{property.guests || 4} Persons</span>
+                    <div className="space-y-3 md:space-y-4 flex-1">
+                      <div className="font-bold text-[#1E1B4B] text-[10px] md:text-xs uppercase tracking-wider">Occupancy & Capacity</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 md:gap-y-2 gap-x-12">
+                        <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
+                          <span className="text-xs md:text-sm font-medium text-[#64748B]">Maximum Residents</span>
+                          <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.guests || 4} Persons</span>
                         </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                          <span className="text-sm font-medium text-[#64748B]">Bedrooms Provided</span>
-                          <span className="text-sm font-bold text-[#1E1B4B]">{property.bedrooms || 1} Rooms</span>
+                        <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
+                          <span className="text-xs md:text-sm font-medium text-[#64748B]">Bedrooms Provided</span>
+                          <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.bedrooms || 1} Rooms</span>
                         </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                          <span className="text-sm font-medium text-[#64748B]">Total Beds</span>
-                          <span className="text-sm font-bold text-[#1E1B4B]">{property.beds || 1} Beds</span>
+                        <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
+                          <span className="text-xs md:text-sm font-medium text-[#64748B]">Total Beds</span>
+                          <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.beds || 1} Beds</span>
                         </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                          <span className="text-sm font-medium text-[#64748B]">Bathrooms</span>
-                          <span className="text-sm font-bold text-[#1E1B4B]">{property.bathrooms || 1} Baths</span>
+                        <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
+                          <span className="text-xs md:text-sm font-medium text-[#64748B]">Bathrooms</span>
+                          <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.bathrooms || 1} Baths</span>
                         </div>
                       </div>
                     </div>

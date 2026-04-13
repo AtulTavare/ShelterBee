@@ -6,8 +6,20 @@ import path from "path";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { v2 as cloudinary } from "cloudinary";
+import multer from "multer";
 
 dotenv.config();
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Configure Multer for memory storage
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize Firebase Admin with default credentials
 // This works automatically in Google Cloud Run environments
@@ -114,6 +126,34 @@ async function startServer() {
       } else {
         res.status(500).json({ error: "Failed to reset password" });
       }
+    }
+  });
+
+  // API Route to upload image to Cloudinary
+  app.post("/api/upload-image", upload.single("image"), async (req, res) => {
+    try {
+      const multerReq = req as any;
+      if (!multerReq.file) {
+        return res.status(400).json({ error: "No image file provided" });
+      }
+
+      if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+        return res.status(500).json({ error: "Cloudinary credentials not configured on server" });
+      }
+
+      // Convert buffer to base64
+      const b64 = Buffer.from(multerReq.file.buffer).toString("base64");
+      const dataURI = "data:" + multerReq.file.mimetype + ";base64," + b64;
+
+      const result = await cloudinary.uploader.upload(dataURI, {
+        folder: "shelterbee_properties",
+        resource_type: "auto",
+      });
+
+      res.json({ url: result.secure_url });
+    } catch (error: any) {
+      console.error("Cloudinary upload error:", error);
+      res.status(500).json({ error: error.message || "Failed to upload image" });
     }
   });
 

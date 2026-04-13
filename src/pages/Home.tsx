@@ -106,7 +106,7 @@ export default function Home() {
       `}</style>
 
       {/* Hero Section */}
-      <section className="relative flex flex-col items-center justify-end min-h-[100vh] px-4 md:px-8 pb-12 md:pb-16 overflow-hidden -mt-20 pt-20">
+      <section className="relative flex flex-col items-center justify-end min-h-[100vh] px-4 md:px-8 pb-12 md:pb-16 overflow-hidden -mt-20 pt-24 md:pt-20">
         {/* YouTube Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden z-0 bg-black">
           <iframe
@@ -120,16 +120,16 @@ export default function Home() {
         </div>
 
         <div className="relative z-20 w-full max-w-5xl mx-auto flex flex-col items-center text-center">
-          <h1 className="text-5xl md:text-6xl font-extrabold text-white tracking-tight mb-6 md:mb-8 leading-[1.1] drop-shadow-2xl">
+          <h1 className="text-3xl md:text-6xl font-extrabold text-white tracking-tight mb-8 md:mb-8 leading-[1.1] drop-shadow-2xl">
             Find your perfect Stay
           </h1>
           
           {/* Search Bar (Pill Style) */}
-          <div className="w-full max-w-xl bg-white rounded-full shadow-2xl flex flex-col md:flex-row items-center p-1.5 relative z-20 border border-gray-200">
+          <div className="w-full max-w-xl bg-white rounded-3xl md:rounded-full shadow-2xl flex flex-col md:flex-row items-center p-2 md:p-1.5 relative z-20 border border-gray-200 gap-1 md:gap-0">
             
             {/* Where */}
-            <div className="flex-1 flex flex-col px-5 py-1.5 hover:bg-gray-100 rounded-full cursor-text transition-colors w-full text-left">
-              <label className="text-[11px] font-extrabold text-gray-800 tracking-wide">Where</label>
+            <div className="flex-1 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-text transition-colors w-full text-left">
+              <label className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Where</label>
               <input 
                 className="bg-transparent border-none focus:ring-0 text-sm text-gray-600 placeholder:text-gray-400 p-0 outline-none w-full mt-0.5"
                 placeholder="Search destinations"
@@ -141,27 +141,29 @@ export default function Home() {
 
             <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
 
-            {/* Type */}
-            <div 
-              className="flex-1 flex flex-col px-5 py-1.5 hover:bg-gray-100 rounded-full cursor-pointer transition-colors w-full text-left relative"
-              onClick={() => setIsTypeDropdownOpen(true)}
-            >
-              <div className="text-[11px] font-extrabold text-gray-800 tracking-wide">Type</div>
-              <div className={`text-sm mt-0.5 truncate ${filterType === 'Any Type' ? 'text-gray-400' : 'text-gray-600'}`}>
-                {filterType === 'Any Type' ? 'Add property type' : filterType}
+            <div className="flex w-full md:w-auto gap-2">
+              {/* Type */}
+              <div 
+                className="flex-1 md:w-32 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
+                onClick={() => setIsTypeDropdownOpen(true)}
+              >
+                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Type</div>
+                <div className={`text-sm mt-0.5 truncate ${filterType === 'Any Type' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {filterType === 'Any Type' ? 'Any' : filterType}
+                </div>
               </div>
-            </div>
 
-            <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
+              <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
 
-            {/* Occupancy */}
-            <div 
-              className="flex-1 flex flex-col px-5 py-1.5 hover:bg-gray-100 rounded-full cursor-pointer transition-colors w-full text-left relative"
-              onClick={() => setIsOccupancyDropdownOpen(true)}
-            >
-              <div className="text-[11px] font-extrabold text-gray-800 tracking-wide">Occupancy</div>
-              <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600'}`}>
-                {occupancy === 'Any' ? 'Add guests' : `${occupancy} Guests`}
+              {/* Occupancy */}
+              <div 
+                className="flex-1 md:w-32 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
+                onClick={() => setIsOccupancyDropdownOpen(true)}
+              >
+                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Guests</div>
+                <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {occupancy === 'Any' ? 'Any' : `${occupancy}`}
+                </div>
               </div>
             </div>
 
@@ -174,9 +176,10 @@ export default function Home() {
                 if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
                 navigate(`/listings?${params.toString()}`);
               }}
-              className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 flex-shrink-0 ml-1 shadow-md"
+              className="w-full md:w-12 h-12 rounded-2xl md:rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 flex-shrink-0 shadow-md gap-2 md:gap-0"
             >
-              <span className="material-symbols-outlined text-lg md:text-xl">search</span>
+              <span className="md:hidden font-bold">Search Stays</span>
+              <span className="material-symbols-outlined text-xl">search</span>
             </button>
           </div>
         </div>
@@ -275,13 +278,13 @@ export default function Home() {
       </section>
 
       {/* Trending Properties */}
-      <section className="py-16 px-8 bg-surface-container-lowest border-b border-outline-variant/20">
+      <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-lowest border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Trending Properties</h2>
-            <p className="text-on-secondary-fixed-variant mt-2 font-medium">Most viewed properties this week.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Trending Properties</h2>
+            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Most viewed properties this week.</p>
           </div>
-          <Link to="/listings" className="hidden md:flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all">
+          <Link to="/listings" className="flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all text-sm md:text-base">
             View All <span className="material-symbols-outlined">arrow_forward</span>
           </Link>
         </div>
@@ -299,13 +302,13 @@ export default function Home() {
       </section>
 
       {/* New Listings */}
-      <section className="py-16 px-8 bg-surface-container-low border-b border-outline-variant/20">
+      <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-low border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">New Listings</h2>
-            <p className="text-on-secondary-fixed-variant mt-2 font-medium">Fresh properties added recently.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">New Listings</h2>
+            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Fresh properties added recently.</p>
           </div>
-          <Link to="/listings" className="hidden md:flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all">
+          <Link to="/listings" className="flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all text-sm md:text-base">
             View All <span className="material-symbols-outlined">arrow_forward</span>
           </Link>
         </div>
@@ -322,22 +325,22 @@ export default function Home() {
       </section>
 
       {/* Top Properties */}
-      <section className="py-16 px-8 bg-surface-container-lowest border-b border-outline-variant/20">
+      <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-lowest border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Top Properties</h2>
-            <p className="text-on-secondary-fixed-variant mt-2 font-medium">Highest rated and most reviewed.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Top Properties</h2>
+            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Highest rated and most reviewed.</p>
           </div>
-          <div className="flex bg-surface-container rounded-xl p-1">
+          <div className="flex bg-surface-container rounded-xl p-1 w-full md:w-auto overflow-x-auto scrollbar-hide">
             <button 
               onClick={() => setTopFilter('ratings')}
-              className={`px-6 py-2 rounded-lg font-bold text-sm transition-colors ${topFilter === 'ratings' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+              className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${topFilter === 'ratings' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
             >
               By Ratings
             </button>
             <button 
               onClick={() => setTopFilter('reviews')}
-              className={`px-6 py-2 rounded-lg font-bold text-sm transition-colors ${topFilter === 'reviews' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+              className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${topFilter === 'reviews' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
             >
               By Reviews
             </button>
@@ -357,13 +360,13 @@ export default function Home() {
       </section>
 
       {/* Most Affordable Properties */}
-      <section className="py-16 px-8 bg-surface-container-low border-b border-outline-variant/20">
+      <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-low border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Most Affordable</h2>
-            <p className="text-on-secondary-fixed-variant mt-2 font-medium">Great stays that fit your budget.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Most Affordable</h2>
+            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Great stays that fit your budget.</p>
           </div>
-          <Link to="/listings" className="hidden md:flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all">
+          <Link to="/listings" className="flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all text-sm md:text-base">
             View All <span className="material-symbols-outlined">arrow_forward</span>
           </Link>
         </div>
@@ -384,8 +387,8 @@ export default function Home() {
       <section className="py-24 px-8 bg-surface-container-low">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-extrabold text-on-surface tracking-tight">Frequently Asked Questions</h2>
-            <p className="text-on-surface-variant mt-3 font-medium text-lg">Everything you need to know about Shelterbee.</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">Frequently Asked Questions</h2>
+            <p className="text-on-surface-variant mt-3 font-medium text-base md:text-lg">Everything you need to know about Shelterbee.</p>
           </div>
           <div className="space-y-4">
             {faqs.map((faq, index) => (

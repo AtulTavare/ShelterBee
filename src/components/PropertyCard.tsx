@@ -65,15 +65,15 @@ export default function PropertyCard({
           <span className="material-symbols-outlined text-sm">location_on</span>
           <span className="line-clamp-1">{property.area}</span>
         </div>
-        <div className="flex gap-3 mb-4">
-          <div className="flex flex-col">
+        <div className="flex gap-2 sm:gap-3 mb-4 overflow-hidden">
+          <div className="flex flex-col min-w-0">
             <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Rent</span>
-            <span className="text-base font-extrabold text-on-secondary-fixed">₹{property.pricePerDay}<small className="text-[10px] font-bold">/day</small></span>
+            <span className="text-sm sm:text-base font-extrabold text-on-secondary-fixed whitespace-nowrap">₹{property.pricePerDay}<small className="text-[10px] font-bold">/day</small></span>
           </div>
-          <div className="w-px h-6 bg-surface-container-high self-center"></div>
-          <div className="flex flex-col">
+          <div className="w-px h-6 bg-surface-container-high self-center shrink-0"></div>
+          <div className="flex flex-col min-w-0">
             <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Type</span>
-            <span className="text-base font-extrabold text-on-secondary-fixed">{property.type}</span>
+            <span className="text-sm sm:text-base font-extrabold text-on-secondary-fixed truncate">{property.type}</span>
           </div>
         </div>
         <div className="mt-auto pt-3 border-t border-surface-container-high flex justify-between items-center">

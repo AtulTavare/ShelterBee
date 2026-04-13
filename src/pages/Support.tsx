@@ -51,7 +51,7 @@ export default function Support() {
           <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-white/5 to-transparent pointer-events-none"></div>
           
           <div className="lg:w-1/2 flex flex-col justify-center z-10">
-            <h1 className="text-5xl lg:text-7xl font-bold text-white mb-6 leading-[1.05] tracking-tight">
+            <h1 className="text-4xl lg:text-7xl font-bold text-white mb-6 leading-[1.05] tracking-tight">
               How can we<br />help you<br />today?
             </h1>
             <p className="text-lg text-gray-300 mb-12 max-w-md leading-relaxed">
@@ -160,9 +160,9 @@ export default function Support() {
       </section>
 
       {/* Policies & Guidelines Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <section id="policies" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="mb-12">
-          <h2 className="text-4xl font-extrabold text-[#161338] mb-4 tracking-tight">Policies & Guidelines</h2>
+          <h2 className="text-3xl lg:text-4xl font-extrabold text-[#161338] mb-4 tracking-tight">Policies & Guidelines</h2>
           <div className="w-16 h-1.5 bg-[#F59E0B] rounded-full"></div>
         </div>
         

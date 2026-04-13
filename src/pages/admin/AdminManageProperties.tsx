@@ -113,18 +113,20 @@ export const AdminManageProperties = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        {(['all', 'pending', 'approved', 'rejected'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 text-sm font-medium capitalize transition-colors border-b-2 ${
-              activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            {tab} Properties
-          </button>
-        ))}
+      <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex min-w-max">
+          {(['all', 'pending', 'approved', 'rejected'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-medium capitalize transition-colors border-b-2 whitespace-nowrap ${
+                activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              {tab} Properties
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Property Grid */}

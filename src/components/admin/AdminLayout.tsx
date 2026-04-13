@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, NavLink, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { showConfirm } from '../../utils/toast';
@@ -12,11 +12,14 @@ import {
   MessageSquare, 
   Settings, 
   LogOut,
-  ShieldAlert
+  ShieldAlert,
+  Menu,
+  X
 } from 'lucide-react';
 
 export const AdminLayout = () => {
   const { user, profile, loading, logout } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const navItems = [
     { name: 'Dashboard', path: '/admin-secret-dashboard', icon: LayoutDashboard },
@@ -48,9 +51,9 @@ export const AdminLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] flex font-sans selection:bg-blue-600 selection:text-white relative">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10">
+      <aside className="hidden lg:flex sticky top-0 h-screen w-64 bg-white border-r border-slate-200 flex-col shrink-0 shadow-sm z-50">
         <div className="p-6 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
@@ -75,6 +78,7 @@ export const AdminLayout = () => {
                 key={item.name}
                 to={item.path}
                 end={item.path === '/admin-secret-dashboard'}
+                onClick={() => setIsSidebarOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 group ${
                     isActive 
@@ -129,7 +133,7 @@ export const AdminLayout = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
         <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none"></div>
-        <div className="p-6 md:p-8 max-w-[1400px] mx-auto relative z-10">
+        <div className="p-4 md:p-8 max-w-[1400px] mx-auto relative z-10">
           <Outlet />
         </div>
       </main>

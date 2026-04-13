@@ -1,6 +1,6 @@
 import { showToast, showConfirm } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { mockProperties } from '../data/mockProperties';
@@ -50,6 +50,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>('personal');
   const [isEditing, setIsEditing] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -58,12 +59,23 @@ export default function Profile() {
   }, [user, loading, navigate]);
 
   const isOwner = profile?.role === 'owner';
+  const location = useLocation();
 
   useEffect(() => {
-    if (isOwner && (activeTab === 'history' || activeTab === 'personal')) {
+    const hash = location.hash.replace('#', '');
+    if (hash) {
+      const validTabs: Tab[] = ['personal', 'wallet', 'payments', 'history', 'favourites', 'security', 'dashboard', 'approvals', 'new-bookings'];
+      if (validTabs.includes(hash as Tab)) {
+        setActiveTab(hash as Tab);
+      }
+    }
+  }, [location.hash]);
+
+  useEffect(() => {
+    if (isOwner && (activeTab === 'history' || activeTab === 'personal') && !location.hash) {
       setActiveTab('dashboard');
     }
-  }, [isOwner, activeTab]);
+  }, [isOwner, activeTab, location.hash]);
 
   if (loading || !user) {
     return (
@@ -88,16 +100,24 @@ export default function Profile() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row relative">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-[#F8F9FA] border-r border-gray-200 flex flex-col flex-shrink-0">
-        <div className="p-6">
-          <h2 className="text-xl font-bold text-[#1A1A2E] truncate mb-1">
-            {profile?.displayName || user.email?.split('@')[0]}
-          </h2>
-          <p className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider mt-1">
-            Premium Member
-          </p>
+      <aside className="hidden md:flex sticky top-[80px] h-[calc(100vh-80px)] w-64 bg-[#F8F9FA] border-r border-gray-200 flex-col flex-shrink-0 z-50">
+        <div className="p-6 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-[#1A1A2E] truncate mb-1">
+              {profile?.displayName || user.email?.split('@')[0]}
+            </h2>
+            <p className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider mt-1">
+              Premium Member
+            </p>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
@@ -107,7 +127,10 @@ export default function Profile() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as Tab)}
+                onClick={() => {
+                  setActiveTab(tab.id as Tab);
+                  setIsSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
                   isActive 
                     ? 'bg-[#FDF6E3] text-[#8B5A2B]' 
@@ -132,17 +155,17 @@ export default function Profile() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-10 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 gap-4">
             <div>
-              <h1 className="text-3xl font-extrabold text-[#1A1A2E] tracking-tight">{isOwner ? 'Owner Profile' : 'Visitor Profile'}</h1>
-              <p className="text-gray-500 mt-1">Manage your personal details and travel preferences.</p>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-[#1A1A2E] tracking-tight">{isOwner ? 'Owner Profile' : 'Visitor Profile'}</h1>
+              <p className="text-sm md:text-base text-gray-500 mt-1">Manage your personal details and travel preferences.</p>
             </div>
             {(activeTab === 'personal' || activeTab === 'dashboard') && !isEditing && (
               <button 
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 bg-[#F59E0B] hover:bg-amber-400 text-white px-6 py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-[#F59E0B]/20"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#F59E0B] hover:bg-amber-400 text-white px-6 py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-[#F59E0B]/20"
               >
                 <Edit3 className="w-4 h-4" /> Edit Profile
               </button>
