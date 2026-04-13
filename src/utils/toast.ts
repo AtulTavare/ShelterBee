@@ -1,4 +1,4 @@
-export const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+export const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
   let toastContainer = document.getElementById('toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
@@ -8,7 +8,14 @@ export const showToast = (message: string, type: 'success' | 'error' = 'error') 
   }
 
   const toastEl = document.createElement('div');
-  toastEl.className = `px-4 py-2 rounded-lg shadow-lg text-sm font-medium text-white transition-opacity duration-300 opacity-0 transform translate-y-2 ${type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`;
+  const bgClass = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+    warning: 'bg-amber-600'
+  }[type];
+  
+  toastEl.className = `px-4 py-2 rounded-lg shadow-lg text-sm font-medium text-white transition-opacity duration-300 opacity-0 transform translate-y-2 ${bgClass}`;
   toastEl.textContent = message;
   
   toastContainer.appendChild(toastEl);

@@ -39,7 +39,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-white/70 backdrop-blur-xl shadow-sm shadow-indigo-900/5">
+    <nav className="fixed top-0 w-full z-50 bg-white border-b border-outline-variant/10 shadow-sm">
       <div className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2">

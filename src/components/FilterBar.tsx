@@ -14,6 +14,8 @@ interface FilterBarProps {
   setSelectedTypes: React.Dispatch<React.SetStateAction<string[]>>;
   selectedAmenities: string[];
   setSelectedAmenities: React.Dispatch<React.SetStateAction<string[]>>;
+  occupancy: number | 'Any';
+  setOccupancy: React.Dispatch<React.SetStateAction<number | 'Any'>>;
   showFavoritesOnly: boolean;
   setShowFavoritesOnly: React.Dispatch<React.SetStateAction<boolean>>;
   onClearAll: () => void;
@@ -44,6 +46,8 @@ export default function FilterBar({
   setSelectedTypes,
   selectedAmenities,
   setSelectedAmenities,
+  occupancy,
+  setOccupancy,
   showFavoritesOnly,
   setShowFavoritesOnly,
   onClearAll
@@ -69,16 +73,35 @@ export default function FilterBar({
     return `${year}-${month}-${day}`;
   };
 
+  const handleDateClick = (id: string) => {
+    const input = document.getElementById(id) as HTMLInputElement;
+    if (input) {
+      try {
+        if ('showPicker' in HTMLInputElement.prototype) {
+          (input as any).showPicker();
+        } else {
+          input.click();
+        }
+      } catch (err) {
+        console.error("Error showing date picker:", err);
+        input.click(); // Fallback to click
+      }
+    }
+  };
+
   return (
-    <div className="sticky top-0 z-50 w-full bg-[#FAFAFA] py-4 px-4 sm:px-8 shadow-sm">
+    <div className="sticky top-0 z-50 w-full bg-white py-4 px-4 sm:px-8 shadow-sm border-b border-outline-variant/10">
       <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-[#EBEBEB] p-4">
         
         {/* Wrapping Container */}
         <div className="flex flex-wrap items-center gap-y-4 gap-x-6 w-full">
           {/* Dates Section */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <div className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm">
+            <div className="relative group">
+              <div 
+                onClick={() => handleDateClick('check-in-input')}
+                className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm group-hover:shadow-md"
+              >
                 <Calendar size={16} className="text-amber-600" />
                 <div className="flex flex-col justify-center">
                   <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold leading-none mb-1">Check-in</span>
@@ -86,9 +109,10 @@ export default function FilterBar({
                 </div>
               </div>
               <input 
+                id="check-in-input"
                 type="date" 
                 min={toDateString(new Date())}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                className="absolute inset-0 opacity-0 pointer-events-none w-full h-full"
                 value={toDateString(dateRange.from)}
                 onChange={(e) => {
                   if (!e.target.value) {
@@ -102,8 +126,11 @@ export default function FilterBar({
               />
             </div>
 
-            <div className="relative">
-              <div className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm">
+            <div className="relative group">
+              <div 
+                onClick={() => handleDateClick('check-out-input')}
+                className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm group-hover:shadow-md"
+              >
                 <Calendar size={16} className="text-amber-600" />
                 <div className="flex flex-col justify-center">
                   <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold leading-none mb-1">Check-out</span>
@@ -111,9 +138,10 @@ export default function FilterBar({
                 </div>
               </div>
               <input 
+                id="check-out-input"
                 type="date" 
                 min={dateRange.from ? toDateString(new Date(dateRange.from.getTime() + 86400000)) : toDateString(new Date())}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                className="absolute inset-0 opacity-0 pointer-events-none w-full h-full"
                 value={toDateString(dateRange.to)}
                 onChange={(e) => {
                   if (!e.target.value) {
@@ -164,6 +192,23 @@ export default function FilterBar({
                 accentColor: '#8B6914',
               }}
             />
+          </div>
+
+          <div className="hidden md:block w-px h-8 bg-[#EBEBEB]"></div>
+
+          {/* Occupancy */}
+          <div className="flex flex-col justify-center w-32">
+            <span className="text-[10px] uppercase tracking-widest text-[#8B6914] font-medium mb-1.5">Guests: {occupancy === 'Any' ? 'Any' : occupancy}</span>
+            <select 
+              value={occupancy}
+              onChange={(e) => setOccupancy(e.target.value === 'Any' ? 'Any' : Number(e.target.value))}
+              className="h-9 px-3 rounded-xl border border-[#D4C5A9] text-sm font-bold bg-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-[#1A1A2E]"
+            >
+              <option value="Any">Any</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                <option key={num} value={num}>{num} Guests</option>
+              ))}
+            </select>
           </div>
 
           <div className="hidden md:block w-px h-8 bg-[#EBEBEB]"></div>

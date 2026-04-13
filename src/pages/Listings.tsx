@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
@@ -21,6 +21,7 @@ const getAmenityIcon = (amenity: string) => {
 };
 
 export default function Listings() {
+  const location = useLocation();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,6 +39,17 @@ export default function Listings() {
     fetchProperties();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const type = params.get('type');
+    const occ = params.get('occupancy');
+    const search = params.get('search');
+
+    if (type && type !== 'Any Type') setSelectedTypes([type]);
+    if (occ && occ !== 'Any') setOccupancy(Number(occ));
+    if (search) setSearchTerm(search);
+  }, [location.search]);
+
   const maxPropertyPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.pricePerDay || 0), 50000) : 50000, [properties]);
   const maxDepositPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.deposit || 0), 150000) : 150000, [properties]);
   
@@ -53,6 +65,8 @@ export default function Listings() {
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [occupancy, setOccupancy] = useState<number | 'Any'>('Any');
+  const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined
@@ -93,10 +107,12 @@ export default function Listings() {
   useEffect(() => {
     let filtered = properties.filter(p => {
       if (showFavoritesOnly && !favorites.includes(p.id)) return false;
+      if (searchTerm && !p.title.toLowerCase().includes(searchTerm.toLowerCase()) && !p.area.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (priceRange < maxPropertyPrice && (p.pricePerDay || 0) > priceRange) return false;
       if (depositRange < maxDepositPrice && (p.deposit || 0) > depositRange) return false;
       if (selectedTypes.length > 0 && !selectedTypes.includes(p.type)) return false;
       if (selectedAreas.length > 0 && !selectedAreas.includes(p.area)) return false;
+      if (occupancy !== 'Any' && (p.guests || 0) < occupancy) return false;
       if (selectedAmenities.length > 0) {
         const hasAllAmenities = selectedAmenities.every(a => p.amenities && p.amenities.includes(a));
         if (!hasAllAmenities) return false;
@@ -215,6 +231,8 @@ export default function Listings() {
           setSelectedTypes={setSelectedTypes}
           selectedAmenities={selectedAmenities}
           setSelectedAmenities={setSelectedAmenities}
+          occupancy={occupancy}
+          setOccupancy={setOccupancy}
           showFavoritesOnly={showFavoritesOnly}
           setShowFavoritesOnly={setShowFavoritesOnly}
           onClearAll={() => {
@@ -223,6 +241,8 @@ export default function Listings() {
             setSelectedAmenities([]);
             setSelectedTypes([]);
             setSelectedAreas([]);
+            setOccupancy('Any');
+            setSearchTerm('');
             setDateRange({ from: undefined, to: undefined });
             setShowFavoritesOnly(false);
           }}
@@ -269,6 +289,7 @@ export default function Listings() {
                       setSelectedAmenities([]);
                       setSelectedTypes([]);
                       setSelectedAreas([]);
+                      setOccupancy('Any');
                       setDateRange({ from: undefined, to: undefined });
                       setShowFavoritesOnly(false);
                     }}

@@ -8,7 +8,9 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('Any Type');
+  const [occupancy, setOccupancy] = useState<number | 'Any'>(1);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [isOccupancyDropdownOpen, setIsOccupancyDropdownOpen] = useState(false);
   const [topFilter, setTopFilter] = useState<'ratings' | 'reviews'>('ratings');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -150,9 +152,28 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
+
+            {/* Occupancy */}
+            <div 
+              className="flex-1 flex flex-col px-5 py-1.5 hover:bg-gray-100 rounded-full cursor-pointer transition-colors w-full text-left relative"
+              onClick={() => setIsOccupancyDropdownOpen(true)}
+            >
+              <div className="text-[11px] font-extrabold text-gray-800 tracking-wide">Occupancy</div>
+              <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600'}`}>
+                {occupancy === 'Any' ? 'Add guests' : `${occupancy} Guests`}
+              </div>
+            </div>
+
             {/* Search Button */}
             <button 
-              onClick={() => navigate('/listings')}
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (searchTerm) params.set('search', searchTerm);
+                if (filterType !== 'Any Type') params.set('type', filterType);
+                if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
+                navigate(`/listings?${params.toString()}`);
+              }}
               className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 flex-shrink-0 ml-1 shadow-md"
             >
               <span className="material-symbols-outlined text-lg md:text-xl">search</span>
@@ -198,6 +219,52 @@ export default function Home() {
                     >
                       {type}
                       {filterType === type && <span className="material-symbols-outlined text-primary text-sm">check</span>}
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Occupancy Popup Modal */}
+        <AnimatePresence>
+          {isOccupancyDropdownOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => setIsOccupancyDropdownOpen(false)}
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
+              >
+                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h3 className="font-bold text-gray-800">Select Occupancy</h3>
+                  <button 
+                    onClick={() => setIsOccupancyDropdownOpen(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+                <div className="p-2">
+                  {['Any', 1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                    <div 
+                      key={num}
+                      className="px-4 py-3 my-1 hover:bg-gray-50 rounded-xl cursor-pointer text-gray-700 text-sm font-medium transition-colors flex items-center justify-between"
+                      onClick={() => {
+                        setOccupancy(num as any);
+                        setIsOccupancyDropdownOpen(false);
+                      }}
+                    >
+                      {num === 'Any' ? 'Any Occupancy' : `${num} Guests`}
+                      {occupancy === num && <span className="material-symbols-outlined text-primary text-sm">check</span>}
                     </div>
                   ))}
                 </div>

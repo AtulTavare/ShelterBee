@@ -144,22 +144,13 @@ export default function ListProperty() {
   };
   const handlePrev = () => setStep(s => Math.max(s - 1, 1));
 
-  const toggleAmenity = (amenity: string, isCompulsory: boolean = false) => {
-    if (isCompulsory) {
-      setFormData(prev => ({
-        ...prev,
-        compulsoryAmenities: prev.compulsoryAmenities.includes(amenity)
-          ? prev.compulsoryAmenities.filter(a => a !== amenity)
-          : [...prev.compulsoryAmenities, amenity]
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        amenities: prev.amenities.includes(amenity)
-          ? prev.amenities.filter(a => a !== amenity)
-          : [...prev.amenities, amenity]
-      }));
-    }
+  const toggleAmenity = (amenity: string) => {
+    setFormData(prev => ({
+      ...prev,
+      amenities: prev.amenities.includes(amenity)
+        ? prev.amenities.filter(a => a !== amenity)
+        : [...prev.amenities, amenity]
+    }));
   };
 
   const compressImage = (file: File): Promise<string> => {
@@ -215,6 +206,7 @@ export default function ListProperty() {
       return;
     }
     
+    showToast("Preparing your listing...", "info");
     setIsSubmitting(true);
     try {
       // Fetch existing property data once if in edit mode
@@ -224,6 +216,7 @@ export default function ListProperty() {
       }
 
       // 1. Upload Photos to Firebase Storage
+      showToast("Compressing and uploading photos...", "info");
       const uploadedPhotoUrls = await Promise.all(
         formData.photos.map(async (file, index) => {
           if (!file) return null;
@@ -269,6 +262,7 @@ export default function ListProperty() {
       const aadhaarBackUrl = await uploadDoc(formData.aadhaarBack, 'aadhaar_back');
       const propertyProofUrl = await uploadDoc(formData.propertyProof, 'property_proof');
 
+      showToast("Finalizing your listing...", "info");
       const propertyData = {
         ownerId: user.uid,
         title: formData.title || 'Untitled Property',
@@ -573,7 +567,7 @@ export default function ListProperty() {
                               }
                             }}
                           />
-                          {file ? (
+                          {file && file instanceof Blob ? (
                             <div className="absolute inset-0 w-full h-full">
                               <img src={URL.createObjectURL(file)} alt={`Upload ${index}`} className="w-full h-full object-cover" />
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
@@ -676,7 +670,7 @@ export default function ListProperty() {
                             type="checkbox" 
                             className="hidden"
                             checked={formData.amenities.includes(amenity)}
-                            onChange={() => toggleAmenity(amenity, false)}
+                            onChange={() => toggleAmenity(amenity)}
                           />
                           <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 flex-shrink-0 ${formData.amenities.includes(amenity) ? 'bg-primary border-primary' : 'border-outline-variant'}`}>
                             {formData.amenities.includes(amenity) && <CheckCircle2 className="w-3 h-3 text-on-primary" />}
@@ -932,13 +926,18 @@ export default function ListProperty() {
         email={user?.email || ''} 
         onSuccess={async () => {
           if (user) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              emailVerified: true
-            });
-            setShowOTPModal(false);
-            showToast("Email verified successfully!", "success");
-            // Optionally, we could auto-submit the listing here
-            // handleSubmit(new Event('submit') as any);
+            try {
+              await updateDoc(doc(db, 'users', user.uid), {
+                emailVerified: true
+              });
+              setShowOTPModal(false);
+              showToast("Email verified successfully!", "success");
+              // Optionally, we could auto-submit the listing here
+              // handleSubmit(new Event('submit') as any);
+            } catch (err) {
+              console.error("Error updating user verification:", err);
+              showToast("Failed to update verification status.", "error");
+            }
           }
         }} 
       />
