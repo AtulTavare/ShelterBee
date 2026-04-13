@@ -155,6 +155,16 @@ export default function ListProperty() {
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      // Safety check for non-image files
+      if (!file.type.startsWith('image/')) {
+        console.warn("Skipping compression for non-image file:", file.name);
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = (e) => reject(e);
+        reader.readAsDataURL(file);
+        return;
+      }
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
@@ -188,14 +198,24 @@ export default function ListProperty() {
           const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           resolve(dataUrl);
         };
-        img.onerror = (error) => reject(error);
+        img.onerror = (error) => {
+          console.error("Image load error:", error);
+          reject(error);
+        };
       };
-      reader.onerror = (error) => reject(error);
+      reader.onerror = (error) => {
+        console.error("FileReader error:", error);
+        reject(error);
+      };
+      
+      // Safety timeout for compression
+      setTimeout(() => reject(new Error("Compression timeout")), 10000);
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Starting property submission...");
     if (!user) {
       navigate('/auth', { state: { returnTo: '/list-property' } });
       return;
@@ -212,24 +232,29 @@ export default function ListProperty() {
       // Fetch existing property data once if in edit mode
       let existingProperty = null;
       if (isEditMode && propertyId) {
+        console.log("Fetching existing property for edit mode...");
         existingProperty = await propertyService.getPropertyById(propertyId);
       }
 
       // 1. Upload Photos to Firebase Storage
+      console.log("Uploading photos...");
       showToast("Compressing and uploading photos...", "info");
       const uploadedPhotoUrls = await Promise.all(
         formData.photos.map(async (file, index) => {
           if (!file) return null;
           try {
+            console.log(`Processing photo ${index + 1}...`);
             const compressedDataUrl = await compressImage(file);
             const response = await fetch(compressedDataUrl);
             const blob = await response.blob();
             const path = `properties/${user.uid}/${Date.now()}_photo_${index}.jpg`;
             const storageRef = ref(storage, path);
             await uploadBytes(storageRef, blob);
-            return await getDownloadURL(storageRef);
+            const url = await getDownloadURL(storageRef);
+            console.log(`Photo ${index + 1} uploaded:`, url);
+            return url;
           } catch (err) {
-            console.error("Error uploading photo:", err);
+            console.error(`Error uploading photo ${index + 1}:`, err);
             return null;
           }
         })
@@ -242,16 +267,20 @@ export default function ListProperty() {
       }
 
       // 2. Upload Documents to Firebase Storage
+      console.log("Uploading documents...");
       const uploadDoc = async (file: File | null, name: string) => {
         if (!file) return '';
         try {
+          console.log(`Processing document: ${name}...`);
           const compressedDataUrl = await compressImage(file);
           const response = await fetch(compressedDataUrl);
           const blob = await response.blob();
           const path = `documents/${user.uid}/${Date.now()}_${name}.jpg`;
           const storageRef = ref(storage, path);
           await uploadBytes(storageRef, blob);
-          return await getDownloadURL(storageRef);
+          const url = await getDownloadURL(storageRef);
+          console.log(`Document ${name} uploaded:`, url);
+          return url;
         } catch (err) {
           console.error(`Error uploading ${name}:`, err);
           return '';
@@ -262,6 +291,7 @@ export default function ListProperty() {
       const aadhaarBackUrl = await uploadDoc(formData.aadhaarBack, 'aadhaar_back');
       const propertyProofUrl = await uploadDoc(formData.propertyProof, 'property_proof');
 
+      console.log("Saving property data to Firestore...");
       showToast("Finalizing your listing...", "info");
       const propertyData = {
         ownerId: user.uid,
@@ -290,24 +320,22 @@ export default function ListProperty() {
           ...propertyData,
           status: 'Pending', // Back to pending for approval
         });
+        console.log("Property updated successfully.");
         showToast("Property updates submitted for approval!", "success");
       } else {
         await propertyService.addProperty(propertyData);
+        console.log("Property added successfully.");
         showToast("Property listed successfully! Waiting for approval.", "success");
       }
 
-      // Send Email Notification
-      if (profile) {
-        try {
-          const emailContent = emailTemplates.getPropertySubmission(profile.displayName || 'Owner', profile.gender || 'Other');
-          await emailService.sendEmail({
-            to: user.email!,
-            subject: emailContent.subject,
-            html: emailContent.html
-          });
-        } catch (emailErr) {
-          console.error("Failed to send submission email:", emailErr);
-        }
+      // Send Email Notification (Non-blocking)
+      if (profile && user.email) {
+        const emailContent = emailTemplates.getPropertySubmission(profile.displayName || 'Owner', profile.gender || 'Other');
+        emailService.sendEmail({
+          to: user.email,
+          subject: emailContent.subject,
+          html: emailContent.html
+        }).catch(emailErr => console.error("Failed to send submission email:", emailErr));
       }
       
       setIsSubmitted(true);

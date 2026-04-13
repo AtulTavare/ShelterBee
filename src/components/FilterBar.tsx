@@ -1,5 +1,9 @@
-import React from 'react';
-import { Calendar, Wifi, Dumbbell, Waves, Car, AirVent, ShieldCheck, Utensils, WashingMachine, Heart } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Wifi, Dumbbell, Waves, Car, AirVent, ShieldCheck, Utensils, WashingMachine, Heart, X } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
+import 'react-day-picker/dist/style.css';
 
 interface FilterBarProps {
   dateRange: { from: Date | undefined; to: Date | undefined };
@@ -52,6 +56,8 @@ export default function FilterBar({
   setShowFavoritesOnly,
   onClearAll
 }: FilterBarProps) {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
   const toggleType = (type: string) => {
     setSelectedTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
   };
@@ -61,32 +67,8 @@ export default function FilterBar({
   };
 
   const formatDate = (date: Date | undefined) => {
-    if (!date) return 'Add dates';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const toDateString = (date: Date | undefined) => {
-    if (!date) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const handleDateClick = (id: string) => {
-    const input = document.getElementById(id) as HTMLInputElement;
-    if (input) {
-      try {
-        if ('showPicker' in HTMLInputElement.prototype) {
-          (input as any).showPicker();
-        } else {
-          input.click();
-        }
-      } catch (err) {
-        console.error("Error showing date picker:", err);
-        input.click(); // Fallback to click
-      }
-    }
+    if (!date) return 'Add date';
+    return format(date, 'MMM d');
   };
 
   return (
@@ -97,64 +79,88 @@ export default function FilterBar({
         <div className="flex flex-wrap items-center gap-y-4 gap-x-6 w-full">
           {/* Dates Section */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative group">
-              <div 
-                onClick={() => handleDateClick('check-in-input')}
-                className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm group-hover:shadow-md"
-              >
-                <Calendar size={16} className="text-amber-600" />
-                <div className="flex flex-col justify-center">
+            <button 
+              onClick={() => setIsCalendarOpen(true)}
+              className="flex items-center gap-3 h-12 px-5 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm hover:shadow-md"
+            >
+              <Calendar size={18} className="text-amber-600" />
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-start">
                   <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold leading-none mb-1">Check-in</span>
                   <span className="text-sm font-bold text-[#1A1A2E] leading-none">{formatDate(dateRange.from)}</span>
                 </div>
-              </div>
-              <input 
-                id="check-in-input"
-                type="date" 
-                min={toDateString(new Date())}
-                className="absolute inset-0 opacity-0 pointer-events-none w-full h-full"
-                value={toDateString(dateRange.from)}
-                onChange={(e) => {
-                  if (!e.target.value) {
-                    setDateRange({ from: undefined, to: undefined });
-                    return;
-                  }
-                  const [year, month, day] = e.target.value.split('-').map(Number);
-                  const fromDate = new Date(year, month - 1, day);
-                  setDateRange({ ...dateRange, from: fromDate });
-                }}
-              />
-            </div>
-
-            <div className="relative group">
-              <div 
-                onClick={() => handleDateClick('check-out-input')}
-                className="flex items-center gap-2 h-12 px-4 rounded-xl border border-gray-200 hover:border-amber-500 transition-all cursor-pointer bg-white shadow-sm group-hover:shadow-md"
-              >
-                <Calendar size={16} className="text-amber-600" />
-                <div className="flex flex-col justify-center">
+                <div className="w-px h-6 bg-gray-200"></div>
+                <div className="flex flex-col items-start">
                   <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold leading-none mb-1">Check-out</span>
                   <span className="text-sm font-bold text-[#1A1A2E] leading-none">{formatDate(dateRange.to)}</span>
                 </div>
               </div>
-              <input 
-                id="check-out-input"
-                type="date" 
-                min={dateRange.from ? toDateString(new Date(dateRange.from.getTime() + 86400000)) : toDateString(new Date())}
-                className="absolute inset-0 opacity-0 pointer-events-none w-full h-full"
-                value={toDateString(dateRange.to)}
-                onChange={(e) => {
-                  if (!e.target.value) {
-                    setDateRange({ ...dateRange, to: undefined });
-                    return;
-                  }
-                  const [year, month, day] = e.target.value.split('-').map(Number);
-                  const toDate = new Date(year, month - 1, day);
-                  setDateRange({ ...dateRange, to: toDate });
-                }}
-              />
-            </div>
+            </button>
           </div>
+
+          <AnimatePresence>
+            {isCalendarOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                  onClick={() => setIsCalendarOpen(false)}
+                />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  className="relative bg-white rounded-3xl shadow-2xl p-6 z-10 max-w-md w-full"
+                >
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800">Select Dates</h3>
+                    <button 
+                      onClick={() => setIsCalendarOpen(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X size={20} className="text-gray-500" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex justify-center mb-6 bg-gray-50 rounded-2xl p-4">
+                    <DayPicker
+                      mode="range"
+                      selected={{ from: dateRange.from, to: dateRange.to }}
+                      onSelect={(range) => {
+                        if (range) {
+                          setDateRange({ from: range.from, to: range.to });
+                        } else {
+                          setDateRange({ from: undefined, to: undefined });
+                        }
+                      }}
+                      disabled={{ before: new Date() }}
+                      className="border-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => {
+                        setDateRange({ from: undefined, to: undefined });
+                        setIsCalendarOpen(false);
+                      }}
+                      className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+                    >
+                      Clear
+                    </button>
+                    <button 
+                      onClick={() => setIsCalendarOpen(false)}
+                      className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 transition-colors shadow-lg shadow-amber-600/20"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
 
           <div className="hidden md:block w-px h-8 bg-[#EBEBEB]"></div>
 
