@@ -33,7 +33,7 @@ const AboutUs = () => {
         ease: "easeOut"
       }
     }
-  };
+  } as any;
 
   const values = [
     {

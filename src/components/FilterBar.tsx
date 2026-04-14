@@ -11,9 +11,6 @@ interface FilterBarProps {
   priceRange: number;
   setPriceRange: React.Dispatch<React.SetStateAction<number>>;
   maxPropertyPrice: number;
-  depositRange: number;
-  setDepositRange: React.Dispatch<React.SetStateAction<number>>;
-  maxDeposit: number;
   selectedTypes: string[];
   setSelectedTypes: React.Dispatch<React.SetStateAction<string[]>>;
   selectedAmenities: string[];
@@ -43,9 +40,6 @@ export default function FilterBar({
   priceRange,
   setPriceRange,
   maxPropertyPrice,
-  depositRange,
-  setDepositRange,
-  maxDeposit,
   selectedTypes,
   setSelectedTypes,
   selectedAmenities,
@@ -192,25 +186,6 @@ export default function FilterBar({
               step="500"
               value={priceRange}
               onChange={(e) => setPriceRange(Number(e.target.value))}
-              className="w-full h-1 bg-[#EBEBEB] rounded-lg appearance-none cursor-pointer"
-              style={{
-                accentColor: '#8B6914',
-              }}
-            />
-          </div>
-
-          <div className="hidden md:block w-px h-8 bg-[#EBEBEB]"></div>
-
-          {/* Max Deposit Slider */}
-          <div className="flex flex-col justify-center w-48">
-            <span className="text-[10px] uppercase tracking-widest text-[#8B6914] font-medium mb-1.5">Max Deposit: ₹{depositRange.toLocaleString()}</span>
-            <input 
-              type="range" 
-              min="0" 
-              max={maxDeposit} 
-              step="1000"
-              value={depositRange}
-              onChange={(e) => setDepositRange(Number(e.target.value))}
               className="w-full h-1 bg-[#EBEBEB] rounded-lg appearance-none cursor-pointer"
               style={{
                 accentColor: '#8B6914',
@@ -373,23 +348,6 @@ export default function FilterBar({
                     step="500"
                     value={priceRange}
                     onChange={(e) => setPriceRange(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-[#8B6914]"
-                  />
-                </div>
-
-                {/* Deposit Range */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Maximum Deposit</h4>
-                    <span className="text-lg font-black text-[#8B6914]">₹{depositRange.toLocaleString()}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max={maxDeposit} 
-                    step="1000"
-                    value={depositRange}
-                    onChange={(e) => setDepositRange(Number(e.target.value))}
                     className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-[#8B6914]"
                   />
                 </div>

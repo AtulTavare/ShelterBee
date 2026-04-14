@@ -287,6 +287,7 @@ export const emailTemplates = {
       <p>We got your new property details to list on ShelterBee, your property will be live after verification.</p>
       <div class="details-box">
         <p>We will notify you once our team verify your property documents. Then you can see your property available for bookings on the platform website.</p>
+        <p>Your property is currently under verification. We will notify you after your property is successfully approved.</p>
       </div>
       <p>Thank you for choosing ShelterBee!</p>
       <p>— shelterBee</p>

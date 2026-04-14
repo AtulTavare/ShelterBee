@@ -158,10 +158,6 @@ export default function Profile() {
       <main className="flex-1 p-4 md:p-10 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#1A1A2E] tracking-tight">{isOwner ? 'Owner Profile' : 'Visitor Profile'}</h1>
-              <p className="text-sm md:text-base text-gray-500 mt-1">Manage your personal details and travel preferences.</p>
-            </div>
             {(activeTab === 'personal' || activeTab === 'dashboard') && !isEditing && (
               <button 
                 onClick={() => setIsEditing(true)}
@@ -254,7 +250,6 @@ function NewBookingsTab() {
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">New Bookings</h2>
       {bookings.length === 0 ? (
         <div className="text-center py-12">
           <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -456,7 +451,6 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
             <div className="w-12 h-12 bg-[#F3F4F6] rounded-xl flex items-center justify-center">
               <User className="w-6 h-6 text-[#1A1A2E]" />
             </div>
-            <h2 className="text-xl font-bold text-[#1A1A2E]">Personal Details</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -774,7 +768,6 @@ function StayHistoryTab() {
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">Stay History</h2>
       {bookings.length === 0 ? (
         <div className="text-center py-12">
           <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -949,7 +942,6 @@ function PaymentsTab() {
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">Payment History</h2>
       {bookings.length === 0 ? (
         <div className="text-center py-12">
           <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -1195,7 +1187,15 @@ function FavouritesTab() {
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">My Listings</h2>
+      <div className="flex justify-between items-center mb-6">
+        <div />
+        <button 
+          onClick={() => navigate('/list-property')}
+          className="flex items-center gap-2 bg-[#F59E0B] hover:bg-amber-400 text-white px-4 py-2 rounded-xl font-bold transition-colors shadow-sm"
+        >
+          <Plus className="w-4 h-4" /> Add New Property
+        </button>
+      </div>
       {properties.length === 0 ? (
         <div className="text-center py-12">
           <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -1961,8 +1961,6 @@ function WalletTab() {
 function SecurityTab() {
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">Security & Policies</h2>
-      
       <div className="space-y-8">
         <section>
           <h3 className="text-lg font-bold text-[#1A1A2E] mb-3 flex items-center gap-2">
@@ -2037,7 +2035,6 @@ function PropertyApprovalsTab() {
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-[#1A1A2E] mb-6">Pending Approvals</h2>
       {properties.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle2 className="w-12 h-12 text-emerald-300 mx-auto mb-4" />
@@ -2165,7 +2162,6 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
           <div className="w-12 h-12 bg-[#F3F4F6] rounded-xl flex items-center justify-center">
             <User className="w-6 h-6 text-[#1A1A2E]" />
           </div>
-          <h2 className="text-xl font-bold text-[#1A1A2E]">Personal Details</h2>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -2264,7 +2260,13 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-[#1A1A2E]">Owner Dashboard</h2>
+        <div />
+        <Link 
+          to="/list-property"
+          className="flex items-center gap-2 bg-[#F59E0B] hover:bg-amber-400 text-white px-4 py-2 rounded-xl font-bold transition-colors shadow-md"
+        >
+          <Plus className="w-4 h-4" /> Add New Property
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

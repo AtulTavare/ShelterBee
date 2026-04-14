@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import ScrollToTop from './components/ScrollToTop';
 import { MaintenanceGuard } from './components/MaintenanceGuard';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -45,6 +46,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans text-on-surface">
+      <ScrollToTop />
       <Navbar />
       <main className="flex-grow pt-16 md:pt-20">
         <MaintenanceGuard>

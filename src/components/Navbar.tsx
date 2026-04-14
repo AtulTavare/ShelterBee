@@ -219,7 +219,7 @@ export default function Navbar() {
       </nav>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3 z-50 flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-50 flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
         <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
           <Home size={20} />
           <span className="text-[10px] font-bold">Home</span>
@@ -228,17 +228,26 @@ export default function Navbar() {
           <Map size={20} />
           <span className="text-[10px] font-bold">Stays</span>
         </Link>
-        {user ? (
-          <Link to="/profile" className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400'}`}>
-            <UserIcon size={20} />
-            <span className="text-[10px] font-bold">Profile</span>
-          </Link>
-        ) : (
-          <Link to="/host-auth?mode=register" className="flex flex-col items-center gap-1 text-gray-400">
-            <Plus size={20} />
-            <span className="text-[10px] font-bold">Host</span>
-          </Link>
-        )}
+        
+        {/* Host Button - Always visible in mobile bottom nav */}
+        <Link 
+          to={user ? "/list-property" : "/auth?mode=login"} 
+          state={!user ? { returnTo: '/list-property' } : undefined}
+          className={`flex flex-col items-center gap-1 ${location.pathname === '/list-property' ? 'text-primary' : 'text-gray-400'}`}
+        >
+          <div className={`flex items-center justify-center ${profile?.role === 'owner' ? 'bg-primary text-white rounded-full w-8 h-8 -mt-1 shadow-lg' : ''}`}>
+            <Plus size={profile?.role === 'owner' ? 20 : 24} />
+          </div>
+          <span className="text-[10px] font-bold">Host</span>
+        </Link>
+
+        <Link 
+          to={user ? "/profile" : "/auth?mode=login"} 
+          className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400'}`}
+        >
+          <UserIcon size={20} />
+          <span className="text-[10px] font-bold">Profile</span>
+        </Link>
       </div>
 
       {/* Mobile Menu Drawer */}

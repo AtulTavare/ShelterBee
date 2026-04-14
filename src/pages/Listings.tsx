@@ -51,17 +51,14 @@ export default function Listings() {
   }, [location.search]);
 
   const maxPropertyPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.pricePerDay || 0), 50000) : 50000, [properties]);
-  const maxDepositPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.deposit || 0), 150000) : 150000, [properties]);
   
   const [priceRange, setPriceRange] = useState<number>(50000);
-  const [depositRange, setDepositRange] = useState<number>(150000);
 
   useEffect(() => {
     if (properties.length > 0) {
       setPriceRange(maxPropertyPrice);
-      setDepositRange(maxDepositPrice);
     }
-  }, [maxPropertyPrice, maxDepositPrice, properties.length]);
+  }, [maxPropertyPrice, properties.length]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
@@ -109,7 +106,6 @@ export default function Listings() {
       if (showFavoritesOnly && !favorites.includes(p.id)) return false;
       if (searchTerm && !p.title.toLowerCase().includes(searchTerm.toLowerCase()) && !p.area.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (priceRange < maxPropertyPrice && (p.pricePerDay || 0) > priceRange) return false;
-      if (depositRange < maxDepositPrice && (p.deposit || 0) > depositRange) return false;
       if (selectedTypes.length > 0 && !selectedTypes.includes(p.type)) return false;
       if (selectedAreas.length > 0 && !selectedAreas.includes(p.area)) return false;
       if (occupancy !== 'Any' && (p.guests || 0) < occupancy) return false;
@@ -139,7 +135,7 @@ export default function Listings() {
 
     setFilteredProperties(filtered);
     setVisibleCount(4);
-  }, [properties, priceRange, depositRange, selectedAmenities, selectedTypes, selectedAreas, dateRange, sortBy, showFavoritesOnly, favorites, maxPropertyPrice, maxDepositPrice]);
+  }, [properties, priceRange, selectedAmenities, selectedTypes, selectedAreas, dateRange, sortBy, showFavoritesOnly, favorites, maxPropertyPrice]);
 
   return (
     <div className="bg-surface text-on-surface min-h-screen font-sans">
@@ -224,9 +220,6 @@ export default function Listings() {
           priceRange={priceRange}
           setPriceRange={setPriceRange}
           maxPropertyPrice={maxPropertyPrice}
-          depositRange={depositRange}
-          setDepositRange={setDepositRange}
-          maxDeposit={maxDepositPrice}
           selectedTypes={selectedTypes}
           setSelectedTypes={setSelectedTypes}
           selectedAmenities={selectedAmenities}
@@ -237,7 +230,6 @@ export default function Listings() {
           setShowFavoritesOnly={setShowFavoritesOnly}
           onClearAll={() => {
             setPriceRange(maxPropertyPrice);
-            setDepositRange(maxDepositPrice);
             setSelectedAmenities([]);
             setSelectedTypes([]);
             setSelectedAreas([]);
@@ -285,7 +277,6 @@ export default function Listings() {
                   <button 
                     onClick={() => {
                       setPriceRange(maxPropertyPrice);
-                      setDepositRange(maxDepositPrice);
                       setSelectedAmenities([]);
                       setSelectedTypes([]);
                       setSelectedAreas([]);

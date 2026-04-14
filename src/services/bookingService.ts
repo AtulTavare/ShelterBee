@@ -31,6 +31,7 @@ export interface Booking {
   // These are for UI convenience when loaded by owner/admin
   platformCommission?: number;
   receivedAmount?: number;
+  estimatedCost?: number;
 }
 
 export interface BookingFinancials {

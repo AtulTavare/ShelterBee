@@ -12,6 +12,8 @@ import { Users, Bed } from 'lucide-react';
 
 import { getAvatarUrl } from '../utils/avatar';
 
+const AMENITIES_LIST = ['WiFi', 'AC', 'TV', 'Geyser', 'Washing Machine', 'Fridge', 'Kitchen Access', 'Power Backup', 'Lift', 'Security', 'Parking', 'Gym', 'Swimming Pool', 'Housekeeping', 'Meals Provided'];
+
 export default function PropertyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -275,60 +277,29 @@ export default function PropertyDetail() {
                 <h2 className="text-lg md:text-xl font-extrabold text-[#1E1B4B]">Signature Amenities</h2>
               </div>
 
-              <div className="space-y-4 md:space-y-6">
-                {/* Compulsory Amenities */}
-                <div>
-                  
-                  <div className="flex flex-wrap gap-x-6 md:gap-x-8 gap-y-3 md:gap-y-4">
-                    {property.amenities.filter((a: string) => ['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).map((amenity: string) => (
-                      <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                        <span className="material-symbols-outlined text-[#F59E0B] text-lg md:text-xl">
-                          {amenity.includes('Water') ? 'water_drop' : 'bolt'}
-                        </span>
-                        <span className="font-medium text-xs md:text-sm">{amenity}</span>
-                      </div>
-                    ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+                {/* Compulsory Amenities - Always Provided */}
+                {['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].map((amenity) => (
+                  <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
+                    <span className="material-symbols-outlined text-emerald-500 text-lg md:text-xl">check_circle</span>
+                    <span className="font-medium text-xs md:text-sm">{amenity}</span>
                   </div>
-                </div>
+                ))}
 
-                {/* Additional Amenities */}
-                {property.amenities.filter((a: string) => !['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).length > 0 && (
-                  <div>
-                    
-                    <div className="flex flex-wrap gap-x-6 md:gap-x-8 gap-y-3 md:gap-y-4">
-                      {property.amenities.filter((a: string) => !['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].includes(a)).map((amenity: string) => {
-                        const lower = amenity.toLowerCase();
-                        let icon = 'check_circle';
-                        if (lower.includes('wifi') || lower.includes('wi-fi') || lower.includes('internet')) icon = 'wifi';
-                        else if (lower.includes('ac') || lower.includes('air conditioning') || lower.includes('a/c')) icon = 'ac_unit';
-                        else if (lower.includes('pool') || lower.includes('swimming')) icon = 'pool';
-                        else if (lower.includes('gym') || lower.includes('fitness')) icon = 'fitness_center';
-                        else if (lower.includes('parking') || lower.includes('garage')) icon = 'local_parking';
-                        else if (lower.includes('kitchen')) icon = 'kitchen';
-                        else if (lower.includes('tv') || lower.includes('television')) icon = 'tv';
-                        else if (lower.includes('washer') || lower.includes('laundry')) icon = 'local_laundry_service';
-                        else if (lower.includes('security') || lower.includes('guard') || lower.includes('cctv')) icon = 'security';
-                        else if (lower.includes('balcony') || lower.includes('patio')) icon = 'balcony';
-                        else if (lower.includes('pet')) icon = 'pets';
-                        else if (lower.includes('elevator') || lower.includes('lift')) icon = 'elevator';
-                        else if (lower.includes('heating') || lower.includes('heater')) icon = 'hvac';
-                        else if (lower.includes('workspace') || lower.includes('desk')) icon = 'desk';
-                        else if (lower.includes('water') || lower.includes('purifier')) icon = 'water_drop';
-                        else if (lower.includes('power') || lower.includes('backup')) icon = 'power';
-                        else if (lower.includes('bed') || lower.includes('mattress')) icon = 'bed';
-                        else if (lower.includes('food') || lower.includes('meal')) icon = 'restaurant';
-                        else if (lower.includes('cleaning') || lower.includes('housekeeping')) icon = 'cleaning_services';
-
-                        return (
-                          <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                            <span className="material-symbols-outlined text-[#F59E0B] text-lg md:text-xl">{icon}</span>
-                            <span className="font-medium text-xs md:text-sm">{amenity}</span>
-                          </div>
-                        );
-                      })}
+                {/* Selective Amenities - Show all with check/x */}
+                {AMENITIES_LIST.map((amenity) => {
+                  const isProvided = property.amenities.includes(amenity);
+                  return (
+                    <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
+                      <span className={`material-symbols-outlined text-lg md:text-xl ${isProvided ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {isProvided ? 'check_circle' : 'cancel'}
+                      </span>
+                      <span className={`font-medium text-xs md:text-sm ${isProvided ? 'opacity-100' : 'opacity-50'}`}>
+                        {amenity}
+                      </span>
                     </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
             </div>
 
@@ -373,13 +344,36 @@ export default function PropertyDetail() {
                         <span className="material-symbols-outlined text-[#F59E0B] text-lg">person_pin</span>
                       </div>
                       <div className="space-y-4 flex-1">
-                        <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Gender Preference</div>
-                        <div className="flex flex-wrap gap-2">
-                          {property.gender.map((g: string) => (
-                            <span key={g} className="px-3 py-1.5 rounded-xl bg-slate-50 text-[#1E1B4B] text-[10px] font-black uppercase tracking-wider border border-slate-100">
-                              {g}
-                            </span>
-                          ))}
+                        <div className="font-bold text-[#1E1B4B] text-xs uppercase tracking-wider">Gender Specifications</div>
+                        <div className="flex flex-wrap gap-3">
+                          {property.gender.map((g: string) => {
+                            let icon = 'groups';
+                            let color = 'text-[#F59E0B]';
+                            let bgColor = 'bg-slate-50';
+                            
+                            if (g === 'Male') {
+                              icon = 'male';
+                              color = 'text-blue-500';
+                              bgColor = 'bg-blue-50';
+                            }
+                            if (g === 'Female') {
+                              icon = 'female';
+                              color = 'text-pink-500';
+                              bgColor = 'bg-pink-50';
+                            }
+                            if (g === 'Other') {
+                              icon = 'transgender';
+                              color = 'text-purple-500';
+                              bgColor = 'bg-purple-50';
+                            }
+                            
+                            return (
+                              <div key={g} className={`flex items-center gap-2 px-4 py-2 rounded-xl ${bgColor} text-[#1E1B4B] border border-slate-100 shadow-sm`}>
+                                <span className={`material-symbols-outlined text-lg ${color}`}>{icon}</span>
+                                <span className="text-xs font-bold uppercase tracking-wider">{g}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -439,12 +433,12 @@ export default function PropertyDetail() {
                           <p className="text-[#1E1B4B] font-medium text-lg leading-relaxed">{property.address}</p>
                         </div>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                          <a href="tel:+919876543210" className="flex items-center justify-center gap-2 bg-[#F59E0B] text-white hover:bg-[#F59E0B]/90 px-6 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto">
+                          <a href={`tel:${property.ownerPhone || '+919876543210'}`} className="flex items-center justify-center gap-2 bg-[#F59E0B] text-white hover:bg-[#F59E0B]/90 px-6 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto">
                             <span className="material-symbols-outlined">call</span>
                             Call Owner
                           </a>
                           <a 
-                            href={`https://wa.me/919876543210?text=${encodeURIComponent(`hello ${property.ownerName || 'Sir'} sir, i just booked your ${property.title} with the ShelterBee. please let me know correct time to visit the property.`)}`} 
+                            href={`https://wa.me/${(property.ownerPhone || '919876543210').replace(/\+/g, '')}?text=${encodeURIComponent(`Hello ${property.ownerName || 'Host'}, I found your property "${property.title}" on ShelterBee and I'm interested in it. Could you please provide more details?`)}`} 
                             target="_blank" 
                             rel="noreferrer" 
                             className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto"

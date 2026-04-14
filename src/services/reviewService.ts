@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, updateDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, updateDoc, doc, serverTimestamp, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export interface Review {
@@ -36,6 +36,28 @@ export const reviewService = {
       ...reviewData,
       createdAt: serverTimestamp(),
     });
+
+    // Update property rating and review count
+    try {
+      const propertyRef = doc(db, 'properties', reviewData.propertyId);
+      const propertySnap = await getDoc(propertyRef);
+      if (propertySnap.exists()) {
+        const propertyData = propertySnap.data();
+        const currentRating = propertyData.rating || 0;
+        const currentReviewCount = propertyData.reviewCount || 0;
+        
+        const newReviewCount = currentReviewCount + 1;
+        const newRating = Number(((currentRating * currentReviewCount + reviewData.rating) / newReviewCount).toFixed(1));
+        
+        await updateDoc(propertyRef, {
+          rating: newRating,
+          reviewCount: newReviewCount
+        });
+      }
+    } catch (error) {
+      console.error("Error updating property rating:", error);
+    }
+
     return docRef.id;
   },
 

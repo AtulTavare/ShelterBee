@@ -34,7 +34,7 @@ export default function PropertyCard({
         <img className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={property.title} src={property.photos[0]} referrerPolicy="no-referrer" />
         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded-full text-[10px] font-bold text-on-secondary-fixed flex items-center gap-1 shadow-md">
           <span className="material-symbols-outlined text-amber-500 text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-          {property.rating || '4.8'} ({property.reviewCount || 0})
+          {property.rating ? property.rating.toFixed(1) : 'New'} {property.reviewCount > 0 ? `(${property.reviewCount})` : ''}
         </div>
         {(verified || featured) && (
           <div className="absolute bottom-3 left-3 bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full">

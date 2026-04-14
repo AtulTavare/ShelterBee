@@ -199,7 +199,32 @@ export const AdminManageProperties = () => {
               </button>
             </div>
             <div className="p-6 space-y-6">
-              <img src={selectedProperty.photos?.[0] || 'https://picsum.photos/seed/placeholder/800/400'} alt={selectedProperty.title} className="w-full h-64 object-cover rounded-2xl" />
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Property Photos</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {selectedProperty.photos?.map((photo, idx) => (
+                    <div key={idx} className="aspect-video rounded-xl overflow-hidden border border-slate-100 group relative">
+                      <img src={photo} alt={`Property ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => {
+                          const newTab = window.open();
+                          if (newTab) {
+                            newTab.document.body.innerHTML = `<img src="${photo}" style="max-width: 100%; height: auto;" />`;
+                          }
+                        }}
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold"
+                      >
+                        View Full
+                      </button>
+                    </div>
+                  ))}
+                  {(!selectedProperty.photos || selectedProperty.photos.length === 0) && (
+                    <div className="col-span-full py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-slate-400 text-sm">
+                      No photos uploaded.
+                    </div>
+                  )}
+                </div>
+              </div>
               
               <div className="grid grid-cols-2 gap-6">
                 <div>

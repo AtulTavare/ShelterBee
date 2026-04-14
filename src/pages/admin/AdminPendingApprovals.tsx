@@ -51,25 +51,16 @@ export const AdminPendingApprovals = () => {
         try {
           const ownerProfile = await userService.getUserProfile(property.ownerId);
           if (ownerProfile?.email) {
-            const propertyLink = `${window.location.origin}/property/${property.id}`;
-            const isUpdate = property.submissionType === 'changes approval';
+            const template = emailTemplates.getPropertyApproval(
+              ownerProfile.displayName || 'Owner',
+              property.title,
+              property.address
+            );
             
             await emailService.sendEmail({
               to: ownerProfile.email,
-              subject: isUpdate ? `Changes Approved: ${property.title}` : `Property Approved: ${property.title}`,
-              html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2 style="color: #10b981;">${isUpdate ? 'Changes Approved!' : 'Property Approved!'}</h2>
-                  <p>Hello ${ownerProfile.displayName || 'Owner'},</p>
-                  <p>Great news! Your ${isUpdate ? 'recent changes for' : 'listing for'} <strong>${property.title}</strong> has been approved by our admin team.</p>
-                  <p>Your property is now live and visible to visitors on ShelterBee.</p>
-                  <div style="margin: 30px 0;">
-                    <a href="${propertyLink}" style="background-color: #1e1b4b; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View Your Property</a>
-                  </div>
-                  <p>Link: <a href="${propertyLink}">${propertyLink}</a></p>
-                  <p>Best regards,<br/>The ShelterBee Team</p>
-                </div>
-              `
+              subject: template.subject,
+              html: template.html
             });
           }
         } catch (e) {

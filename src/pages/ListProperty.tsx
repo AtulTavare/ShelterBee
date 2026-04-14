@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, UploadCloud, MapPin, IndianRupee, Home, FileText, ChevronRight, ChevronLeft, Info } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const COMPULSORY_AMENITIES = ['24/7 Water Supply', 'Hot Water', '24/7 Electricity'];
-const AMENITIES_LIST = ['AC', 'WiFi', 'Attached Bathroom', 'Meals Included', 'Parking', 'Laundry', 'TV', 'Geyser'];
+const COMPULSORY_AMENITIES = ['24/7 Water Supply', '24/7 Electricity Supply', 'Clean Bathrooms', 'Sleeping Essentials (Pillow, Bed, Mattress)'];
+const AMENITIES_LIST = ['WiFi', 'AC', 'TV', 'Geyser', 'Washing Machine', 'Fridge', 'Kitchen Access', 'Power Backup', 'Lift', 'Parking', 'Gym', 'Swimming Pool', 'Housekeeping', 'Meals Provided', 'RO Water', 'Balcony', 'Attached Bathroom', 'Study Table', 'Cupboard'];
+const SECURITY_FEATURES = ['CCTV Surveillance', 'Security Guard', 'Biometric Entry', 'Fire Extinguisher', 'Emergency Exit', 'First Aid Kit'];
 
 import { propertyService } from '../services/propertyService';
 import { storage } from '../firebase';
@@ -46,13 +47,14 @@ export default function ListProperty() {
     description: '',
     weProvideCompulsoryAmenities: false,
     amenities: [] as string[],
+    securityFeatures: [] as string[],
     otherAmenities: '',
     aadhaarFront: null as File | null,
     aadhaarBack: null as File | null,
     propertyProof: null as File | null,
     termsAccepted: false,
     // New fields
-    guests: 4,
+    guests: 2,
     bedrooms: 1,
     beds: 1,
     bathrooms: 1,
@@ -83,10 +85,11 @@ export default function ListProperty() {
         area: property.area,
         address: property.address,
         price: property.pricePerDay.toString(),
-        photos: [], // We can't easily convert URLs back to Files, so we'll handle this specially
+        photos: property.photos.map(() => null), // Use nulls as placeholders for existing photos
         description: property.description,
         weProvideCompulsoryAmenities: true,
-        amenities: property.amenities.filter(a => !COMPULSORY_AMENITIES.includes(a)),
+        amenities: property.amenities.filter(a => !COMPULSORY_AMENITIES.includes(a) && !SECURITY_FEATURES.includes(a)),
+        securityFeatures: property.amenities.filter(a => SECURITY_FEATURES.includes(a)),
         otherAmenities: '',
         aadhaarFront: null,
         aadhaarBack: null,
@@ -153,9 +156,11 @@ export default function ListProperty() {
     }));
   };
 
-  const uploadToCloudinary = async (file: File): Promise<string> => {
+  const uploadToCloudinary = async (file: File, userId?: string, folder?: string): Promise<string> => {
     const formData = new FormData();
     formData.append('image', file);
+    if (userId) formData.append('userId', userId);
+    if (folder) formData.append('folder', folder);
 
     const response = await fetch('/api/upload-image', {
       method: 'POST',
@@ -194,38 +199,17 @@ export default function ListProperty() {
         existingProperty = await propertyService.getPropertyById(propertyId);
       }
 
-      // 1. Upload Photos to Cloudinary
-      console.log("Uploading photos to Cloudinary...");
-      showToast("Uploading photos...", "info");
-      const uploadedPhotoUrls = await Promise.all(
-        formData.photos.map(async (file, index) => {
-          if (!file) return null;
-          try {
-            console.log(`Uploading photo ${index + 1} to Cloudinary...`);
-            const url = await uploadToCloudinary(file);
-            console.log(`Photo ${index + 1} uploaded:`, url);
-            return url;
-          } catch (err) {
-            console.error(`Error uploading photo ${index + 1}:`, err);
-            return null;
-          }
-        })
-      );
+      // 1 & 2. Upload Photos and Documents to Cloudinary in Parallel
+      console.log("Uploading all files to Cloudinary...");
+      showToast("Uploading files...", "info");
       
-      let finalPhotoUrls = uploadedPhotoUrls.filter(url => url !== null) as string[];
-
-      if (isEditMode && finalPhotoUrls.length === 0) {
-        finalPhotoUrls = existingProperty?.photos || (window as any)._existingPhotos || [];
-      }
-
-      // 2. Upload Documents to Cloudinary
-      console.log("Uploading documents to Cloudinary...");
       const uploadDoc = async (file: File | null, name: string) => {
         if (!file) return '';
         try {
-          console.log(`Uploading document ${name} to Cloudinary...`);
-          const url = await uploadToCloudinary(file);
-          console.log(`Document ${name} uploaded:`, url);
+          console.log(`Uploading ${name} to Cloudinary...`);
+          const folder = user ? `shelterbee/users/${user.uid}/documents` : 'shelterbee/documents';
+          const url = await uploadToCloudinary(file, user?.uid, folder);
+          console.log(`${name} uploaded:`, url);
           return url;
         } catch (err) {
           console.error(`Error uploading ${name}:`, err);
@@ -233,9 +217,30 @@ export default function ListProperty() {
         }
       };
 
-      const aadhaarFrontUrl = await uploadDoc(formData.aadhaarFront, 'aadhaar_front');
-      const aadhaarBackUrl = await uploadDoc(formData.aadhaarBack, 'aadhaar_back');
-      const propertyProofUrl = await uploadDoc(formData.propertyProof, 'property_proof');
+      const existingPhotos = (window as any)._existingPhotos || [];
+
+      const [uploadedPhotoUrls, aadhaarFrontUrl, aadhaarBackUrl, propertyProofUrl] = await Promise.all([
+        Promise.all(formData.photos.map((file, index) => {
+          if (!file) {
+            // If no new file, use existing photo URL if available
+            return existingPhotos[index] || null;
+          }
+          const folder = user ? `shelterbee/users/${user.uid}/properties` : 'shelterbee/properties';
+          return uploadToCloudinary(file, user?.uid, folder).catch(err => {
+            console.error(`Error uploading photo ${index + 1}:`, err);
+            return existingPhotos[index] || null;
+          });
+        })),
+        uploadDoc(formData.aadhaarFront, 'aadhaar_front'),
+        uploadDoc(formData.aadhaarBack, 'aadhaar_back'),
+        uploadDoc(formData.propertyProof, 'property_proof')
+      ]);
+      
+      let finalPhotoUrls = (uploadedPhotoUrls as (string | null)[]).filter(url => url !== null) as string[];
+
+      if (finalPhotoUrls.length === 0 && isEditMode) {
+        finalPhotoUrls = existingPhotos;
+      }
 
       console.log("Saving property data to Firestore...");
       showToast("Finalizing your listing...", "info");
@@ -248,7 +253,7 @@ export default function ListProperty() {
         pricePerDay: Number(formData.price) || 0,
         deposit: Number(formData.price) * 2,
         photos: finalPhotoUrls,
-        amenities: [...COMPULSORY_AMENITIES, ...formData.amenities],
+        amenities: [...COMPULSORY_AMENITIES, ...formData.amenities, ...formData.securityFeatures],
         description: formData.description || 'No description provided.',
         aadhaarFront: aadhaarFrontUrl || (isEditMode ? existingProperty?.aadhaarFront : ''),
         aadhaarBack: aadhaarBackUrl || (isEditMode ? existingProperty?.aadhaarBack : ''),
@@ -306,7 +311,7 @@ export default function ListProperty() {
     },
     {
       title: "Showcase your space",
-      description: "Upload high-quality photos to make your listing stand out.\n\nRules:\n• 1st image: External view of the property.\n• Next 3 images: Internal views.\n• 5th image: Toilet/Bathroom.\n• Formats: PNG, JPG, JPEG only.\n• Max size: 5MB per image.\n\nAll 5 images are compulsory for approval.",
+      description: "Upload high-quality photos to make your listing stand out.\n\nRules:\n• 1st image: Best view of the property.\n• Next 3 images: External & Internal views.\n• 5th image: Toilet/Bathroom.\n• Formats: PNG, JPG, JPEG only.\n• Max size: 5MB per image.\n\nAll 5 images are compulsory for approval.",
       icon: <UploadCloud className="w-10 h-10 text-primary mb-6" />
     },
     {
@@ -552,6 +557,13 @@ export default function ListProperty() {
                                 <span className="text-white font-bold text-sm">Change Photo</span>
                               </div>
                             </div>
+                          ) : (window as any)._existingPhotos?.[index] ? (
+                            <div className="absolute inset-0 w-full h-full">
+                              <img src={(window as any)._existingPhotos[index]} alt={`Existing ${index}`} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                <span className="text-white font-bold text-sm">Change Photo</span>
+                              </div>
+                            </div>
                           ) : (
                             <div className="p-4 flex flex-col items-center">
                               <UploadCloud className="w-8 h-8 text-on-surface-variant/50 mb-2" />
@@ -590,8 +602,7 @@ export default function ListProperty() {
                       {[
                         { id: 'Male', icon: 'male' },
                         { id: 'Female', icon: 'female' },
-                        { id: 'Other', icon: 'transgender' },
-                        { id: 'Everybody', icon: 'groups' }
+                        { id: 'Other', icon: 'transgender' }
                       ].map((g) => (
                         <button
                           key={g.id}
@@ -641,7 +652,7 @@ export default function ListProperty() {
                     </label>
 
                     <label className="block text-sm font-medium text-on-surface mb-4">Selective Amenities</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 mb-8">
                       {AMENITIES_LIST.map(amenity => (
                         <label key={amenity} className={`flex items-center p-3 border rounded-xl cursor-pointer transition-colors ${formData.amenities.includes(amenity) ? 'border-primary bg-primary-container/20' : 'border-outline-variant hover:bg-surface-container'}`}>
                           <input 
@@ -654,6 +665,31 @@ export default function ListProperty() {
                             {formData.amenities.includes(amenity) && <CheckCircle2 className="w-3 h-3 text-on-primary" />}
                           </div>
                           <span className={`text-sm font-medium ${formData.amenities.includes(amenity) ? 'text-on-primary-container' : 'text-on-surface'}`}>{amenity}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <label className="block text-sm font-medium text-on-surface mb-4">Security Features</label>
+                    <div className="grid grid-cols-2 gap-3 mb-8">
+                      {SECURITY_FEATURES.map(feature => (
+                        <label key={feature} className={`flex items-center p-3 border rounded-xl cursor-pointer transition-colors ${formData.securityFeatures.includes(feature) ? 'border-primary bg-primary-container/20' : 'border-outline-variant hover:bg-surface-container'}`}>
+                          <input 
+                            type="checkbox" 
+                            className="hidden"
+                            checked={formData.securityFeatures.includes(feature)}
+                            onChange={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                securityFeatures: prev.securityFeatures.includes(feature)
+                                  ? prev.securityFeatures.filter(f => f !== feature)
+                                  : [...prev.securityFeatures, feature]
+                              }));
+                            }}
+                          />
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 flex-shrink-0 ${formData.securityFeatures.includes(feature) ? 'bg-primary border-primary' : 'border-outline-variant'}`}>
+                            {formData.securityFeatures.includes(feature) && <CheckCircle2 className="w-3 h-3 text-on-primary" />}
+                          </div>
+                          <span className={`text-sm font-medium ${formData.securityFeatures.includes(feature) ? 'text-on-primary-container' : 'text-on-surface'}`}>{feature}</span>
                         </label>
                       ))}
                     </div>

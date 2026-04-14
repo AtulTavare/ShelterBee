@@ -187,7 +187,7 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
                 {otp.map((digit, index) => (
                   <input
                     key={index}
-                    ref={el => inputRefs.current[index] = el}
+                    ref={(el) => { if (el) inputRefs.current[index] = el; }}
                     type="text"
                     maxLength={1}
                     value={digit}

@@ -133,11 +133,23 @@ export default function BookingPage() {
   };
 
   const validateStep2 = () => {
+    const allowedGenders = property.gender || [];
+    const isEverybodyAllowed = allowedGenders.includes('Everybody');
+
     for (const guest of guests) {
       if (!guest.name) {
         showToast("Please enter name for all guests", "error");
         return false;
       }
+      
+      // Gender validation
+      if (allowedGenders.length > 0) {
+        if (!allowedGenders.includes(guest.gender)) {
+          showToast(`${guest.gender} is not allowed. Add another guest.`, "error");
+          return false;
+        }
+      }
+
       if (guest.type === 'adult' && guest.age < 18) {
         showToast("Adult guests must be 18 or older", "error");
         return false;

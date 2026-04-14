@@ -148,66 +148,56 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      // Admins can read all. Users can read their own profile. Other users can read public info of owners.
-      allow read: if isAdmin() || isOwner(userId) || (isAuthenticated() && resource.data.role == 'owner');
+      // Admins can read all. Users can read their own profile. Anyone can read owner profiles.
+      allow read: if isAdmin() || isOwner(userId) || (resource.data.role == 'owner');
       
-      // Users can create their own profile. Default role is visitor or owner. Admin role can only be set by admin.
-      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
-                    (request.resource.data.role in ['visitor', 'owner'] || isAdmin()) &&
-                    request.resource.data.uid == userId;
+      // Users can create their own profile.
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role in ['visitor', 'owner']);
                     
-      // Users can update their own profile, but cannot change their role or uid. Admins can update anything.
+      // Users can update their own profile, but cannot change their role or uid.
       allow update: if isAdmin() || (isOwner(userId) && isValidUser(request.resource.data) && 
                        request.resource.data.role == resource.data.role &&
-                       request.resource.data.uid == resource.data.uid &&
-                       request.resource.data.createdAt == resource.data.createdAt);
+                       request.resource.data.uid == resource.data.uid);
     }
 
     match /properties/{propertyId} {
-      // Admins can read all. Anyone can read approved properties. Owners can read their own.
+      // Anyone can read approved properties. Owners and admins can read all.
       allow read: if isAdmin() || resource.data.status == 'Approved' || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
       
-      // Authenticated users can create properties. Status must be Pending initially unless admin.
+      // Owners can create properties.
       allow create: if (isAuthenticated() && isValidProperty(request.resource.data) &&
-                    (request.resource.data.ownerId == request.auth.uid) &&
-                    (request.resource.data.status == 'Pending')) || isAdmin();
+                    (request.resource.data.ownerId == request.auth.uid)) || isAdmin();
                     
-      // Admins can update anything. Owners can update their properties (except status, ownerId, createdAt).
+      // Owners can update their properties.
       allow update: if isAdmin() || (isAuthenticated() && isValidProperty(request.resource.data) && 
                        resource.data.ownerId == request.auth.uid &&
-                       request.resource.data.ownerId == resource.data.ownerId &&
-                       request.resource.data.status == resource.data.status &&
-                       request.resource.data.createdAt == resource.data.createdAt);
+                       request.resource.data.ownerId == resource.data.ownerId);
                        
-      // Only admins can delete properties.
       allow delete: if isAdmin();
     }
 
     match /bookings/{bookingId} {
-      // Admins can read all. Visitors can read their own bookings. Owners can read bookings for their properties.
-      allow read: if isAdmin() || (isAuthenticated() && (resource.data.visitorId == request.auth.uid || resource.data.ownerId == request.auth.uid));
+      // Allow reading bookings for availability checks (privacy trade-off)
+      allow read: if isAdmin() || isAuthenticated();
       
-      // Authenticated visitors can create bookings.
+      // Authenticated users can create bookings.
       allow create: if (isAuthenticated() && isValidBooking(request.resource.data) &&
                     (request.resource.data.visitorId == request.auth.uid)) || isAdmin();
                     
-      // Admins can update anything. Owners can update bookings for their properties. Visitors can update their own bookings (e.g. to cancel).
+      // Owners and visitors can update their bookings.
       allow update: if isAdmin() || 
                        (isAuthenticated() && isValidBooking(request.resource.data) && 
-                        (resource.data.ownerId == request.auth.uid || resource.data.visitorId == request.auth.uid) &&
-                        request.resource.data.propertyId == resource.data.propertyId &&
-                        request.resource.data.visitorId == resource.data.visitorId &&
-                        request.resource.data.ownerId == resource.data.ownerId &&
-                        request.resource.data.createdAt == resource.data.createdAt);
+                        (resource.data.ownerId == request.auth.uid || resource.data.visitorId == request.auth.uid));
                         
       allow delete: if isAdmin();
     }
 
     match /bookingFinancials/{bookingId} {
-      // Only admins and owners can read financials. Visitors cannot.
+      // Only admins and owners can read financials.
       allow read: if isAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
       
-      // Financials are created along with bookings.
+      // Created during booking.
       allow create: if (isAuthenticated() && isValidFinancials(request.resource.data) &&
                     (request.resource.data.visitorId == request.auth.uid)) || isAdmin();
                     
@@ -215,14 +205,17 @@ service cloud.firestore {
     }
 
     match /wallets/{userId} {
-      allow read: if isAdmin() || isAuthenticated();
-      allow create, update: if isAdmin() || isAuthenticated();
-      allow delete: if isAdmin() || isOwner(userId);
+      // Only owner or admin can read/write wallet.
+      allow read: if isAdmin() || isOwner(userId);
+      allow create, update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
     }
 
     match /walletTransactions/{transactionId} {
+      // Only owner or admin can read transactions.
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create, update, delete: if isAdmin() || isAuthenticated();
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     match /withdrawalRequests/{requestId} {

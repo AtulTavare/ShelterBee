@@ -33,7 +33,22 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+
+  // Request logging
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      console.log(`${new Date().toISOString()} - ${req.method} ${req.url} ${res.statusCode} ${duration}ms`);
+    });
+    next();
+  });
+
+  // API Route to check health
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   // Set up Nodemailer transporter
   const transporter = nodemailer.createTransport({
@@ -133,6 +148,8 @@ async function startServer() {
   app.post("/api/upload-image", upload.single("image"), async (req, res) => {
     try {
       const multerReq = req as any;
+      const { userId, folder } = req.body;
+
       if (!multerReq.file) {
         return res.status(400).json({ error: "No image file provided" });
       }
@@ -146,15 +163,35 @@ async function startServer() {
       const dataURI = "data:" + multerReq.file.mimetype + ";base64," + b64;
 
       const result = await cloudinary.uploader.upload(dataURI, {
-        folder: "shelterbee_properties",
+        folder: folder || (userId ? `shelterbee/users/${userId}` : "shelterbee_properties"),
         resource_type: "auto",
+        tags: userId ? [userId] : []
       });
 
-      res.json({ url: result.secure_url });
+      res.json({ 
+        url: result.secure_url,
+        public_id: result.public_id
+      });
     } catch (error: any) {
       console.error("Cloudinary upload error:", error);
       res.status(500).json({ error: error.message || "Failed to upload image" });
     }
+  });
+
+  // 404 handler for API routes
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
+  });
+
+  // Global error handler for API and other routes
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Unhandled Server Error:", err);
+    if (req.url.startsWith('/api/')) {
+      return res.status(err.status || 500).json({
+        error: err.message || "Internal Server Error",
+      });
+    }
+    next(err);
   });
 
   // Vite middleware for development

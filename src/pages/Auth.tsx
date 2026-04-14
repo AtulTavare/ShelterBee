@@ -253,7 +253,7 @@ export default function Auth() {
       if (location.state?.returnTo) {
         navigate(location.state.returnTo);
       } else {
-        if (role === 'admin' || user.email === 'tavareatul7192@gmail.com') {
+        if ((role as string) === 'admin' || user.email === 'tavareatul7192@gmail.com') {
           navigate('/admin-secret-dashboard');
         } else if (role === 'owner') {
           navigate('/profile');

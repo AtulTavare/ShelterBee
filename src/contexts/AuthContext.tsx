@@ -14,6 +14,10 @@ export interface UserProfile {
   createdAt: any;
   phoneNumber?: string;
   location?: string;
+  gender?: string;
+  emailVerified?: boolean;
+  name?: string;
+  status?: 'Active' | 'Inactive';
 }
 
 interface AuthContextType {
