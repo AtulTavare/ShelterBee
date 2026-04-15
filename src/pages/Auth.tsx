@@ -69,6 +69,7 @@ export default function Auth() {
   // Owner specific state
   const [propertyName, setPropertyName] = useState('');
   const [propertyHolderName, setPropertyHolderName] = useState('');
+  const [propertyLocation, setPropertyLocation] = useState('');
   
   // Login State
   const [loginEmail, setLoginEmail] = useState('');
@@ -127,7 +128,7 @@ export default function Auth() {
         return;
       }
     } else {
-      if (!propertyName || !propertyHolderName || !email || !password || !mobile || !gender) {
+      if (!propertyName || !propertyHolderName || !email || !password || !mobile || !gender || !propertyLocation) {
         setErrorMsg("Please fill in all required fields.");
         return;
       }
@@ -179,6 +180,7 @@ export default function Auth() {
         userData.mobile = mobile;
         userData.whatsapp = sameAsWhatsapp ? mobile : whatsapp;
         userData.gender = gender;
+        userData.location = propertyLocation;
       }
       
       setPendingUserData(userData);
@@ -467,6 +469,7 @@ export default function Auth() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
                             <Input label="PROPERTY NAME" placeholder="The Radiant Heights" value={propertyName} onChange={(e: any) => setPropertyName(e.target.value)} required />
                             <Input label="LEGAL HOLDER NAME" placeholder="M/S Sharma Realty Holdings" value={propertyHolderName} onChange={(e: any) => setPropertyHolderName(e.target.value)} required />
+                            <Input label="LOCATION" placeholder="City, Area" value={propertyLocation} onChange={(e: any) => setPropertyLocation(e.target.value)} required />
                           </div>
 
                           <SectionHeader title="CONTACT & DEMOGRAPHICS" />

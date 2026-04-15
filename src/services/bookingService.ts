@@ -143,11 +143,12 @@ export const bookingService = {
     }
   },
 
-  async updateBookingStatus(bookingId: string, status: Booking['status']) {
+  async updateBookingStatus(bookingId: string, status: Booking['status'], extraData?: any) {
     try {
       const bookingRef = doc(db, 'bookings', bookingId);
       await updateDoc(bookingRef, {
         status,
+        ...extraData,
         updatedAt: serverTimestamp()
       });
     } catch (error) {

@@ -57,15 +57,14 @@ export default function Support() {
             <p className="text-lg text-gray-300 mb-12 max-w-md leading-relaxed">
               Our dedicated concierge team is standing by to assist you with your real estate journey and investment portfolio.
             </p>
-            
-            <div className="space-y-8">
+                        <div className="space-y-8">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-xl bg-[#2A2B52] flex items-center justify-center shrink-0">
                   <Mail className="text-[#F59E0B]" size={24} />
                 </div>
                 <div>
                   <h3 className="text-white font-bold text-lg">Email Support</h3>
-                  <p className="text-gray-400">concierge@shelterbee.com</p>
+                  <p className="text-gray-400">support@shelterbee.com</p>
                 </div>
               </div>
               
@@ -75,7 +74,7 @@ export default function Support() {
                 </div>
                 <div>
                   <h3 className="text-white font-bold text-lg">Direct Line</h3>
-                  <p className="text-gray-400">+1 (888) 450-SAFFRON</p>
+                  <p className="text-gray-400">+91 86559 33724</p>
                 </div>
               </div>
               
@@ -85,7 +84,7 @@ export default function Support() {
                 </div>
                 <div>
                   <h3 className="text-white font-bold text-lg">Live Chat Hours</h3>
-                  <p className="text-gray-400">Mon - Fri: 08:00 - 20:00 EST</p>
+                  <p className="text-gray-400">10 AM - 7 PM</p>
                 </div>
               </div>
             </div>

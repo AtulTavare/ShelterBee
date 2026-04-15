@@ -47,10 +47,23 @@ type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'secu
 export default function Profile() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
+  const isOwner = profile?.role === 'owner';
   const [activeTab, setActiveTab] = useState<Tab>('personal');
   const [isEditing, setIsEditing] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [rejectedProperties, setRejectedProperties] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOwner && user) {
+      const q = query(collection(db, 'properties'), where('ownerId', '==', user.uid), where('status', '==', 'Rejected'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const rejected = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setRejectedProperties(rejected);
+      });
+      return () => unsubscribe();
+    }
+  }, [isOwner, user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -58,7 +71,6 @@ export default function Profile() {
     }
   }, [user, loading, navigate]);
 
-  const isOwner = profile?.role === 'owner';
   const location = useLocation();
 
   useEffect(() => {
@@ -89,7 +101,6 @@ export default function Profile() {
     { id: 'dashboard', label: 'Dashboard', icon: Building2 },
     { id: 'new-bookings', label: 'New Bookings', icon: Calendar },
     { id: 'favourites', label: 'My Listings', icon: Heart },
-    { id: 'approvals', label: 'Property Approvals', icon: CheckCircle2 },
     { id: 'wallet', label: 'Wallet', icon: WalletIcon },
     { id: 'security', label: 'Security', icon: ShieldCheck },
   ] : [
@@ -168,6 +179,24 @@ export default function Profile() {
             )}
           </div>
 
+          {isOwner && rejectedProperties.length > 0 && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-4">
+              <div className="bg-red-100 p-2 rounded-xl">
+                <XCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-red-900">Property Listing Rejected</h4>
+                <div className="mt-1 space-y-1">
+                  {rejectedProperties.map(prop => (
+                    <p key={prop.id} className="text-xs text-red-700">
+                      <span className="font-bold">{prop.title}:</span> {prop.rejectionReason || 'No reason provided by admin.'}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -217,6 +246,86 @@ function NewBookingsTab() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [visitTime, setVisitTime] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  const handleReject = async () => {
+    if (!rejectionReason || !selectedBooking) return;
+    setProcessing(true);
+    try {
+      await bookingService.updateBookingStatus(selectedBooking.id, 'cancelled', {
+        rejectionReason,
+        rejectedBy: 'owner',
+        rejectedAt: serverTimestamp()
+      });
+
+      // Send rejection email
+      const template = emailTemplates.getBookingRejection(
+        selectedBooking.visitorName,
+        selectedBooking.property?.title || 'Property',
+        rejectionReason
+      );
+      
+      const visitorProfile = await userService.getUserProfile(selectedBooking.visitorId);
+      if (visitorProfile?.email) {
+        await emailService.sendEmail({
+          to: visitorProfile.email,
+          subject: template.subject,
+          html: template.html
+        });
+      }
+
+      showToast("Booking rejected", "success");
+      setShowRejectModal(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error) {
+      console.error("Error rejecting booking:", error);
+      showToast("Failed to reject booking", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!visitTime || !selectedBooking) return;
+    setProcessing(true);
+    try {
+      await bookingService.updateBookingStatus(selectedBooking.id, 'confirmed', {
+        visitTime,
+        confirmedAt: serverTimestamp()
+      });
+
+      // Send confirmation email
+      const template = emailTemplates.getBookingConfirmationWithVisit(
+        selectedBooking.visitorName,
+        selectedBooking.property?.title || 'Property',
+        visitTime
+      );
+      
+      const visitorProfile = await userService.getUserProfile(selectedBooking.visitorId);
+      if (visitorProfile?.email) {
+        await emailService.sendEmail({
+          to: visitorProfile.email,
+          subject: template.subject,
+          html: template.html
+        });
+      }
+
+      showToast("Booking confirmed", "success");
+      setShowConfirmModal(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error) {
+      console.error("Error confirming booking:", error);
+      showToast("Failed to confirm booking", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -367,6 +476,23 @@ function NewBookingsTab() {
                   <span className="text-lg font-bold text-[#1E1B4B]">Total Revenue</span>
                   <span className="text-2xl font-black text-[#F59E0B]">₹{selectedBooking.totalAmount}</span>
                 </div>
+
+                {selectedBooking.status === 'pending' && (
+                  <div className="grid grid-cols-2 gap-4 mt-8">
+                    <button
+                      onClick={() => setShowRejectModal(true)}
+                      className="py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors border border-red-100"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => setShowConfirmModal(true)}
+                      className="py-3 bg-[#1A1A2E] text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-[#1A1A2E]/20"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                )}
               </div>
 
               <button 
@@ -375,6 +501,69 @@ function NewBookingsTab() {
               >
                 Close Details
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Reject Modal */}
+      <AnimatePresence>
+        {showRejectModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRejectModal(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-[120]">
+              <h3 className="text-xl font-bold text-[#1A1A2E] mb-4">Reject Booking</h3>
+              <p className="text-sm text-gray-500 mb-6">Please provide a reason for rejecting this booking. This will be shared with the visitor.</p>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Reason for rejection..."
+                className="w-full h-32 p-4 rounded-2xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-red-500/50 outline-none transition-all text-gray-800 resize-none mb-6"
+              />
+              <div className="flex gap-3">
+                <button onClick={() => setShowRejectModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Cancel</button>
+                <button 
+                  disabled={!rejectionReason || processing} 
+                  onClick={handleReject}
+                  className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {processing ? 'Rejecting...' : 'Confirm Reject'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Modal */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-[120]">
+              <h3 className="text-xl font-bold text-[#1A1A2E] mb-4">Confirm Booking</h3>
+              <p className="text-sm text-gray-500 mb-6">Schedule a property visit for the visitor. Please select a date and time.</p>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Visit Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={visitTime}
+                    onChange={(e) => setVisitTime(e.target.value)}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Cancel</button>
+                <button 
+                  disabled={!visitTime || processing} 
+                  onClick={handleConfirm}
+                  className="flex-1 py-3 bg-[#1A1A2E] text-white rounded-xl font-bold hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  {processing ? 'Confirming...' : 'Confirm Booking'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -391,6 +580,7 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
     whatsapp: profile?.whatsapp || '',
     gender: profile?.gender || '',
     dob: profile?.dob || '',
+    location: profile?.location || '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [recentBookings, setRecentBookings] = useState<(Booking & { property?: any })[]>([]);
@@ -447,12 +637,6 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
       <div className="lg:col-span-2 space-y-6">
         {/* Personal Details Card */}
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-[#F3F4F6] rounded-xl flex items-center justify-center">
-              <User className="w-6 h-6 text-[#1A1A2E]" />
-            </div>
-          </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Full Name</p>
@@ -534,6 +718,20 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
                 </select>
               ) : (
                 <p className="text-[#1A1A2E] font-medium">{profile?.gender || 'Not provided'}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Location</p>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={formData.location} 
+                  onChange={e => setFormData({...formData, location: e.target.value})}
+                  className="w-full border-b border-gray-300 focus:border-[#F59E0B] outline-none py-1 text-[#1A1A2E] font-medium bg-transparent"
+                  placeholder="City, Area"
+                />
+              ) : (
+                <p className="text-[#1A1A2E] font-medium">{profile?.location || 'Not provided'}</p>
               )}
             </div>
           </div>
@@ -661,6 +859,7 @@ function StayHistoryTab() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
   useEffect(() => {
@@ -813,19 +1012,10 @@ function StayHistoryTab() {
                     <div className="flex justify-between items-center mt-4">
                       <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</span>
                       <div className="flex gap-3">
-                        {canCancel && (
+                        {booking.status === 'confirmed' && (
                           <button 
-                            onClick={() => handleCancelBooking(booking)}
-                            disabled={cancellingId === booking.id}
-                            className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
-                          >
-                            {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
-                          </button>
-                        )}
-                        {!canCancel && booking.status === 'confirmed' && (
-                          <button 
-                            onClick={() => showToast("Cancellation request window will be available soon.", "success")}
-                            className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 transition-colors"
+                            onClick={() => { setSelectedBooking(booking); setShowCancellationModal(true); }}
+                            className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
                           >
                             Apply for Cancellation
                           </button>
@@ -892,6 +1082,156 @@ function StayHistoryTab() {
         onClose={() => setShowReportModal(false)} 
         booking={selectedBooking} 
       />
+
+      <CancellationModal
+        isOpen={showCancellationModal}
+        onClose={() => setShowCancellationModal(false)}
+        booking={selectedBooking}
+      />
+    </div>
+  );
+}
+
+function CancellationModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: () => void, booking: any }) {
+  const [step, setStep] = useState(1);
+  const [reason, setReason] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+
+  if (!isOpen || !booking) return null;
+
+  const handleCancel = async () => {
+    if (!agreed || !reason) return;
+    setLoading(true);
+    try {
+      const amount = booking.totalAmount || booking.estimatedCost || 0;
+      
+      // Update booking status
+      await bookingService.updateBookingStatus(booking.id, 'cancelled', {
+        cancellationReason: reason,
+        cancelledBy: 'visitor',
+        cancelledAt: serverTimestamp()
+      });
+
+      // Process refund (deduct from owner wallet)
+      // For simplicity, we refund 100% if cancelled by visitor for now, 
+      // but in a real app this would depend on policies.
+      await walletService.processRefund(booking.visitorId, booking.ownerId, amount, amount * 0.75, booking.id);
+
+      // Send emails
+      const owner = await userService.getUserProfile(booking.ownerId);
+      if (owner && owner.email) {
+        const template = emailTemplates.getBookingCancellationByVisitor(
+          owner.displayName || 'Owner',
+          booking.property?.title || 'Property',
+          booking.visitorName,
+          reason
+        );
+        await emailService.sendEmail({
+          to: owner.email,
+          subject: template.subject,
+          html: template.html
+        });
+      }
+
+      showToast("Booking cancelled successfully", "success");
+      onClose();
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      showToast("Failed to cancel booking", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+      >
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h3 className="text-xl font-bold text-[#1A1A2E]">Cancel Booking</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <XCircle className="w-6 h-6 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="p-8">
+          {step === 1 && (
+            <div className="space-y-6">
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
+                <HelpCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">Please tell us why you want to cancel your stay at <span className="font-bold">{booking.property?.title}</span>.</p>
+              </div>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Reason for cancellation..."
+                className="w-full h-32 p-4 rounded-2xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800 resize-none"
+              />
+              <button
+                disabled={!reason}
+                onClick={() => setStep(2)}
+                className="w-full py-4 bg-[#1A1A2E] text-white rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+              >
+                Continue
+              </button>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-6">
+              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                <h4 className="font-bold text-[#1A1A2E] mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-amber-600" />
+                  Cancellation Policies
+                </h4>
+                <ul className="space-y-3 text-sm text-gray-600">
+                  <li className="flex gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                    Full refund if cancelled within 24 hours of booking.
+                  </li>
+                  <li className="flex gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                    50% refund if cancelled at least 7 days before check-in.
+                  </li>
+                  <li className="flex gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                    No refund if cancelled within 48 hours of check-in.
+                  </li>
+                </ul>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className={`mt-1 w-5 h-5 rounded border flex items-center justify-center transition-colors ${agreed ? 'bg-amber-500 border-amber-500' : 'bg-white border-gray-300 group-hover:border-amber-500'}`}>
+                  {agreed && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                  <input type="checkbox" className="hidden" checked={agreed} onChange={() => setAgreed(!agreed)} />
+                </div>
+                <span className="text-sm text-gray-600 leading-relaxed">I have read and agree to the cancellation policies of ShelterBee.</span>
+              </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(1)}
+                  className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  disabled={!agreed || loading}
+                  onClick={handleCancel}
+                  className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold hover:bg-red-600 transition-all shadow-lg shadow-red-500/20 disabled:opacity-50"
+                >
+                  {loading ? 'Processing...' : 'Cancel Booking'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }
@@ -1205,43 +1545,72 @@ function FavouritesTab() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {properties.map((property, index) => (
-            <div key={`${property.id}-${index}`} className="border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group">
-              <div className="relative h-48">
-                <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=100"} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
-                <div className="absolute top-3 right-3 flex gap-2">
-                  <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
-                    property.status === 'Approved' ? 'bg-emerald-500 text-white' :
-                    property.status === 'Pending' ? 'bg-amber-500 text-white' :
-                    'bg-red-500 text-white'
+            <div key={`${property.id}-${index}`} className="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300">
+              <div className="relative h-48 overflow-hidden">
+                <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=100"} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                
+                <div className="absolute top-4 right-4 flex flex-col gap-2">
+                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${
+                    property.status === 'Approved' ? 'bg-emerald-500/90 text-white' :
+                    property.status === 'Pending' ? 'bg-amber-500/90 text-white' :
+                    'bg-red-500/90 text-white'
                   }`}>
                     {property.status}
-                  </span>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
-                    property.availabilityStatus !== 'unavailable' ? 'bg-blue-500 text-white' : 'bg-gray-500 text-white'
+                  </div>
+                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${
+                    property.availabilityStatus !== 'unavailable' ? 'bg-blue-500/90 text-white' : 'bg-gray-500/90 text-white'
                   }`}>
                     {property.availabilityStatus !== 'unavailable' ? 'Available' : 'Hidden'}
-                  </span>
+                  </div>
                 </div>
               </div>
-              <div className="p-4">
-                <h3 className="font-bold text-[#1A1A2E] text-lg mb-1 truncate">{property.title}</h3>
-                <p className="text-sm text-gray-500 flex items-center gap-1 mb-3">
-                  <MapPin className="w-3.5 h-3.5" /> {property.area}
-                </p>
-                <div className="flex justify-between items-center mb-4">
-                  <span className="font-bold text-[#F59E0B]">₹{property.pricePerDay}<span className="text-xs text-gray-400 font-normal">/day</span></span>
-                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">{property.type}</span>
+
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-[#1A1A2E] text-xl truncate flex-1">{property.title}</h3>
+                  <div className="flex items-center gap-1 text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">
+                    <Star className="w-3 h-3 fill-current" />
+                    <span className="text-xs font-bold">{property.rating || '4.8'}</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 border-t border-gray-100 pt-4">
-                  <Link to={`/property/${property.id}`} className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
-                    View Details
-                  </Link>
+                
+                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4">
+                  <MapPin className="w-4 h-4 text-gray-400" /> {property.area}
+                </p>
+
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-2xl font-black text-[#1A1A2E]">₹{property.pricePerDay}</span>
+                  <span className="text-sm text-gray-400 font-medium">/ night</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => navigate(`/list-property?edit=${property.id}`)}
-                    className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+                    className={`col-span-2 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                      property.status === 'Rejected' 
+                        ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20' 
+                        : 'bg-[#1A1A2E] text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'
+                    }`}
                   >
-                    Edit Property
+                    <Edit3 className="w-4 h-4" />
+                    {property.status === 'Rejected' ? 'Reapply Listing' : 'Edit Property'}
                   </button>
+
+                  <button 
+                    onClick={() => viewBookings(property.id, property.title)}
+                    className="py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4" /> Bookings
+                  </button>
+
+                  <button 
+                    onClick={() => viewReviews(property.id, property.title)}
+                    className="py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-2"
+                  >
+                    <Star className="w-4 h-4" /> Reviews
+                  </button>
+
                   <button 
                     onClick={() => {
                       if (property.availabilityStatus !== 'unavailable') {
@@ -1254,27 +1623,17 @@ function FavouritesTab() {
                         });
                       }
                     }}
-                    className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+                    className="py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-2"
                   >
-                    {property.availabilityStatus !== 'unavailable' ? 'Hide Listing' : 'Make Available'}
+                    <ShieldCheck className="w-4 h-4" />
+                    {property.availabilityStatus !== 'unavailable' ? 'Hide' : 'Show'}
                   </button>
-                  <button 
-                    onClick={() => viewBookings(property.id, property.title)}
-                    className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    Bookings
-                  </button>
-                  <button 
-                    onClick={() => viewReviews(property.id, property.title)}
-                    className="text-center py-2 text-sm font-bold text-[#1E1B4B] bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    Reviews
-                  </button>
+
                   <button 
                     onClick={() => removeListing(property.id)}
-                    className="text-center py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                    className="py-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors border border-red-100 flex items-center justify-center gap-2"
                   >
-                    Remove
+                    <XCircle className="w-4 h-4" /> Remove
                   </button>
                 </div>
               </div>

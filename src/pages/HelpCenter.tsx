@@ -14,6 +14,8 @@ import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { showToast } from '../utils/toast';
 
+import { emailService } from '../services/emailService';
+
 const visitorFaqs = [
   {
     question: "How do I book a stay?",
@@ -121,6 +123,16 @@ export default function HelpCenter() {
         createdAt: serverTimestamp(),
         status: 'pending'
       });
+
+      // Send email to support
+      await emailService.sendEmail({
+        to: 'support@shelterbee.com',
+        subject: `New Help Query: ${formData.name}`,
+        text: `Name: ${formData.name}\nEmail: ${formData.email}\nContact: ${formData.contact}\n\nIssue:\n${formData.issue}`,
+        html: `<p><strong>Name:</strong> ${formData.name}</p><p><strong>Email:</strong> ${formData.email}</p><p><strong>Contact:</strong> ${formData.contact}</p><p><strong>Issue:</strong><br/>${formData.issue.replace(/\n/g, '<br/>')}</p>`,
+        replyTo: formData.email
+      });
+
       showToast("Your query has been submitted. Our team will contact you soon!", "success");
       setFormData({ name: '', email: '', contact: '', issue: '' });
     } catch (error) {

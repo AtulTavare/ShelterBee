@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
-import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
 import { MaintenanceGuard } from './components/MaintenanceGuard';
 import Navbar from './components/Navbar';

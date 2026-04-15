@@ -296,5 +296,61 @@ export const emailTemplates = {
       subject: `Property Listing Submitted Successfully! 🏠`,
       html: baseLayout(content)
     };
+  },
+
+  getBookingRejection: (guestName: string, propertyName: string, reason: string) => {
+    const content = `
+      <h1>Booking Update</h1>
+      <p>Hello <span class="highlight">${guestName}</span>,</p>
+      <p>We regret to inform you that your booking for <span class="highlight">"${propertyName}"</span> has been rejected by the property owner.</p>
+      <div class="details-box">
+        <p class="detail-label" style="margin-bottom: 8px;">Reason for Rejection:</p>
+        <p style="color: #EF4444; font-weight: 600; margin: 0;">${reason}</p>
+      </div>
+      <p>Any amount paid will be refunded to your wallet shortly.</p>
+      <p>Feel free to explore other properties on ShelterBee.</p>
+      <p>— shelterBee</p>
+    `;
+    return {
+      subject: `Booking Update: ${propertyName}`,
+      html: baseLayout(content)
+    };
+  },
+
+  getBookingConfirmationWithVisit: (guestName: string, propertyName: string, visitTime: string) => {
+    const content = `
+      <h1>Booking Confirmed! 🎉</h1>
+      <p>Hello <span class="highlight">${guestName}</span>,</p>
+      <p>Great news! Your booking for <span class="highlight">"${propertyName}"</span> has been confirmed by the owner.</p>
+      <div class="details-box">
+        <p class="detail-label" style="margin-bottom: 8px;">Scheduled Property Visit:</p>
+        <p style="color: #1E1B4B; font-weight: 700; margin: 0;">${visitTime}</p>
+      </div>
+      <p>Please make sure to be available at the property during the scheduled time.</p>
+      <p>We look forward to hosting you!</p>
+      <p>— shelterBee</p>
+    `;
+    return {
+      subject: `Booking Confirmed: ${propertyName} 🎉`,
+      html: baseLayout(content)
+    };
+  },
+
+  getBookingCancellationByVisitor: (ownerName: string, propertyName: string, guestName: string, reason: string) => {
+    const content = `
+      <h1>Booking Cancelled</h1>
+      <p>Hello <span class="highlight">${ownerName}</span>,</p>
+      <p>We are writing to inform you that the booking for <span class="highlight">"${propertyName}"</span> by <span class="highlight">${guestName}</span> has been cancelled by the visitor.</p>
+      <div class="details-box">
+        <p class="detail-label" style="margin-bottom: 8px;">Reason for Cancellation:</p>
+        <p style="color: #64748B; font-style: italic; margin: 0;">"${reason}"</p>
+      </div>
+      <p>The booking amount has been adjusted in your wallet accordingly.</p>
+      <p>— shelterBee</p>
+    `;
+    return {
+      subject: `Booking Cancelled: ${propertyName}`,
+      html: baseLayout(content)
+    };
   }
 };

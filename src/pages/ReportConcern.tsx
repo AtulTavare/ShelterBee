@@ -12,6 +12,7 @@ import {
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { showToast } from '../utils/toast';
+import { emailService } from '../services/emailService';
 
 export default function ReportConcern() {
   const [formData, setFormData] = useState({
@@ -39,6 +40,16 @@ export default function ReportConcern() {
         createdAt: serverTimestamp(),
         status: 'pending'
       });
+
+      // Send email to support
+      await emailService.sendEmail({
+        to: 'support@shelterbee.com',
+        subject: `New Concern Reported: ${formData.subject}`,
+        text: `Name: ${formData.name}\nEmail: ${formData.email}\nContact: ${formData.contact}\nUrgency: ${formData.urgency}\nSubject: ${formData.subject}\n\nDescription:\n${formData.description}`,
+        html: `<p><strong>Name:</strong> ${formData.name}</p><p><strong>Email:</strong> ${formData.email}</p><p><strong>Contact:</strong> ${formData.contact}</p><p><strong>Urgency:</strong> ${formData.urgency}</p><p><strong>Subject:</strong> ${formData.subject}</p><p><strong>Description:</strong><br/>${formData.description.replace(/\n/g, '<br/>')}</p>`,
+        replyTo: formData.email
+      });
+
       showToast("Your concern has been reported. Our security team will investigate immediately.", "success");
       setFormData({ name: '', email: '', contact: '', subject: '', description: '', urgency: 'medium' });
     } catch (error) {
