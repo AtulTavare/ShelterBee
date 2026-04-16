@@ -254,7 +254,7 @@ export default function BookingPage() {
       }
 
       showToast("Booking confirmed successfully!", "success");
-      navigate('/profile?tab=stay-history');
+      navigate('/profile#history');
     } catch (error) {
       console.error("Booking failed:", error);
       showToast("Failed to create booking. Please try again.", "error");

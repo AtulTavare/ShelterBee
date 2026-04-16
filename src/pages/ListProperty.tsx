@@ -1,9 +1,11 @@
+import { DotLottiePlayer } from '@dotlottie/react-player';
 import { showToast } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, UploadCloud, MapPin, IndianRupee, Home, FileText, ChevronRight, ChevronLeft, Info } from 'lucide-react';
+import { CheckCircle2, UploadCloud, MapPin, IndianRupee, Home, FileText, ChevronRight, ChevronLeft, Info, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import imageCompression from 'browser-image-compression';
 
 const COMPULSORY_AMENITIES = ['24/7 Water Supply', '24/7 Electricity Supply', 'Clean Bathrooms', 'Sleeping Essentials (Pillow, Bed, Mattress)'];
 const AMENITIES_LIST = ['WiFi', 'AC', 'TV', 'Geyser', 'Washing Machine', 'Fridge', 'Kitchen Access', 'Power Backup', 'Lift', 'Parking', 'Gym', 'Swimming Pool', 'Housekeeping', 'Meals Provided', 'RO Water', 'Balcony', 'Attached Bathroom', 'Study Table', 'Cupboard'];
@@ -24,6 +26,17 @@ export default function ListProperty() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    total: number;
+    current: number;
+    status: string;
+    fileStatuses: Record<string, string>;
+  }>({
+    total: 0,
+    current: 0,
+    status: '',
+    fileStatuses: {}
+  });
   const [showVerificationPopup, setShowVerificationPopup] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   
@@ -156,29 +169,79 @@ export default function ListProperty() {
     }));
   };
 
-  const uploadToCloudinary = async (file: File, userId?: string, folder?: string): Promise<string> => {
-    const formData = new FormData();
-    formData.append('image', file);
-    if (userId) formData.append('userId', userId);
-    if (folder) formData.append('folder', folder);
-
-    const response = await fetch('/api/upload-image', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload image to Cloudinary');
+  const uploadToCloudinary = async (file: File, folder: string, fileName: string): Promise<string> => {
+    try {
+      // Step 1: Compress
+      setUploadProgress(prev => ({
+        ...prev,
+        fileStatuses: { ...prev.fileStatuses, [fileName]: 'Compressing...' }
+      }));
+      
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.8,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true
+      });
+      
+      // Step 2: Get signature from server
+      setUploadProgress(prev => ({
+        ...prev,
+        fileStatuses: { ...prev.fileStatuses, [fileName]: 'Signing...' }
+      }));
+      
+      const sigRes = await fetch('/api/cloudinary-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder })
+      });
+      
+      if (!sigRes.ok) throw new Error('Failed to get upload signature');
+      const { signature, timestamp, cloudName, apiKey } = await sigRes.json();
+      
+      // Step 3: Upload directly to Cloudinary
+      setUploadProgress(prev => ({
+        ...prev,
+        fileStatuses: { ...prev.fileStatuses, [fileName]: 'Uploading...' }
+      }));
+      
+      const formData = new FormData();
+      formData.append('file', compressed);
+      formData.append('signature', signature);
+      formData.append('timestamp', timestamp);
+      formData.append('api_key', apiKey);
+      formData.append('folder', folder);
+      
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+      
+      if (!uploadRes.ok) {
+        const errorData = await uploadRes.json();
+        throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+      }
+      
+      const data = await uploadRes.json();
+      
+      setUploadProgress(prev => ({
+        ...prev,
+        current: prev.current + 1,
+        fileStatuses: { ...prev.fileStatuses, [fileName]: 'Done ✓' }
+      }));
+      
+      return data.secure_url;
+    } catch (error: any) {
+      console.error(`Error uploading ${fileName}:`, error);
+      setUploadProgress(prev => ({
+        ...prev,
+        fileStatuses: { ...prev.fileStatuses, [fileName]: 'Failed ✗' }
+      }));
+      throw error;
     }
-
-    const data = await response.json();
-    return data.url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Starting property submission with Cloudinary...");
     if (!user) {
       navigate('/auth', { state: { returnTo: '/list-property' } });
       return;
@@ -189,61 +252,73 @@ export default function ListProperty() {
       return;
     }
     
-    showToast("Preparing your listing...", "info");
     setIsSubmitting(true);
+    const propertyName = formData.title.replace(/[^a-zA-Z0-9]/g, '_') || 'property';
+    const userName = profile?.displayName?.replace(/[^a-zA-Z0-9]/g, '_') || user.uid;
+    
+    const imagesFolder = `shelterbee_v2/users/${userName}/${propertyName}/images`;
+    const docsFolder = `shelterbee_v2/users/${userName}/kyc`;
+
     try {
-      // Fetch existing property data once if in edit mode
+      // Prepare files to upload
+      const filesToUpload: { file: File; folder: string; name: string; key: string }[] = [];
+      
+      formData.photos.forEach((file, index) => {
+        if (file) {
+          filesToUpload.push({ 
+            file, 
+            folder: imagesFolder, 
+            name: `Photo ${index + 1}`,
+            key: `photo_${index}`
+          });
+        }
+      });
+
+      if (formData.aadhaarFront) {
+        filesToUpload.push({ file: formData.aadhaarFront, folder: docsFolder, name: 'Aadhaar Front', key: 'aadhaarFront' });
+      }
+      if (formData.aadhaarBack) {
+        filesToUpload.push({ file: formData.aadhaarBack, folder: docsFolder, name: 'Aadhaar Back', key: 'aadhaarBack' });
+      }
+      if (formData.propertyProof) {
+        filesToUpload.push({ file: formData.propertyProof, folder: docsFolder, name: 'Property Proof', key: 'propertyProof' });
+      }
+
+      setUploadProgress({
+        total: filesToUpload.length,
+        current: 0,
+        status: 'Starting uploads...',
+        fileStatuses: {}
+      });
+
+      const results: Record<string, string> = {};
+      const existingPhotos = (window as any)._existingPhotos || [];
+      
+      // Batch uploads in groups of 3
+      for (let i = 0; i < filesToUpload.length; i += 3) {
+        const batch = filesToUpload.slice(i, i + 3);
+        setUploadProgress(prev => ({ ...prev, status: `Uploading batch ${Math.floor(i/3) + 1}...` }));
+        
+        const batchResults = await Promise.all(
+          batch.map(item => uploadToCloudinary(item.file, item.folder, item.name))
+        );
+        
+        batch.forEach((item, index) => {
+          results[item.key] = batchResults[index];
+        });
+      }
+
+      // Construct final URLs
+      const finalPhotoUrls = formData.photos.map((file, index) => {
+        if (file) return results[`photo_${index}`];
+        return existingPhotos[index] || null;
+      }).filter(Boolean) as string[];
+
       let existingProperty = null;
       if (isEditMode && propertyId) {
-        console.log("Fetching existing property for edit mode...");
         existingProperty = await propertyService.getPropertyById(propertyId);
       }
 
-      // 1 & 2. Upload Photos and Documents to Cloudinary in Parallel
-      console.log("Uploading all files to Cloudinary...");
-      showToast("Uploading files...", "info");
-      
-      const uploadDoc = async (file: File | null, name: string) => {
-        if (!file) return '';
-        try {
-          console.log(`Uploading ${name} to Cloudinary...`);
-          const folder = user ? `shelterbee/users/${user.uid}/documents` : 'shelterbee/documents';
-          const url = await uploadToCloudinary(file, user?.uid, folder);
-          console.log(`${name} uploaded:`, url);
-          return url;
-        } catch (err) {
-          console.error(`Error uploading ${name}:`, err);
-          return '';
-        }
-      };
-
-      const existingPhotos = (window as any)._existingPhotos || [];
-
-      const [uploadedPhotoUrls, aadhaarFrontUrl, aadhaarBackUrl, propertyProofUrl] = await Promise.all([
-        Promise.all(formData.photos.map((file, index) => {
-          if (!file) {
-            // If no new file, use existing photo URL if available
-            return existingPhotos[index] || null;
-          }
-          const folder = user ? `shelterbee/users/${user.uid}/properties` : 'shelterbee/properties';
-          return uploadToCloudinary(file, user?.uid, folder).catch(err => {
-            console.error(`Error uploading photo ${index + 1}:`, err);
-            return existingPhotos[index] || null;
-          });
-        })),
-        uploadDoc(formData.aadhaarFront, 'aadhaar_front'),
-        uploadDoc(formData.aadhaarBack, 'aadhaar_back'),
-        uploadDoc(formData.propertyProof, 'property_proof')
-      ]);
-      
-      let finalPhotoUrls = (uploadedPhotoUrls as (string | null)[]).filter(url => url !== null) as string[];
-
-      if (finalPhotoUrls.length === 0 && isEditMode) {
-        finalPhotoUrls = existingPhotos;
-      }
-
-      console.log("Saving property data to Firestore...");
-      showToast("Finalizing your listing...", "info");
       const propertyData = {
         ownerId: user.uid,
         title: formData.title || 'Untitled Property',
@@ -255,9 +330,9 @@ export default function ListProperty() {
         photos: finalPhotoUrls,
         amenities: [...COMPULSORY_AMENITIES, ...formData.amenities, ...formData.securityFeatures],
         description: formData.description || 'No description provided.',
-        aadhaarFront: aadhaarFrontUrl || (isEditMode ? existingProperty?.aadhaarFront : ''),
-        aadhaarBack: aadhaarBackUrl || (isEditMode ? existingProperty?.aadhaarBack : ''),
-        propertyProof: propertyProofUrl || (isEditMode ? existingProperty?.propertyProof : ''),
+        aadhaarFront: results['aadhaarFront'] || (isEditMode ? existingProperty?.aadhaarFront : ''),
+        aadhaarBack: results['aadhaarBack'] || (isEditMode ? existingProperty?.aadhaarBack : ''),
+        propertyProof: results['propertyProof'] || (isEditMode ? existingProperty?.propertyProof : ''),
         guests: formData.guests,
         bedrooms: formData.bedrooms,
         beds: formData.beds,
@@ -269,30 +344,27 @@ export default function ListProperty() {
       if (isEditMode && propertyId) {
         await propertyService.updateProperty(propertyId, {
           ...propertyData,
-          status: 'Pending', // Back to pending for approval
+          status: 'Pending',
         });
-        console.log("Property updated successfully.");
         showToast("Property updates submitted for approval!", "success");
       } else {
         await propertyService.addProperty(propertyData);
-        console.log("Property added successfully.");
         showToast("Property listed successfully! Waiting for approval.", "success");
       }
 
-      // Send Email Notification (Non-blocking)
       if (profile && user.email) {
         const emailContent = emailTemplates.getPropertySubmission(profile.displayName || 'Owner', profile.gender || 'Other');
         emailService.sendEmail({
           to: user.email,
           subject: emailContent.subject,
           html: emailContent.html
-        }).catch(emailErr => console.error("Failed to send submission email:", emailErr));
+        }).catch(err => console.error("Email failed:", err));
       }
       
       setIsSubmitted(true);
     } catch (error: any) {
-      console.error("Error submitting property:", error);
-      showToast("An error occurred during submission. Please try again.", "error");
+      console.error("Submission error:", error);
+      showToast(error.message || "An error occurred during submission.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -345,7 +417,7 @@ export default function ListProperty() {
           <h2 className="text-2xl font-bold text-on-surface mb-4">Property Submitted!</h2>
           <p className="text-on-surface-variant mb-8">Your property has been submitted for verification. We'll notify you once it's approved by our admin team.</p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/profile#favourites')}
             className="w-full bg-on-secondary-fixed hover:bg-on-secondary-fixed/90 text-white font-medium py-3 rounded-xl transition-colors"
           >
             Back to Home
@@ -955,6 +1027,42 @@ export default function ListProperty() {
           }
         }} 
       />
+      <AnimatePresence>
+        {isSubmitting && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative z-10 flex flex-col items-center"
+            >
+              <div className="w-64 h-64">
+                <DotLottiePlayer
+                  src="https://lottie.host/91f9f628-b5ab-4ea9-bfa4-862211e3b137/X75GVjGtxX.lottie"
+                  autoplay
+                  loop
+                />
+              </div>
+              <motion.p 
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="text-white text-xl font-bold mt-4 tracking-wide"
+              >
+                uploading images please wait ...
+              </motion.p>
+            </motion.div>
+            <style>{`
+              body { overflow: hidden !important; }
+            `}</style>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

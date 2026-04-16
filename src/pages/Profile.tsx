@@ -33,7 +33,9 @@ import {
   Users,
   TrendingUp,
   Calendar,
-  XCircle
+  XCircle,
+  Phone,
+  ShieldAlert
 } from 'lucide-react';
 
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
@@ -41,6 +43,58 @@ import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query,
 import { db } from '../firebase';
 
 import { getAvatarUrl } from '../utils/avatar';
+import { auth } from '../firebase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 type Tab = 'personal' | 'wallet' | 'payments' | 'history' | 'favourites' | 'security' | 'dashboard' | 'approvals' | 'new-bookings';
 
@@ -60,6 +114,8 @@ export default function Profile() {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const rejected = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setRejectedProperties(rejected);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'properties');
       });
       return () => unsubscribe();
     }
@@ -105,7 +161,7 @@ export default function Profile() {
     { id: 'security', label: 'Security', icon: ShieldCheck },
   ] : [
     { id: 'personal', label: 'Personal Info', icon: User },
-    { id: 'history', label: 'Stay History', icon: History },
+    { id: 'history', label: 'My Bookings', icon: History },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'security', label: 'Security', icon: ShieldCheck },
   ];
@@ -208,7 +264,7 @@ export default function Profile() {
               {activeTab === 'dashboard' && <OwnerDashboardTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setActiveTab={setActiveTab} setShowOTPModal={setShowOTPModal} />}
               {activeTab === 'personal' && <PersonalInfoTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setShowOTPModal={setShowOTPModal} />}
               {activeTab === 'wallet' && <WalletTab />}
-              {activeTab === 'history' && <StayHistoryTab />}
+              {activeTab === 'history' && <MyBookingsTab />}
               {activeTab === 'payments' && <PaymentsTab />}
               {activeTab === 'favourites' && <FavouritesTab />}
               {activeTab === 'new-bookings' && <NewBookingsTab />}
@@ -225,9 +281,13 @@ export default function Profile() {
         email={user?.email || ''} 
         onSuccess={async () => {
           if (user) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              emailVerified: true
-            });
+            try {
+              await updateDoc(doc(db, 'users', user.uid), {
+                emailVerified: true
+              });
+            } catch (error) {
+              handleFirestoreError(error, OperationType.UPDATE, 'users');
+            }
             setShowOTPModal(false);
             showToast("Email verified successfully!", "success");
             // Note: In a real app, you might want to trigger a context refresh here
@@ -851,16 +911,18 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
 import { differenceInHours } from 'date-fns';
 import { walletService } from '../services/walletService';
 
-function StayHistoryTab() {
+function MyBookingsTab() {
   const { user, profile } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { property?: any })[]>([]);
   const [userReviews, setUserReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [ownerInfo, setOwnerInfo] = useState<any>(null);
+  const [loadingOwner, setLoadingOwner] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -896,13 +958,16 @@ function StayHistoryTab() {
       } finally {
         setLoading(false);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'bookings');
     });
 
-    // Fetch user reviews
     const reviewsQ = query(collection(db, 'reviews'), where('visitorId', '==', user.uid));
     const unsubscribeReviews = onSnapshot(reviewsQ, (snapshot) => {
       const reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUserReviews(reviews);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'reviews');
     });
 
     return () => {
@@ -911,50 +976,28 @@ function StayHistoryTab() {
     };
   }, [user]);
 
-  const handleCancelBooking = async (booking: Booking) => {
-    if (!booking.id || !booking.createdAt) return;
+  const openBookingDetails = async (booking: any) => {
+    setSelectedBooking(booking);
+    setShowDetailsModal(true);
+    document.body.style.overflow = 'hidden';
     
-    const hoursSinceBooking = differenceInHours(new Date(), booking.createdAt.toDate());
-    
-    if (hoursSinceBooking > 24) {
-      showToast("An error occurred", "error");
-      return;
+    setLoadingOwner(true);
+    try {
+      const owner = await userService.getUserProfile(booking.ownerId);
+      setOwnerInfo(owner);
+    } catch (error) {
+      console.error("Error fetching owner info:", error);
+    } finally {
+      setLoadingOwner(false);
     }
+  };
 
-    showConfirm("Are you sure you want to cancel this booking? You will receive a full refund to your wallet.", async () => {
-      setCancellingId(booking.id!);
-      try {
-        await bookingService.updateBookingStatus(booking.id!, 'cancelled');
-        const amount = booking.totalAmount || (booking as any).estimatedCost || 0;
-        await walletService.processRefund(booking.visitorId, booking.ownerId, amount, amount * 0.75, booking.id!);
-        
-        // Send Refund Email
-        try {
-          if (user?.email) {
-            const template = emailTemplates.getRefundNotification(
-              profile?.displayName || 'User',
-              amount,
-              booking.id!,
-              'Booking Cancellation (within 24 hours)'
-            );
-            await emailService.sendEmail({
-              to: user.email,
-              subject: template.subject,
-              html: template.html
-            });
-          }
-        } catch (e) {
-          console.error("Failed to send refund email:", e);
-        }
-
-        showToast("Booking cancelled successfully", "success");
-      } catch (error) {
-        console.error("Error cancelling booking:", error);
-        showToast("An error occurred", "error");
-      } finally {
-        setCancellingId(null);
-      }
-    });
+  const closeModals = () => {
+    setShowDetailsModal(false);
+    setShowReviewModal(false);
+    setShowReportModal(false);
+    setShowCancellationModal(false);
+    document.body.style.overflow = 'unset';
   };
 
   if (loading) {
@@ -970,108 +1013,213 @@ function StayHistoryTab() {
       {bookings.length === 0 ? (
         <div className="text-center py-12">
           <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No stays yet</h3>
-          <p className="text-gray-500">When you book a property, your stay history will appear here.</p>
+          <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No bookings yet</h3>
+          <p className="text-gray-500">When you book a property, your bookings will appear here.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {bookings.map((booking) => {
-            const hoursSinceBooking = booking.createdAt ? differenceInHours(new Date(), booking.createdAt.toDate()) : 999;
-            const canCancel = booking.status === 'confirmed' && hoursSinceBooking <= 24;
-            const isCompleted = booking.status === 'completed' || (booking.checkOut && booking.checkOut < new Date());
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {bookings.map((booking) => (
+            <div 
+              key={booking.id} 
+              onClick={() => openBookingDetails(booking)}
+              className="group cursor-pointer bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
+            >
+              <div className="relative h-40 overflow-hidden">
+                <img 
+                  src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
+                  alt="Property" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute top-4 right-4">
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md ${
+                    booking.status === 'confirmed' ? 'bg-emerald-500 text-white' :
+                    booking.status === 'pending' ? 'bg-amber-500 text-white' :
+                    booking.status === 'cancelled' ? 'bg-red-500 text-white' :
+                    'bg-gray-500 text-white'
+                  }`}>
+                    {booking.status}
+                  </span>
+                </div>
+              </div>
+              <div className="p-5">
+                <h3 className="font-bold text-[#1A1A2E] text-lg mb-1 truncate">{booking.property?.title || 'Unknown Property'}</h3>
+                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4">
+                  <MapPin className="w-4 h-4 text-gray-400" /> {booking.property?.area || 'Unknown Location'}
+                </p>
+                <div className="flex justify-between items-center">
+                  <span className="font-black text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</span>
+                  <button 
+                    className="px-4 py-2 bg-[#1A1A2E] text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                  >
+                    Show Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-            return (
-              <div key={booking.id} className="flex flex-col gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow bg-white">
-                <div className="flex flex-col sm:flex-row gap-6">
+      {/* Booking Details Popup */}
+      <AnimatePresence>
+        {showDetailsModal && selectedBooking && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={closeModals}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-gray-100 p-6 flex justify-between items-center z-10">
+                <h3 className="text-xl font-bold text-[#1A1A2E]">Booking Details</h3>
+                <button onClick={closeModals} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                  <XCircle className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-8">
+                {/* Property Brief */}
+                <div className="flex gap-6">
                   <img 
-                    src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
-                    alt="Property" 
-                    className="w-full sm:w-48 h-32 object-cover rounded-xl" 
+                    src={selectedBooking.property?.photos?.[0] || 'https://picsum.photos/seed/prop/300/200'}
+                    className="w-32 h-24 object-cover rounded-2xl shadow-sm"
+                    alt="Prop"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-lg text-[#1A1A2E]">{booking.property?.title || 'Unknown Property'}</h3>
-                        <span className={`text-xs font-bold px-2 py-1 rounded-md ${
-                          booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
-                          booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
-                          booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
-                          'text-gray-600 bg-gray-50'
-                        }`}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500 flex items-center gap-1 mb-2">
-                        <MapPin className="w-4 h-4" /> {booking.property?.area || 'Unknown Location'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Stayed: {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'TBD'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'TBD'} ({booking.nights} nights)
-                      </p>
-                    </div>
-                    <div className="flex justify-between items-center mt-4">
-                      <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</span>
-                      <div className="flex gap-3">
-                        {booking.status === 'confirmed' && (
-                          <button 
-                            onClick={() => { setSelectedBooking(booking); setShowCancellationModal(true); }}
-                            className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
-                          >
-                            Apply for Cancellation
-                          </button>
-                        )}
-                        
-                        {isCompleted && !userReviews.find(r => r.propertyId === booking.propertyId) && (
-                          <button 
-                            onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
-                            className="flex items-center gap-1 px-4 py-2 rounded-xl bg-amber-50 text-[#F59E0B] hover:bg-amber-100 transition-colors border border-amber-100"
-                          >
-                            <div className="flex">
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <Star key={s} className={`w-4 h-4 ${s <= 3 ? 'fill-current' : 'text-gray-300'}`} />
-                              ))}
-                            </div>
-                          </button>
-                        )}
-
-                        <button 
-                          onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
-                          className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                        >
-                          Report
-                        </button>
-                      </div>
+                  <div>
+                    <h4 className="font-bold text-xl text-[#1A1A2E]">{selectedBooking.property?.title}</h4>
+                    <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
+                      <MapPin className="w-4 h-4" /> {selectedBooking.property?.area}
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
+                        selectedBooking.status === 'confirmed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                        selectedBooking.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                        'bg-red-50 text-red-600 border border-red-100'
+                      }`}>
+                        {selectedBooking.status}
+                      </span>
                     </div>
                   </div>
                 </div>
-                
-                {/* Show user's review if it exists */}
-                {userReviews.find(r => r.propertyId === booking.propertyId) && (
-                  <div className="mt-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <Star key={s} className={`w-3.5 h-3.5 ${s <= userReviews.find(r => r.propertyId === booking.propertyId).rating ? 'text-amber-500 fill-current' : 'text-gray-300'}`} />
-                          ))}
-                        </div>
-                        <span className="text-xs font-bold text-gray-400">Your Review</span>
-                      </div>
-                      <span className="text-[10px] text-gray-400">{userReviews.find(r => r.propertyId === booking.propertyId).date}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 italic">"{userReviews.find(r => r.propertyId === booking.propertyId).text}"</p>
+
+                {/* Stay Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Check In</p>
+                    <p className="font-bold text-[#1A1A2E]">{selectedBooking.checkIn ? format(selectedBooking.checkIn, 'MMM dd, yyyy') : 'TBD'}</p>
                   </div>
-                )}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Check Out</p>
+                    <p className="font-bold text-[#1A1A2E]">{selectedBooking.checkOut ? format(selectedBooking.checkOut, 'MMM dd, yyyy') : 'TBD'}</p>
+                  </div>
+                </div>
+
+                {/* Owner Contact */}
+                <div className="space-y-4">
+                  <h5 className="font-bold text-lg text-[#1A1A2E] flex items-center gap-2">
+                    <User className="w-5 h-5 text-[#F59E0B]" />
+                    Owner Information
+                  </h5>
+                  {loadingOwner ? (
+                    <div className="h-20 bg-slate-50 rounded-2xl animate-pulse" />
+                  ) : ownerInfo ? (
+                    <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
+                      <div className="flex items-center gap-4 mb-6">
+                        <img 
+                          src={ownerInfo.photoURL || getAvatarUrl(ownerInfo.displayName || 'Owner')} 
+                          className="w-14 h-14 rounded-full border-2 border-amber-100"
+                          alt="Owner"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div>
+                          <p className="font-bold text-[#1A1A2E] text-lg">{ownerInfo.displayName || 'Property Owner'}</p>
+                          <p className="text-xs text-gray-400 font-medium">Verified Property Owner</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <a href={`tel:${ownerInfo.phone || '9876543210'}`} className="flex items-center gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 group transition-all hover:bg-emerald-100">
+                          <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <Phone className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Call Now</p>
+                            <p className="font-bold text-[#1A1A2E]">{ownerInfo.phone || 'N/A'}</p>
+                          </div>
+                        </a>
+                        <a 
+                          href={`https://wa.me/${(ownerInfo.phone || '919876543210').replace(/\+/g, '')}?text=${encodeURIComponent(`Hello, I have booked your property "${selectedBooking.property?.title}" on ShelterBee.`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-100 group transition-all hover:bg-green-100"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-lg shadow-green-500/20">
+                            <span className="material-symbols-outlined">chat</span>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">WhatsApp</p>
+                            <p className="font-bold text-[#1A1A2E]">Chat with Host</p>
+                          </div>
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4 italic">Owner contact details hidden or unavailable.</p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-4">
+                  {selectedBooking.status === 'confirmed' && (
+                    <button 
+                      onClick={() => setShowCancellationModal(true)}
+                      className="flex-1 py-4 bg-red-50 text-red-600 rounded-2xl font-bold hover:bg-red-100 transition-all border border-red-100 flex items-center justify-center gap-2"
+                    >
+                      <XCircle className="w-5 h-5" /> Cancel Booking
+                    </button>
+                  )}
+                  
+                  {userReviews.find(r => r.propertyId === selectedBooking.propertyId) ? (
+                    <div className="flex-1 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                      <p className="text-xs font-bold text-amber-600 mb-1 flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-current" /> Your Review
+                      </p>
+                      <p className="text-sm text-amber-800 italic truncate italic">"{userReviews.find(r => r.propertyId === selectedBooking.propertyId).text}"</p>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowReviewModal(true)}
+                      className="flex-1 py-4 bg-amber-50 text-[#F59E0B] rounded-2xl font-bold hover:bg-amber-100 transition-all border border-amber-100 flex items-center justify-center gap-2"
+                    >
+                      <Star className="w-5 h-5" /> Rate & Review
+                    </button>
+                  )}
+
+                  <button 
+                    onClick={() => setShowReportModal(true)}
+                    className="flex-1 py-4 bg-slate-50 text-slate-600 rounded-2xl font-bold hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center gap-2"
+                  >
+                    <ShieldAlert className="w-5 h-5" /> Report Property
+                  </button>
+                </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Review Modal */}
       <ReviewModal 
         isOpen={showReviewModal} 
-        onClose={() => setShowReviewModal(false)} 
+        onClose={closeModals} 
         booking={selectedBooking} 
         profile={profile}
       />
@@ -1079,13 +1227,13 @@ function StayHistoryTab() {
       {/* Report Modal */}
       <ReportModal 
         isOpen={showReportModal} 
-        onClose={() => setShowReportModal(false)} 
+        onClose={closeModals} 
         booking={selectedBooking} 
       />
 
       <CancellationModal
         isOpen={showCancellationModal}
-        onClose={() => setShowCancellationModal(false)}
+        onClose={closeModals}
         booking={selectedBooking}
       />
     </div>
@@ -1098,6 +1246,14 @@ function CancellationModal({ isOpen, onClose, booking }: { isOpen: boolean, onCl
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [isOpen]);
 
   if (!isOpen || !booking) return null;
 
@@ -1457,7 +1613,7 @@ function FavouritesTab() {
       setSelectedPropertyReviews(reviews);
       setLoadingReviews(false);
     }, (error) => {
-      console.error("Error fetching reviews realtime:", error);
+      handleFirestoreError(error, OperationType.GET, 'reviews');
       setLoadingReviews(false);
     });
 
@@ -2733,6 +2889,17 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const handleSubmit = async () => {
     if (!booking || !text) return;
     setIsSubmitting(true);
@@ -2859,6 +3026,17 @@ function ReportModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: (
   const [otherIssue, setOtherIssue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const reasons = [
     'Cleanliness Issues',
     'Misleading Information',
@@ -2887,8 +3065,7 @@ function ReportModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: (
       showToast("Report submitted successfully", "success");
       onClose();
     } catch (error) {
-      console.error("Error submitting report:", error);
-      showToast("Failed to submit report", "error");
+      handleFirestoreError(error, OperationType.WRITE, 'reports');
     } finally {
       setIsSubmitting(false);
     }

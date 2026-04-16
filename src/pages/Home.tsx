@@ -110,7 +110,7 @@ export default function Home() {
         {/* YouTube Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden z-0 bg-black">
           <iframe
-            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&showinfo=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&start=50"
+            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&showinfo=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&start=50&end=150"
             className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[100vh] min-w-[177.77vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             allow="autoplay; encrypted-media"
             allowFullScreen

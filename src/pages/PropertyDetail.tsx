@@ -11,6 +11,58 @@ import { reviewService, Review } from '../services/reviewService';
 import { Users, Bed } from 'lucide-react';
 
 import { getAvatarUrl } from '../utils/avatar';
+import { auth } from '../firebase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 const AMENITIES_LIST = ['WiFi', 'AC', 'TV', 'Geyser', 'Washing Machine', 'Fridge', 'Kitchen Access', 'Power Backup', 'Lift', 'Security', 'Parking', 'Gym', 'Swimming Pool', 'Housekeeping', 'Meals Provided'];
 
@@ -97,6 +149,8 @@ export default function PropertyDetail() {
           comfort: Number((features.comfort / fetchedReviews.length).toFixed(1))
         });
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'reviews');
     });
 
     return () => unsubscribeReviews();
@@ -254,7 +308,7 @@ export default function PropertyDetail() {
                 >
                   {profile?.role === 'owner' 
                     ? (property.ownerId === user?.uid ? 'Edit' : 'List')
-                    : (isUnlocked ? 'Contact' : 'Book Now')}
+                    : 'Book Now'}
                 </button>
               </div>
             </div>
@@ -381,78 +435,6 @@ export default function PropertyDetail() {
                 </div>
               </div>
             </div>
-
-            {/* Premium Locked Section */}
-            {!isUnlocked && (
-              <section className="mt-20">
-                <div className="relative p-1 md:p-1.5 rounded-[3rem] indigo-gradient shadow-2xl overflow-hidden group">
-                  {/* Abstract Glow */}
-                  <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#F59E0B]/20 blur-[120px] rounded-full animate-pulse"></div>
-                  <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-500/20 blur-[100px] rounded-full"></div>
-                  
-                  <div className="relative bg-[#1E1B4B]/80 backdrop-blur-xl rounded-[2.8rem] p-10 md:p-16">
-                    <div className="max-w-5xl mx-auto flex flex-col items-center gap-16 text-center">
-                      <div className="space-y-8">
-                        <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/5 border border-white/10">
-                          <span className="material-symbols-outlined text-[#F59E0B] text-xl">lock</span>
-                          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/70">Restricted Data</span>
-                        </div>
-                        <h2 className="text-4xl md:text-5xl font-extrabold text-white leading-tight tracking-tight">Owner Identity & <br/>Contact Information</h2>
-                        <p className="text-xl text-white/60 leading-relaxed font-medium">
-                          For the security and privacy of our hosts, direct contact details are locked. Unlock to get the owner's phone number, email, and exact apartment floor number.
-                        </p>
-                        <div className="flex items-center justify-center gap-6 pt-4">
-                          <div className="flex -space-x-3">
-                            <div className="w-12 h-12 rounded-full border-4 border-[#1E1B4B] bg-slate-300 ring-2 ring-[#F59E0B]/20"></div>
-                            <div className="w-12 h-12 rounded-full border-4 border-[#1E1B4B] bg-slate-400 flex items-center justify-center text-xs font-bold text-white ring-2 ring-[#F59E0B]/20">VS</div>
-                            <div className="w-12 h-12 rounded-full border-4 border-[#1E1B4B] bg-[#F59E0B] flex items-center justify-center text-xs font-black text-[#1E1B4B] ring-2 ring-[#F59E0B]/20">+100</div>
-                          </div>
-                          <div className="text-xs font-bold text-white/40 uppercase tracking-widest">Joined by 124 users this month</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Unlocked Content */}
-            {isUnlocked && (
-              <section className="mt-20">
-                <div className="relative p-1 md:p-1.5 rounded-[3rem] bg-white shadow-2xl overflow-hidden border border-slate-100">
-                  <div className="relative bg-white rounded-[2.8rem] p-10 md:p-16">
-                    <div className="max-w-5xl mx-auto flex flex-col items-center gap-16 text-center">
-                      <div className="space-y-8">
-                        <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/20">
-                          <span className="material-symbols-outlined text-[#F59E0B] text-xl">lock_open</span>
-                          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#F59E0B]">Unlocked Data</span>
-                        </div>
-                        <h2 className="text-4xl md:text-5xl font-extrabold text-[#1E1B4B] leading-tight tracking-tight">Owner Identity & <br/>Contact Information</h2>
-                        <div className="space-y-4">
-                          <p className="text-sm text-[#64748B] font-bold uppercase tracking-wider mb-2">Exact Address</p>
-                          <p className="text-[#1E1B4B] font-medium text-lg leading-relaxed">{property.address}</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                          <a href={`tel:${property.ownerPhone || '+919876543210'}`} className="flex items-center justify-center gap-2 bg-[#F59E0B] text-white hover:bg-[#F59E0B]/90 px-6 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto">
-                            <span className="material-symbols-outlined">call</span>
-                            Call Owner
-                          </a>
-                          <a 
-                            href={`https://wa.me/${(property.ownerPhone || '919876543210').replace(/\+/g, '')}?text=${encodeURIComponent(`Hello ${property.ownerName || 'Host'}, I found your property "${property.title}" on ShelterBee and I'm interested in it. Could you please provide more details?`)}`} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-md w-full sm:w-auto"
-                          >
-                            <span className="material-symbols-outlined">chat</span>
-                            WhatsApp
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
 
             {/* Reviews & Ratings Section */}
             <section className="mt-20 border-t border-slate-200 pt-16">
@@ -638,15 +620,12 @@ export default function PropertyDetail() {
                             ? 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
                             : profile?.role === 'owner'
                               ? 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
-                              : isUnlocked 
-                                ? 'bg-white/20 text-white/50 cursor-not-allowed'
-                                : 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
+                              : 'bg-[#F59E0B] text-[#1E1B4B] shadow-lg shadow-[#F59E0B]/30 hover:bg-amber-400 active:scale-[0.98]'
                         }`}
-                        disabled={user && isUnlocked && profile?.role !== 'owner'}
                       >
                         {profile?.role === 'owner' 
                           ? (property.ownerId === user?.uid ? 'Edit Property' : 'List your own property')
-                          : (isUnlocked ? 'Contact Unlocked' : 'Book Now')}
+                          : 'Book Now'}
                       </button>
 
                   <div className="mt-4 flex flex-col items-center gap-1.5">
@@ -774,9 +753,13 @@ export default function PropertyDetail() {
         email={user?.email || ''} 
         onSuccess={async () => {
           if (user) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              emailVerified: true
-            });
+            try {
+              await updateDoc(doc(db, 'users', user.uid), {
+                emailVerified: true
+              });
+            } catch (error) {
+              handleFirestoreError(error, OperationType.UPDATE, 'users');
+            }
             setShowOTPModal(false);
             showToast("Email verified successfully!", "success");
           }

@@ -144,37 +144,30 @@ async function startServer() {
     }
   });
 
-  // API Route to upload image to Cloudinary
-  app.post("/api/upload-image", upload.single("image"), async (req, res) => {
+  // API Route to generate Cloudinary signature for direct upload
+  app.post("/api/cloudinary-signature", async (req, res) => {
     try {
-      const multerReq = req as any;
-      const { userId, folder } = req.body;
-
-      if (!multerReq.file) {
-        return res.status(400).json({ error: "No image file provided" });
+      const { folder } = req.body;
+      const timestamp = Math.round(new Date().getTime() / 1000);
+      
+      if (!process.env.CLOUDINARY_API_SECRET) {
+        return res.status(500).json({ error: "Cloudinary secret not configured" });
       }
 
-      if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-        return res.status(500).json({ error: "Cloudinary credentials not configured on server" });
-      }
+      const signature = cloudinary.utils.api_sign_request(
+        { folder, timestamp },
+        process.env.CLOUDINARY_API_SECRET
+      );
 
-      // Convert buffer to base64
-      const b64 = Buffer.from(multerReq.file.buffer).toString("base64");
-      const dataURI = "data:" + multerReq.file.mimetype + ";base64," + b64;
-
-      const result = await cloudinary.uploader.upload(dataURI, {
-        folder: folder || (userId ? `shelterbee/users/${userId}` : "shelterbee_properties"),
-        resource_type: "auto",
-        tags: userId ? [userId] : []
-      });
-
-      res.json({ 
-        url: result.secure_url,
-        public_id: result.public_id
+      res.json({
+        signature,
+        timestamp,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+        apiKey: process.env.CLOUDINARY_API_KEY
       });
     } catch (error: any) {
-      console.error("Cloudinary upload error:", error);
-      res.status(500).json({ error: error.message || "Failed to upload image" });
+      console.error("Signature generation error:", error);
+      res.status(500).json({ error: "Failed to generate signature" });
     }
   });
 

@@ -59,13 +59,19 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
       setAttempts(0);
       setError('');
       setTimeLeft(60);
+      document.body.style.overflow = 'hidden';
       // Focus first input after a short delay to allow modal to render
       setTimeout(() => {
         if (inputRefs.current[0]) {
           inputRefs.current[0].focus();
         }
       }, 100);
+    } else {
+      document.body.style.overflow = 'unset';
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen]);
 
   useEffect(() => {
