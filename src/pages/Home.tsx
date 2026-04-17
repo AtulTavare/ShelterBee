@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Search, X, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
   const { user, profile, updateProfileData } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [isAreaPopupOpen, setIsAreaPopupOpen] = useState(false);
   const [filterType, setFilterType] = useState('Any Type');
-  const [occupancy, setOccupancy] = useState<number | 'Any'>(1);
+  const [occupancy, setOccupancy] = useState<number | 'Any'>('Any');
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isOccupancyDropdownOpen, setIsOccupancyDropdownOpen] = useState(false);
   const [topFilter, setTopFilter] = useState<'ratings' | 'reviews'>('ratings');
@@ -31,6 +32,11 @@ export default function Home() {
     };
     fetchProperties();
   }, []);
+
+  const availableAreas = useMemo(() => {
+    const areas = properties.map(p => p.area).filter(Boolean);
+    return Array.from(new Set(areas));
+  }, [properties]);
 
   const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -95,6 +101,14 @@ export default function Home() {
     { q: "Do I need to provide documents?", a: "Yes, ID proof and property proof required for verification and trust." }
   ];
 
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    if (selectedAreas.length > 0) params.set('areas', selectedAreas.join(','));
+    if (filterType !== 'Any Type') params.set('type', filterType);
+    if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
+    navigate(`/listings?${params.toString()}`);
+  };
+
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background">
       <style>{`
@@ -117,6 +131,9 @@ export default function Home() {
         .pill-glow-1 { animation: blinkGlow 3s infinite 0s; }
         .pill-glow-2 { animation: blinkGlow 3s infinite 1s; }
         .pill-glow-3 { animation: blinkGlow 3s infinite 2s; }
+        @media (min-width: 1024px) {
+          /* Navbar z-index handled centrally in Navbar.tsx */
+        }
       `}</style>
 
       {/* Hero Section */}
@@ -124,7 +141,7 @@ export default function Home() {
         {/* YouTube Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden z-0 bg-black">
           <iframe
-            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&showinfo=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&start=50&end=100"
+            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&iv_load_policy=3&start=0&end=70"
             className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[100vh] min-w-[177.77vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             allow="autoplay; encrypted-media"
             allowFullScreen
@@ -142,15 +159,14 @@ export default function Home() {
           <div className="w-full max-w-xl bg-white rounded-3xl md:rounded-full shadow-2xl flex flex-col md:flex-row items-center p-2 md:p-1.5 relative z-20 border border-gray-200 gap-1 md:gap-0">
             
             {/* Where */}
-            <div className="flex-1 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-text transition-colors w-full text-left">
+            <div 
+              className="flex-1 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors w-full text-left"
+              onClick={() => setIsAreaPopupOpen(true)}
+            >
               <label className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Where</label>
-              <input 
-                className="bg-transparent border-none focus:ring-0 text-sm text-gray-600 placeholder:text-gray-400 p-0 outline-none w-full mt-0.5"
-                placeholder="Search destinations"
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <div className={`text-sm mt-0.5 truncate ${selectedAreas.length === 0 ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
+                {selectedAreas.length > 0 ? selectedAreas.join(', ') : 'Search destinations'}
+              </div>
             </div>
 
             <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
@@ -162,7 +178,7 @@ export default function Home() {
                 onClick={() => setIsTypeDropdownOpen(true)}
               >
                 <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Type</div>
-                <div className={`text-sm mt-0.5 truncate ${filterType === 'Any Type' ? 'text-gray-400' : 'text-gray-600'}`}>
+                <div className={`text-sm mt-0.5 truncate ${filterType === 'Any Type' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
                   {filterType === 'Any Type' ? 'Any' : filterType}
                 </div>
               </div>
@@ -175,69 +191,155 @@ export default function Home() {
                 onClick={() => setIsOccupancyDropdownOpen(true)}
               >
                 <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Guests</div>
-                <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {occupancy === 'Any' ? 'Any' : `${occupancy}`}
+                <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
+                  {occupancy === 'Any' ? 'Any' : `${occupancy} Guests`}
                 </div>
               </div>
             </div>
 
             {/* Search Button */}
             <button 
-              onClick={() => {
-                const params = new URLSearchParams();
-                if (searchTerm) params.set('search', searchTerm);
-                if (filterType !== 'Any Type') params.set('type', filterType);
-                if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
-                navigate(`/listings?${params.toString()}`);
-              }}
+              onClick={handleSearch}
               className="w-full md:w-12 h-12 rounded-2xl md:rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 flex-shrink-0 shadow-md gap-2 md:gap-0"
             >
-              <span className="md:hidden font-bold">Search Stays</span>
-              <span className="material-symbols-outlined text-xl">search</span>
+              <span className="md:hidden font-bold text-sm">Search Stays</span>
+              <Search className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Property Type Popup Modal */}
+        {/* Multi-select Area Popup */}
         <AnimatePresence>
-          {isTypeDropdownOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          {isAreaPopupOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 p-4">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 shadow-2xl backdrop-blur-md"
+                onClick={() => setIsAreaPopupOpen(false)}
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden z-10 flex flex-col max-h-[80vh]"
+              >
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#1A1A2E]">Select Destinations</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Select multiple areas to search</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsAreaPopupOpen(false)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
+                  {availableAreas.length === 0 ? (
+                    <div className="p-8 text-center text-gray-400 italic">No areas found.</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {availableAreas.map((area) => (
+                        <div 
+                          key={area}
+                          className={`group px-5 py-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all duration-200 border-2 ${
+                            selectedAreas.includes(area) 
+                              ? 'bg-primary/5 border-primary' 
+                              : 'hover:bg-gray-50 border-transparent hover:border-gray-200'
+                          }`}
+                          onClick={() => {
+                            setSelectedAreas(prev => 
+                              prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
+                            );
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${selectedAreas.includes(area) ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
+                              <MapPin size={18} />
+                            </div>
+                            <span className={`text-base font-bold transition-colors ${selectedAreas.includes(area) ? 'text-primary' : 'text-gray-700'}`}>
+                              {area}
+                            </span>
+                          </div>
+                          {selectedAreas.includes(area) && (
+                            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="p-6 bg-gray-50 border-t border-gray-100">
+                  <button 
+                    onClick={() => setIsAreaPopupOpen(false)}
+                    className="w-full py-4 bg-[#1A1A2E] text-white rounded-2xl font-bold hover:bg-[#2A2A3E] transition-all transform active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {selectedAreas.length > 0 ? `Apply ${selectedAreas.length} Areas` : 'Select Areas'}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Property Type Popup Modal */}
+        <AnimatePresence>
+          {isTypeDropdownOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 p-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/60 shadow-2xl backdrop-blur-md"
                 onClick={() => setIsTypeDropdownOpen(false)}
               />
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                initial={{ opacity: 0, scale: 0.9, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
+                exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
               >
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <h3 className="font-bold text-gray-800">Select Property Type</h3>
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#1A1A2E]">Property Type</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Filter by stay category</p>
+                  </div>
                   <button 
                     onClick={() => setIsTypeDropdownOpen(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition-colors"
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 transition-colors"
                   >
-                    <span className="material-symbols-outlined text-sm">close</span>
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="p-2">
-                  {propertyTypes.map((type) => (
-                    <div 
-                      key={type}
-                      className="px-4 py-3 my-1 hover:bg-gray-50 rounded-xl cursor-pointer text-gray-700 text-sm font-medium transition-colors flex items-center justify-between"
-                      onClick={() => {
-                        setFilterType(type);
-                        setIsTypeDropdownOpen(false);
-                      }}
-                    >
-                      {type}
-                      {filterType === type && <span className="material-symbols-outlined text-primary text-sm">check</span>}
-                    </div>
-                  ))}
+                <div className="p-4">
+                  <div className="space-y-1">
+                    {propertyTypes.map((type) => (
+                      <div 
+                        key={type}
+                        className={`px-5 py-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all duration-200 border-2 ${
+                          filterType === type 
+                            ? 'bg-primary/5 border-primary' 
+                            : 'hover:bg-gray-50 border-transparent'
+                        }`}
+                        onClick={() => {
+                          setFilterType(type);
+                          setIsTypeDropdownOpen(false);
+                        }}
+                      >
+                        <span className={`text-base font-bold ${filterType === type ? 'text-primary' : 'text-gray-700'}`}>
+                          {type}
+                        </span>
+                        {filterType === type && (
+                          <Check className="w-5 h-5 text-primary" strokeWidth={3} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -247,43 +349,56 @@ export default function Home() {
         {/* Occupancy Popup Modal */}
         <AnimatePresence>
           {isOccupancyDropdownOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 p-4">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 shadow-2xl backdrop-blur-md"
                 onClick={() => setIsOccupancyDropdownOpen(false)}
               />
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                initial={{ opacity: 0, scale: 0.9, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
+                exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
               >
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <h3 className="font-bold text-gray-800">Select Occupancy</h3>
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#1A1A2E]">Guests</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">How many people are staying?</p>
+                  </div>
                   <button 
                     onClick={() => setIsOccupancyDropdownOpen(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition-colors"
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 transition-colors"
                   >
-                    <span className="material-symbols-outlined text-sm">close</span>
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="p-2">
-                  {['Any', 1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
-                    <div 
-                      key={num}
-                      className="px-4 py-3 my-1 hover:bg-gray-50 rounded-xl cursor-pointer text-gray-700 text-sm font-medium transition-colors flex items-center justify-between"
-                      onClick={() => {
-                        setOccupancy(num as any);
-                        setIsOccupancyDropdownOpen(false);
-                      }}
-                    >
-                      {num === 'Any' ? 'Any Occupancy' : `${num} Guests`}
-                      {occupancy === num && <span className="material-symbols-outlined text-primary text-sm">check</span>}
-                    </div>
-                  ))}
+                <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                  <div className="space-y-1">
+                    {['Any', 1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                      <div 
+                        key={num}
+                        className={`px-5 py-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all duration-200 border-2 ${
+                          occupancy === num 
+                            ? 'bg-primary/5 border-primary' 
+                            : 'hover:bg-gray-50 border-transparent'
+                        }`}
+                        onClick={() => {
+                          setOccupancy(num as any);
+                          setIsOccupancyDropdownOpen(false);
+                        }}
+                      >
+                        <span className={`text-base font-bold ${occupancy === num ? 'text-primary' : 'text-gray-700'}`}>
+                          {num === 'Any' ? 'Any Occupancy' : `${num} Guest${typeof num === 'number' && num > 1 ? 's' : ''}`}
+                        </span>
+                        {occupancy === num && (
+                          <Check className="w-5 h-5 text-primary" strokeWidth={3} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -295,11 +410,11 @@ export default function Home() {
       <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-lowest border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Trending Properties</h2>
-            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Most viewed properties this week.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Trending Properties</h2>
+            <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Most viewed properties this week.</p>
           </div>
-          <Link to="/listings" className="flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all text-sm md:text-base">
-            View All <span className="material-symbols-outlined">arrow_forward</span>
+          <Link to="/listings" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+            View All <Search className="w-4 h-4" />
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -319,11 +434,11 @@ export default function Home() {
       <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-low border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">New Listings</h2>
-            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Fresh properties added recently.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">New Listings</h2>
+            <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Fresh properties added recently.</p>
           </div>
-          <Link to="/listings" className="flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all text-sm md:text-base">
-            View All <span className="material-symbols-outlined">arrow_forward</span>
+          <Link to="/listings" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+            View All <Search className="w-4 h-4" />
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -342,19 +457,19 @@ export default function Home() {
       <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-lowest border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Top Properties</h2>
-            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Highest rated and most reviewed.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Top Properties</h2>
+            <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Highest rated and most reviewed.</p>
           </div>
-          <div className="flex bg-surface-container rounded-xl p-1 w-full md:w-auto overflow-x-auto scrollbar-hide">
+          <div className="flex bg-[#F1F3F5] rounded-2xl p-1.5 w-full md:w-auto overflow-x-auto scrollbar-hide">
             <button 
               onClick={() => setTopFilter('ratings')}
-              className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${topFilter === 'ratings' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 whitespace-nowrap ${topFilter === 'ratings' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               By Ratings
             </button>
             <button 
               onClick={() => setTopFilter('reviews')}
-              className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${topFilter === 'reviews' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 whitespace-nowrap ${topFilter === 'reviews' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               By Reviews
             </button>
@@ -377,11 +492,11 @@ export default function Home() {
       <section className="py-12 md:py-16 px-4 md:px-8 bg-surface-container-low border-b border-outline-variant/20">
         <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-xl md:text-4xl font-extrabold text-on-secondary-fixed tracking-tight">Most Affordable</h2>
-            <p className="text-xs md:text-base text-on-secondary-fixed-variant mt-1 md:mt-2 font-medium">Great stays that fit your budget.</p>
+            <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Most Affordable</h2>
+            <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Great stays that fit your budget.</p>
           </div>
-          <Link to="/listings" className="flex items-center gap-2 text-primary font-bold hover:gap-4 transition-all text-sm md:text-base">
-            View All <span className="material-symbols-outlined">arrow_forward</span>
+          <Link to="/listings" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+            View All <Search className="w-4 h-4" />
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -401,21 +516,21 @@ export default function Home() {
       <section className="py-24 px-8 bg-surface-container-low">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">Frequently Asked Questions</h2>
-            <p className="text-on-surface-variant mt-3 font-medium text-base md:text-lg">Everything you need to know about Shelterbee.</p>
+            <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1A2E] tracking-tight mb-4">Frequently Asked Questions</h2>
+            <p className="text-gray-500 font-medium text-lg">Everything you need to know about Shelterbee.</p>
           </div>
           <div className="space-y-4">
             {faqs.map((faq, index) => (
-              <div key={faq.q} className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
+              <div key={faq.q} className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                 <button 
                   onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                  className="w-full px-6 py-5 flex items-center justify-between text-left focus:outline-none"
+                  className="w-full px-8 py-6 flex items-center justify-between text-left focus:outline-none"
                 >
-                  <span className="font-bold text-on-surface text-lg">{faq.q}</span>
+                  <span className="font-bold text-[#1A1A2E] text-lg">{faq.q}</span>
                   {openFaq === index ? (
-                    <ChevronUp className="w-5 h-5 text-primary flex-shrink-0" />
+                    <ChevronUp className="w-6 h-6 text-primary flex-shrink-0" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-on-surface-variant flex-shrink-0" />
+                    <ChevronDown className="w-6 h-6 text-gray-400 flex-shrink-0" />
                   )}
                 </button>
                 <AnimatePresence>
@@ -424,7 +539,7 @@ export default function Home() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-6 pb-5 text-on-surface-variant leading-relaxed"
+                      className="px-8 pb-6 text-gray-500 font-medium leading-relaxed"
                     >
                       {faq.a}
                     </motion.div>

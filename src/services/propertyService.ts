@@ -14,6 +14,7 @@ export interface Property {
   amenities: string[];
   description: string;
   status: 'Pending' | 'Approved' | 'Rejected';
+  rejectionReason?: string;
   createdAt: any;
   availableFrom?: string;
   isAvailable?: boolean;

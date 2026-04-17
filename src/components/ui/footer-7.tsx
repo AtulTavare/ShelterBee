@@ -1,5 +1,5 @@
 import React from "react";
-import { Facebook, Instagram, Linkedin, Twitter } from "lucide-react";
+import { Facebook, Instagram, Linkedin, Twitter, ArrowUpRight } from "lucide-react";
 
 interface Footer7Props {
   logo?: {
@@ -56,7 +56,7 @@ const defaultSections = [
 const defaultSocialLinks = [
   { icon: <Instagram className="w-5 h-5" />, href: "https://www.instagram.com/shelterbee_4_you", label: "Instagram" },
   { icon: <Facebook className="w-5 h-5" />, href: "https://www.facebook.com/share/1BQoUFoHto/", label: "Facebook" },
-  { icon: <Twitter className="w-5 h-5" />, href: "#", label: "Twitter" },
+  { icon: <Twitter className="w-5 h-5" />, href: "https://x.com/ShelterBee8426", label: "Twitter" },
   { icon: <Linkedin className="w-5 h-5" />, href: "#", label: "LinkedIn" },
 ];
 
@@ -125,15 +125,29 @@ export const Footer7 = ({
             ))}
           </div>
         </div>
-        <div className="mt-16 flex flex-col justify-between gap-4 border-t border-outline-variant/30 py-8 text-xs font-medium text-on-surface-variant md:flex-row md:items-center md:text-left">
-          <p className="order-2 lg:order-1">{copyright}</p>
-          <ul className="order-1 flex flex-col gap-2 md:order-2 md:flex-row md:gap-6">
-            {legalLinks.map((link, idx) => (
-              <li key={idx} className="hover:text-primary transition-colors">
-                <a href={link.href}> {link.name}</a>
-              </li>
-            ))}
-          </ul>
+        <div className="mt-16 flex flex-col justify-between gap-6 border-t border-outline-variant/30 py-8 text-xs font-medium text-on-surface-variant md:flex-row md:items-center">
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            <p>{copyright}</p>
+            <ul className="flex gap-4 md:gap-6">
+              {legalLinks.map((link, idx) => (
+                <li key={idx} className="hover:text-primary transition-colors">
+                  <a href={link.href}> {link.name}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex items-center justify-center md:ml-auto md:justify-end gap-2 font-bold whitespace-nowrap">
+            <span>Designed & Powered by</span>
+            <a 
+              href="https://infinityinnovations.framer.ai/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="group flex items-center gap-1 text-red-600 hover:text-red-700 transition-colors"
+            >
+              <span className="underline decoration-red-600/30 underline-offset-4">INFINITY INNOVATIONS</span>
+              <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all -translate-y-0.5" />
+            </a>
+          </div>
         </div>
       </div>
     </section>

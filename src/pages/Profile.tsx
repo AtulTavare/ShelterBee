@@ -9,6 +9,7 @@ import { propertyService } from '../services/propertyService';
 import { emailService } from '../services/emailService';
 import { userService } from '../services/userService';
 import { reviewService, Review } from '../services/reviewService';
+import { walletService } from '../services/walletService';
 import { Bed } from 'lucide-react';
 import { emailTemplates } from '../services/emailTemplates';
 import { format } from 'date-fns';
@@ -35,7 +36,12 @@ import {
   Calendar,
   XCircle,
   Phone,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw,
+  Trash2,
+  MessageSquare,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 import PropertyCard from '../components/PropertyCard';
@@ -319,7 +325,23 @@ function NewBookingsTab() {
     if (!rejectionReason || !selectedBooking) return;
     setProcessing(true);
     try {
-      await bookingService.updateBookingStatus(selectedBooking.id, 'cancelled', {
+      // 1. Get financials for the refund
+      const financials = await bookingService.getBookingFinancials(selectedBooking.id);
+      if (!financials) {
+        throw new Error("Financial records not found for this booking.");
+      }
+
+      // 2. Process refund: Transfer amount from Owner to Visitor
+      await walletService.processRefund(
+        selectedBooking.visitorId,
+        selectedBooking.ownerId,
+        selectedBooking.totalAmount, // Refund total to visitor
+        financials.receivedAmount,   // Deduct from owner what they actually received
+        selectedBooking.id
+      );
+
+      // 3. Update booking status
+      await bookingService.updateBookingStatus(selectedBooking.id, 'rejected', {
         rejectionReason,
         rejectedBy: 'owner',
         rejectedAt: serverTimestamp()
@@ -459,7 +481,7 @@ function NewBookingsTab() {
 
               <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Amount</span>
-                <span className="font-black text-[#1A1A2E]">₹{booking.totalAmount}</span>
+                <span className="font-black text-[#1A1A2E]">₹{(booking.totalAmount || 0).toLocaleString()}</span>
               </div>
             </div>
           ))}
@@ -537,7 +559,7 @@ function NewBookingsTab() {
 
                 <div className="pt-4 flex justify-between items-center">
                   <span className="text-lg font-bold text-[#1E1B4B]">Total Revenue</span>
-                  <span className="text-2xl font-black text-[#F59E0B]">₹{selectedBooking.totalAmount}</span>
+                  <span className="text-2xl font-black text-[#F59E0B]">₹{(selectedBooking.totalAmount || 0).toLocaleString()}</span>
                 </div>
 
                 {selectedBooking.status === 'pending' && (
@@ -900,7 +922,7 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
                 <div key={booking.id} className="flex justify-between items-center text-sm">
                   <span className="text-[#1A1A2E] font-medium">{booking.createdAt ? format(booking.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}</span>
                   <span className="text-gray-400">#{booking.id?.substring(0, 8).toUpperCase()}</span>
-                  <span className="font-bold text-[#1A1A2E]">₹{booking.totalAmount || booking.estimatedCost}</span>
+                  <span className="font-bold text-[#1A1A2E]">₹{(booking.totalAmount || booking.estimatedCost || 0).toLocaleString()}</span>
                 </div>
               ))
             )}
@@ -910,9 +932,6 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
     </div>
   );
 }
-
-import { differenceInHours } from 'date-fns';
-import { walletService } from '../services/walletService';
 
 function MyBookingsTab() {
   const { user, profile } = useAuth();
@@ -1068,7 +1087,7 @@ function MyBookingsTab() {
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
-                          <p className="text-2xl font-black text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</p>
+                          <p className="text-2xl font-black text-[#1A1A2E]">₹{(booking.totalAmount || (booking as any).estimatedCost || 0).toLocaleString()}</p>
                         </div>
                       </div>
 
@@ -1225,18 +1244,31 @@ function MyBookingsTab() {
     setLoading(true);
     try {
       const amount = booking.totalAmount || booking.estimatedCost || 0;
+      const receivedAmount = (booking.financials?.receivedAmount) || (amount * 0.75); // Assume 75% was owner's share
       
+      // Determine if eligible for refund (e.g., more than 24h before check-in)
+      const now = new Date();
+      const checkInDate = booking.checkIn;
+      const hoursUntilCheckIn = checkInDate ? (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60) : 48;
+      const isEligibleForRefund = hoursUntilCheckIn >= 24;
+
       // Update booking status
       await bookingService.updateBookingStatus(booking.id, 'cancelled', {
         cancellationReason: reason,
         cancelledBy: 'visitor',
-        cancelledAt: serverTimestamp()
+        cancelledAt: serverTimestamp(),
+        refundStatus: isEligibleForRefund ? 'full' : 'none'
       });
 
-      // Process refund (deduct from owner wallet)
-      // For simplicity, we refund 100% if cancelled by visitor for now, 
-      // but in a real app this would depend on policies.
-      await walletService.processRefund(booking.visitorId, booking.ownerId, amount, amount * 0.75, booking.id);
+      if (isEligibleForRefund) {
+        // Full refund to visitor, deduct from owner
+        await walletService.processRefund(booking.visitorId, booking.ownerId, amount, receivedAmount, booking.id);
+        showToast("Booking cancelled. Refund initiated to your wallet.", "success");
+      } else {
+        // No refund to visitor, transfer owner's share to admin per user request
+        await walletService.processAdminTransfer(booking.ownerId, receivedAmount, booking.id);
+        showToast("Booking cancelled. Non-refundable per policy. Funds moved to platform.", "info");
+      }
 
       // Send emails
       const owner = await userService.getUserProfile(booking.ownerId);
@@ -1254,7 +1286,6 @@ function MyBookingsTab() {
         });
       }
 
-      showToast("Booking cancelled successfully", "success");
       onClose();
     } catch (error) {
       console.error("Error cancelling booking:", error);
@@ -1437,7 +1468,7 @@ function PaymentsTab() {
                       {booking.status === 'confirmed' ? 'Paid' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                     </span>
                   </td>
-                  <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{booking.totalAmount || booking.estimatedCost}</td>
+                  <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{(booking.totalAmount || booking.estimatedCost || 0).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -1461,6 +1492,11 @@ function FavouritesTab() {
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [selectedPropertyTitle, setSelectedPropertyTitle] = useState('');
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
+  
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [rejectionBooking, setRejectionBooking] = useState<any>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isProcessingRejection, setIsProcessingRejection] = useState(false);
 
   const isOwner = profile?.role === 'owner';
 
@@ -1623,7 +1659,67 @@ function FavouritesTab() {
     }
   };
 
+  const handleRejectBooking = async () => {
+    if (!rejectionBooking || !rejectionReason.trim()) {
+      showToast("Please provide a reason for rejection", "error");
+      return;
+    }
+
+    setIsProcessingRejection(true);
+    try {
+      const bookingId = rejectionBooking.id;
+      
+      // 1. Update booking status and reason
+      await bookingService.updateBookingStatus(bookingId, 'cancelled', rejectionReason);
+      
+      // 2. Process Refund (Instantly transfer from owner to visitor)
+      // We need to calculate the amount to refund. 
+      // Usually it's the full amount the visitor paid, and we debit the owner's wallet for what they received.
+      const amount = rejectionBooking.totalAmount || rejectionBooking.estimatedCost || 0;
+      const ownerReceived = rejectionBooking.receivedAmount || (amount * 0.75); // Fallback to 75% if not set
+      
+      await walletService.processRefund(
+        rejectionBooking.visitorId, 
+        rejectionBooking.ownerId, 
+        amount, 
+        ownerReceived, 
+        bookingId
+      );
+
+      // 3. Notify Visitor
+      const visitor = await userService.getUserProfile(rejectionBooking.visitorId);
+      if (visitor && visitor.email) {
+        await emailService.sendEmail({
+          to: visitor.email,
+          subject: `Booking Rejected: ${selectedPropertyTitle}`,
+          text: `Hello ${visitor.displayName || 'User'},\n\nYour booking for "${selectedPropertyTitle}" has been rejected by the property owner.\nReason: ${rejectionReason}\n\nThe booking amount of ₹${amount.toLocaleString()} has been refunded to your wallet.\n\nThank you,\nShelterbee Team`,
+          html: `<p>Hello ${visitor.displayName || 'User'},</p><p>Your booking for "<strong>${selectedPropertyTitle}</strong>" has been rejected by the property owner.</p><p><strong>Reason:</strong> ${rejectionReason}</p><p>The booking amount of <strong>₹${amount.toLocaleString()}</strong> has been refunded to your wallet.</p><p>Thank you,<br/>Shelterbee Team</p>`
+        });
+      }
+
+      showToast("Booking rejected and refund processed successfully", "success");
+      setShowRejectionModal(false);
+      setRejectionReason('');
+      setRejectionBooking(null);
+      
+      // Refresh bookings list
+      await viewBookings(rejectionBooking.propertyId, selectedPropertyTitle);
+    } catch (error) {
+      console.error("Error rejecting booking:", error);
+      showToast("Failed to process rejection and refund", "error");
+    } finally {
+      setIsProcessingRejection(false);
+    }
+  };
+
   const updateBookingStatus = async (bookingId: string, status: 'confirmed' | 'cancelled' | 'completed') => {
+    if (status === 'cancelled') {
+      const booking = selectedPropertyBookings.find(b => b.id === bookingId);
+      setRejectionBooking(booking);
+      setShowRejectionModal(true);
+      return;
+    }
+
     try {
       await bookingService.updateBookingStatus(bookingId, status);
       
@@ -1635,16 +1731,26 @@ function FavouritesTab() {
           await emailService.sendEmail({
             to: visitor.email,
             subject: `Booking ${status.charAt(0).toUpperCase() + status.slice(1)}: ${selectedPropertyTitle}`,
-            text: `Hello ${visitor.displayName || 'User'},\n\nYour booking for "${selectedPropertyTitle}" has been ${status}.\n\nThank you,\nAdmin Team`,
-            html: `<p>Hello ${visitor.displayName || 'User'},</p><p>Your booking for "<strong>${selectedPropertyTitle}</strong>" has been <strong>${status}</strong>.</p><p>Thank you,<br/>Admin Team</p>`
+            text: `Hello ${visitor.displayName || 'User'},\n\nYour booking for "${selectedPropertyTitle}" has been ${status}.\n\nThank you,\nShelterbee Team`,
+            html: `<p>Hello ${visitor.displayName || 'User'},</p><p>Your booking for "<strong>${selectedPropertyTitle}</strong>" has been <strong>${status}</strong>.</p><p>Thank you,<br/>Shelterbee Team</p>`
           });
         }
       }
 
+      showToast(`Booking ${status} successfully`, "success");
+      
       // Refresh bookings
       const allOwnerBookings = await bookingService.getBookingsByOwner(user!.uid);
       const propBookings = allOwnerBookings.filter(b => b.propertyId === selectedPropertyBookings[0]?.propertyId);
-      setSelectedPropertyBookings(propBookings);
+      
+      // Refetch financials
+      const bookingsWithFinancials = await Promise.all(
+        propBookings.map(async (b) => {
+          const financials = await bookingService.getBookingFinancials(b.id!);
+          return { ...b, ...financials };
+        })
+      );
+      setSelectedPropertyBookings(bookingsWithFinancials);
     } catch (error) {
       console.error("Error updating booking:", error);
       showToast("An error occurred", "error");
@@ -1711,10 +1817,20 @@ function FavouritesTab() {
         <div className={`grid grid-cols-1 ${isOwner ? 'md:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-8`}>
           {properties.map((property, index) => (
             isOwner ? (
-              <div key={`${property.id}-${index}`} className="group bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.08)] transition-all duration-500">
-                <div className="relative h-56 overflow-hidden">
-                  <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=600"} alt={property.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <div 
+                key={`${property.id}-${index}`} 
+                className={`group bg-white rounded-[2.5rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.08)] transition-all duration-500 ${property.status === 'Rejected' ? 'ring-2 ring-red-100' : ''}`}
+              >
+                <div className="relative h-64 overflow-hidden">
+                  <img 
+                    src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=600"} 
+                    alt={property.title} 
+                    className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-110" 
+                    referrerPolicy="no-referrer" 
+                  />
                   
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
+
                   <div className="absolute top-6 right-6 flex flex-col gap-3">
                     <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-xl border border-white/20 ${
                       property.status === 'Approved' ? 'bg-emerald-500/90 text-white' :
@@ -1723,78 +1839,129 @@ function FavouritesTab() {
                     }`}>
                       {property.status}
                     </div>
-                    <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-xl border border-white/20 ${
-                      property.availabilityStatus !== 'unavailable' ? 'bg-blue-500/90 text-white' : 'bg-slate-500/90 text-white'
-                    }`}>
-                      {property.availabilityStatus !== 'unavailable' ? 'Available' : 'Hidden'}
+                    {property.availabilityStatus !== 'unavailable' && (
+                      <div className="px-4 py-2 bg-blue-500/90 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-xl border border-white/20">
+                        Live
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+                    <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/20 flex items-center gap-2">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span className="text-white font-black text-sm">{property.rating || '0.0'}</span>
+                      <span className="text-white/60 text-[10px] font-bold">({property.reviewCount || 0})</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-8">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-black text-[#1A1A2E] text-2xl tracking-tighter truncate flex-1">{property.title}</h3>
-                    <div className="flex items-center gap-2 text-[#F59E0B] bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
-                      <Star className="w-3.5 h-3.5 fill-current" />
-                      <span className="text-xs font-black tracking-tight">{property.rating || '4.8'}</span>
+                  <div className="mb-6">
+                    <div className="flex justify-between items-start mb-2">
+                       <h3 className="font-black text-[#1A1A2E] text-2xl tracking-tighter truncate flex-1 leading-tight group-hover:text-[#F59E0B] transition-colors">{property.title}</h3>
+                       <div className="text-right">
+                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Price</p>
+                         <p className="text-xl font-black text-[#F59E0B]">₹{(property.pricePerDay || 0).toLocaleString()}</p>
+                       </div>
                     </div>
+                    <p className="text-sm text-gray-500 flex items-center gap-2 font-medium">
+                      <MapPin className="w-4 h-4 text-[#F59E0B]" /> {property.area}
+                    </p>
                   </div>
-                  
-                  <p className="text-sm text-gray-500 flex items-center gap-2 mb-6 font-medium">
-                    <MapPin className="w-4 h-4 text-[#F59E0B]" /> {property.area}
-                  </p>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => navigate(`/list-property?edit=${property.id}`)}
-                      className={`col-span-2 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
-                        property.status === 'Rejected' 
-                          ? 'bg-red-500 text-white hover:bg-red-600' 
-                          : 'bg-[#1A1A2E] text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Edit3 className="w-4 h-4" />
-                      {property.status === 'Rejected' ? 'Reapply Listing' : 'Edit Listing'}
-                    </button>
+                  {property.status === 'Rejected' && (
+                    <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-[2rem] flex gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center shrink-0">
+                        <ShieldAlert className="w-6 h-6 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-1">Rejection Reason</p>
+                        <p className="text-sm text-red-800 font-medium leading-relaxed">{property.rejectionReason || 'No specific reason provided by admin.'}</p>
+                      </div>
+                    </div>
+                  )}
 
-                    <button 
-                      onClick={() => viewBookings(property.id, property.title)}
-                      className="py-4 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
-                    >
-                      <Calendar className="w-4 h-4 text-[#F59E0B]" /> Bookings
-                    </button>
-
-                    <button 
-                      onClick={() => viewReviews(property.id, property.title)}
-                      className="py-4 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
-                    >
-                      <Star className="w-4 h-4 text-[#F59E0B]" /> Reviews
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        if (property.availabilityStatus !== 'unavailable') {
-                          setSelectedPropertyToHide(property);
-                          setShowHideModal(true);
-                        } else {
-                          propertyService.updateProperty(property.id, { availabilityStatus: 'available', unavailabilityOption: null, unavailableFrom: null, unavailableTo: null }).then(() => {
-                            showToast("Property is now available", "success");
-                            fetchContent();
-                          });
-                        }
-                      }}
-                      className="py-4 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-[#F59E0B]" />
-                      {property.availabilityStatus !== 'unavailable' ? 'Hide' : 'Show'}
-                    </button>
-
-                    <button 
-                      onClick={() => removeListing(property.id)}
-                      className="py-4 bg-red-50 hover:bg-red-100 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2"
-                    >
-                      <XCircle className="w-4 h-4" /> Delete
-                    </button>
+                  <div className="flex flex-wrap items-center gap-3 pt-6 border-t border-slate-50">
+                    {property.status === 'Rejected' ? (
+                      <>
+                        <button 
+                          onClick={async () => {
+                            try {
+                              showToast("Reapplying stay listing...", "info");
+                              await propertyService.updateProperty(property.id, { 
+                                status: 'Pending',
+                                rejectionReason: null 
+                              });
+                              showToast("Listing re-submitted for admin review.", "success");
+                              fetchContent();
+                            } catch (error) {
+                              showToast("Failed to reapply.", "error");
+                            }
+                          }}
+                          className="flex-1 min-w-[140px] py-4 bg-[#F59E0B] hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw className="w-4 h-4" /> Reapply Listing
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this listing permanently?")) {
+                              removeListing(property.id);
+                            }
+                          }}
+                          className="flex-1 min-w-[140px] py-4 bg-white hover:bg-red-50 text-red-500 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-red-100 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete Permanently
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => navigate(`/list-property?edit=${property.id}`)}
+                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" /> Edit
+                        </button>
+                        <button 
+                          onClick={() => viewBookings(property.id, property.title)}
+                          className="flex-1 py-3 bg-white hover:bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-emerald-100 flex items-center justify-center gap-2"
+                        >
+                          <Calendar className="w-3.5 h-3.5" /> Bookings
+                        </button>
+                        <button 
+                          onClick={() => viewReviews(property.id, property.title)}
+                          className="flex-1 py-3 bg-white hover:bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-blue-100 flex items-center justify-center gap-2"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" /> Reviews
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (property.availabilityStatus !== 'unavailable') {
+                              setSelectedPropertyToHide(property);
+                              setShowHideModal(true);
+                            } else {
+                              propertyService.updateProperty(property.id, { availabilityStatus: 'available', unavailabilityOption: null, unavailableFrom: null, unavailableTo: null }).then(() => {
+                                showToast("Listing is now visible again.", "success");
+                                fetchContent();
+                              });
+                            }
+                          }}
+                          className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${
+                            property.availabilityStatus !== 'unavailable' 
+                              ? 'bg-amber-50 text-[#F59E0B] border-amber-100 hover:bg-amber-100'
+                              : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {property.availabilityStatus !== 'unavailable' ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          {property.availabilityStatus !== 'unavailable' ? 'Hide' : 'Show'}
+                        </button>
+                        <button 
+                          onClick={() => removeListing(property.id)}
+                          className="p-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all border border-red-100"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1884,7 +2051,7 @@ function FavouritesTab() {
       </AnimatePresence>
       <AnimatePresence>
         {showReviewsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1958,7 +2125,7 @@ function FavouritesTab() {
       {/* Bookings Modal */}
       <AnimatePresence>
         {showBookingsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1997,8 +2164,8 @@ function FavouritesTab() {
                         <p className="text-sm text-gray-500">
                           {booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'N/A'} - {booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'N/A'} ({booking.nights} nights)
                         </p>
-                        <p className="text-sm font-medium mt-1">Total Amount: ₹{booking.totalAmount || booking.estimatedCost}</p>
-                        <p className="text-sm font-medium text-emerald-600">Your Revenue: ₹{booking.receivedAmount || (booking.estimatedCost * 0.75)}</p>
+                        <p className="text-sm font-medium mt-1">Total Amount: ₹{(booking.totalAmount || booking.estimatedCost || 0).toLocaleString()}</p>
+                        <p className="text-sm font-medium text-emerald-600">Your Revenue: ₹{(booking.receivedAmount || (booking.estimatedCost * 0.75) || 0).toLocaleString()}</p>
                         
                         {booking.guests && booking.guests.length > 0 && (
                           <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
@@ -2052,6 +2219,61 @@ function FavouritesTab() {
                   ))}
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRejectionModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => !isProcessingRejection && setShowRejectionModal(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100"
+            >
+              <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-2 text-center">Reject Booking</h3>
+              <p className="text-sm text-gray-500 mb-6 text-center">Please provide a reason for rejecting this booking. The visitor will be notified and their payment will be refunded.</p>
+              
+              <div className="space-y-4 mb-8">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Rejection Reason</label>
+                  <textarea 
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="E.g., Property maintenance, overlap with personal use, etc."
+                    className="w-full p-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none text-sm h-32 resize-none"
+                    disabled={isProcessingRejection}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowRejectionModal(false)} 
+                  disabled={isProcessingRejection}
+                  className="flex-1 py-4 rounded-2xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleRejectBooking}
+                  disabled={isProcessingRejection || !rejectionReason.trim()}
+                  className="flex-1 py-4 rounded-2xl font-bold text-white transition-all shadow-lg bg-red-500 hover:bg-red-600 shadow-red-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isProcessingRejection ? (
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></span>
+                  ) : 'Confirm Rejection'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -2195,7 +2417,7 @@ function WalletTab() {
               <WalletIcon className="w-5 h-5" />
               <span className="font-medium">Available Balance</span>
             </div>
-            <h2 className="text-4xl font-extrabold mb-6">₹{wallet?.availableBalance || 0}</h2>
+            <h2 className="text-4xl font-extrabold mb-6">₹{(wallet?.availableBalance || 0).toLocaleString()}</h2>
             <button 
               onClick={() => { setShowWithdrawModal(true); setWithdrawStep(1); }}
               disabled={(wallet?.availableBalance || 0) <= 0 || cooldown > 0}
@@ -2211,7 +2433,7 @@ function WalletTab() {
             <Clock className="w-5 h-5" />
             <span className="font-medium">Pending Withdrawals</span>
           </div>
-          <h2 className="text-3xl font-extrabold text-[#1A1A2E] mb-2">₹{pendingWithdrawalsAmount}</h2>
+          <h2 className="text-3xl font-extrabold text-[#1A1A2E] mb-2">₹{(pendingWithdrawalsAmount || 0).toLocaleString()}</h2>
           <p className="text-sm text-gray-500">
             Will be credited to your bank account in 3-4 working days.
           </p>
@@ -2283,7 +2505,7 @@ function WalletTab() {
                 </div>
                 <div className="text-right">
                   <p className={`font-bold ${txn.type === 'credit' ? 'text-emerald-600' : 'text-[#1A1A2E]'}`}>
-                    {txn.type === 'credit' ? '+' : '-'}₹{txn.amount}
+                    {txn.type === 'credit' ? '+' : '-'}₹{(txn.amount || 0).toLocaleString()}
                   </p>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
                     txn.status === 'completed' || txn.status === 'available' ? 'bg-emerald-50 text-emerald-600' :
@@ -2447,7 +2669,7 @@ function WalletTab() {
                   <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200 space-y-3">
                     <div className="flex justify-between">
                       <span className="text-gray-500 text-sm">Amount</span>
-                      <span className="font-bold text-[#1A1A2E]">₹{withdrawAmount}</span>
+                      <span className="font-bold text-[#1A1A2E]">₹{(parseFloat(withdrawAmount) || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500 text-sm">Bank</span>
@@ -2547,9 +2769,10 @@ function PropertyApprovalsTab() {
       if (!user) return;
       try {
         const myProps = await propertyService.getPropertiesByOwner(user.uid);
-        setProperties(myProps.filter(p => p.status === 'Pending'));
+        // Show both Pending and Rejected properties
+        setProperties(myProps.filter(p => p.status === 'Pending' || p.status === 'Rejected'));
       } catch (error) {
-        console.error("Error fetching pending properties:", error);
+        console.error("Error fetching properties:", error);
       } finally {
         setLoading(false);
       }
@@ -2581,8 +2804,8 @@ function PropertyApprovalsTab() {
               <div className="relative h-48">
                 <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=100"} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                 <div className="absolute top-3 right-3 flex gap-2">
-                  <span className="text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider bg-amber-500 text-white">
-                    Pending Review
+                  <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider ${property.status === 'Rejected' ? 'bg-red-500' : 'bg-amber-500'} text-white`}>
+                    {property.status === 'Rejected' ? 'Rejected' : 'Pending Review'}
                   </span>
                 </div>
               </div>
@@ -2592,13 +2815,20 @@ function PropertyApprovalsTab() {
                   <MapPin className="w-3.5 h-3.5" /> {property.area}
                 </p>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="font-bold text-[#F59E0B]">₹{property.pricePerDay}<span className="text-xs text-gray-400 font-normal">/day</span></span>
+                  <span className="font-bold text-[#F59E0B]">₹{(property.pricePerDay || 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/day</span></span>
                   <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">{property.type}</span>
                 </div>
                 <div className="border-t border-gray-100 pt-4">
-                  <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100">
-                    This property is currently under review by our admin team. It will be visible to visitors once approved.
-                  </p>
+                  {property.status === 'Rejected' ? (
+                    <div className="bg-red-50 p-3 rounded-lg border border-red-100">
+                      <p className="text-xs font-bold text-red-600 mb-1">Rejection Reason:</p>
+                      <p className="text-sm text-red-700">{property.rejectionReason || 'No reason provided by admin.'}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                      This property is currently under review by our admin team. It will be visible to visitors once approved.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -2814,12 +3044,12 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
               <span className="font-medium">Wallet Balance</span>
             </div>
             <h3 className={`text-3xl font-extrabold mb-1 ${stats?.walletBalance < 0 ? 'text-red-400' : ''}`}>
-              ₹{stats?.walletBalance}
+              ₹{(stats?.walletBalance || 0).toLocaleString()}
             </h3>
             {stats?.walletBalance < 0 && (
               <p className="text-xs text-red-400 font-medium mb-1">Negative balance will be deducted from future earnings.</p>
             )}
-            <p className="text-sm text-emerald-400 font-medium">+₹{stats?.pendingPayments} pending</p>
+            <p className="text-sm text-emerald-400 font-medium">+₹{(stats?.pendingPayments || 0).toLocaleString()} pending</p>
           </div>
         </div>
 
@@ -2875,7 +3105,7 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
           </div>
           <div>
             <p className="text-sm text-gray-500 font-medium">Total Revenue</p>
-            <p className="text-xl font-bold text-[#1A1A2E]">₹{stats?.totalRevenue}</p>
+            <p className="text-xl font-bold text-[#1A1A2E]">₹{(stats?.totalRevenue || 0).toLocaleString()}</p>
           </div>
         </div>
 

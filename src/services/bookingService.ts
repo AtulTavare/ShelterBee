@@ -23,7 +23,8 @@ export interface Booking {
   checkOut: Date | null;
   nights: number;
   totalAmount: number;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' | 'completed';
+  rejectionReason?: string;
   guests: GuestDetail[];
   govIdAcknowledged: boolean;
   createdAt: any;

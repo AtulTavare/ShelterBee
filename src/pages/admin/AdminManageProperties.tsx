@@ -146,7 +146,7 @@ export const AdminManageProperties = () => {
             <div className="p-5 flex-1 flex flex-col">
               <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1">{prop.type}</div>
               <h3 className="font-semibold text-slate-900 text-lg mb-1 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedProperty(prop)}>{prop.title}</h3>
-              <div className="text-sm font-medium text-slate-600 mb-3">₹{prop.pricePerDay}/day</div>
+              <div className="text-sm font-medium text-slate-600 mb-3">₹{(prop.pricePerDay || 0).toLocaleString()}/day</div>
               
               <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-500 font-medium truncate max-w-[120px]">By: {prop.ownerId}</span>
@@ -241,7 +241,7 @@ export const AdminManageProperties = () => {
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Price</h3>
-                  <p className="text-slate-900 font-medium">₹{selectedProperty.pricePerDay}/day</p>
+                  <p className="text-slate-900 font-medium">₹{(selectedProperty.pricePerDay || 0).toLocaleString()}/day</p>
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Area</h3>

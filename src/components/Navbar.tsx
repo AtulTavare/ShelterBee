@@ -79,7 +79,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 w-full z-50 bg-white border-b border-outline-variant/10 shadow-sm">
+      <nav className="fixed top-0 w-full z-[9999] bg-white border-b border-outline-variant/10 shadow-sm">
         <div className="flex justify-between items-center px-4 md:px-8 py-3 md:py-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-4 md:gap-8">
             <Link to="/" className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export default function Navbar() {
       </nav>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-50 flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-[1000] flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
         <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
           <Home size={20} />
           <span className="text-[10px] font-bold">Home</span>
@@ -251,7 +251,7 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Menu Drawer */}
-      <div className={`fixed inset-0 bg-white z-[60] transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-y-0' : 'translate-y-full'}`}>
+      <div className={`fixed inset-0 bg-white z-[1001] transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="flex flex-col h-full bg-[#F8F9FA]">
           <div className="p-4 flex items-center justify-between bg-white border-b border-gray-100">
             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">

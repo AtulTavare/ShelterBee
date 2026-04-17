@@ -143,42 +143,87 @@ export const walletService = {
   },
 
   async processRefund(visitorId: string, ownerId: string, visitorAmount: number, ownerAmount: number, bookingId: string) {
-    if (visitorAmount <= 0) return;
+    if (visitorAmount <= 0 && ownerAmount <= 0) return;
 
     await runTransaction(db, async (transaction) => {
       // 1. Credit visitor wallet (pending)
-      const visitorWalletRef = doc(db, 'wallets', visitorId);
-      const visitorWalletSnap = await transaction.get(visitorWalletRef);
-      
-      let visitorPending = visitorAmount;
-      if (visitorWalletSnap.exists()) {
-        visitorPending += visitorWalletSnap.data().pendingBalance || 0;
-        transaction.update(visitorWalletRef, {
-          pendingBalance: visitorPending,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        transaction.set(visitorWalletRef, {
-          pendingBalance: visitorPending,
-          availableBalance: 0,
-          totalWithdrawn: 0,
-          bankAccount: null,
-          updatedAt: serverTimestamp()
+      if (visitorAmount > 0) {
+        const visitorWalletRef = doc(db, 'wallets', visitorId);
+        const visitorWalletSnap = await transaction.get(visitorWalletRef);
+        
+        let visitorPending = visitorAmount;
+        if (visitorWalletSnap.exists()) {
+          visitorPending += visitorWalletSnap.data().pendingBalance || 0;
+          transaction.update(visitorWalletRef, {
+            pendingBalance: visitorPending,
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          transaction.set(visitorWalletRef, {
+            pendingBalance: visitorPending,
+            availableBalance: 0,
+            totalWithdrawn: 0,
+            bankAccount: null,
+            updatedAt: serverTimestamp()
+          });
+        }
+
+        const visitorTxnRef = doc(collection(db, 'walletTransactions'));
+        transaction.set(visitorTxnRef, {
+          userId: visitorId,
+          bookingId,
+          type: 'credit',
+          reason: 'refund',
+          amount: visitorAmount,
+          status: 'pending',
+          createdAt: serverTimestamp()
         });
       }
 
-      const visitorTxnRef = doc(collection(db, 'walletTransactions'));
-      transaction.set(visitorTxnRef, {
-        userId: visitorId,
-        bookingId,
-        type: 'credit',
-        reason: 'refund',
-        amount: visitorAmount,
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
+      // 2. Debit owner wallet
+      if (ownerAmount > 0) {
+        const ownerWalletRef = doc(db, 'wallets', ownerId);
+        const ownerWalletSnap = await transaction.get(ownerWalletRef);
+        
+        if (ownerWalletSnap.exists()) {
+          const ownerData = ownerWalletSnap.data();
+          let newPending = ownerData.pendingBalance || 0;
+          let newAvailable = ownerData.availableBalance || 0;
 
-      // 2. Debit owner wallet (deduct from pending or available)
+          if (newPending >= ownerAmount) {
+            newPending -= ownerAmount;
+          } else {
+            const remaining = ownerAmount - newPending;
+            newPending = 0;
+            newAvailable -= remaining;
+          }
+
+          transaction.update(ownerWalletRef, {
+            pendingBalance: newPending,
+            availableBalance: newAvailable,
+            updatedAt: serverTimestamp()
+          });
+
+          const ownerTxnRef = doc(collection(db, 'walletTransactions'));
+          transaction.set(ownerTxnRef, {
+            userId: ownerId,
+            bookingId,
+            type: 'debit',
+            reason: 'cancellation_deduction',
+            amount: ownerAmount,
+            status: 'completed',
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+    });
+  },
+
+  async processAdminTransfer(ownerId: string, amount: number, bookingId: string) {
+    if (amount <= 0) return;
+
+    await runTransaction(db, async (transaction) => {
+      // 1. Debit owner wallet
       const ownerWalletRef = doc(db, 'wallets', ownerId);
       const ownerWalletSnap = await transaction.get(ownerWalletRef);
       
@@ -187,13 +232,12 @@ export const walletService = {
         let newPending = ownerData.pendingBalance || 0;
         let newAvailable = ownerData.availableBalance || 0;
 
-        // Try to deduct from pending first, then available
-        if (newPending >= ownerAmount) {
-          newPending -= ownerAmount;
+        if (newPending >= amount) {
+          newPending -= amount;
         } else {
-          const remaining = ownerAmount - newPending;
+          const remaining = amount - newPending;
           newPending = 0;
-          newAvailable -= remaining; // Could go negative if they already withdrew, which is a platform risk
+          newAvailable -= remaining;
         }
 
         transaction.update(ownerWalletRef, {
@@ -208,11 +252,43 @@ export const walletService = {
           bookingId,
           type: 'debit',
           reason: 'cancellation_deduction',
-          amount: ownerAmount,
+          amount,
           status: 'completed',
           createdAt: serverTimestamp()
         });
       }
+
+      // 2. Credit admin wallet
+      const adminWalletRef = doc(db, 'wallets', 'platform_admin');
+      const adminWalletSnap = await transaction.get(adminWalletRef);
+      
+      let adminAvailable = amount;
+      if (adminWalletSnap.exists()) {
+        adminAvailable += adminWalletSnap.data().availableBalance || 0;
+        transaction.update(adminWalletRef, {
+          availableBalance: adminAvailable,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        transaction.set(adminWalletRef, {
+          pendingBalance: 0,
+          availableBalance: adminAvailable,
+          totalWithdrawn: 0,
+          bankAccount: null,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      const adminTxnRef = doc(collection(db, 'walletTransactions'));
+      transaction.set(adminTxnRef, {
+        userId: 'platform_admin',
+        bookingId,
+        type: 'credit',
+        reason: 'booking_earning',
+        amount,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
     });
   },
 
