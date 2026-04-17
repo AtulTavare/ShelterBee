@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
 import FilterBar from '../components/FilterBar';
+import { useAuth } from '../contexts/AuthContext';
 
 const getAmenityIcon = (amenity: string) => {
   const lower = amenity.toLowerCase();
@@ -21,9 +22,13 @@ const getAmenityIcon = (amenity: string) => {
 };
 
 export default function Listings() {
+  const { user, profile, updateProfileData } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const favorites = profile?.favorites || [];
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -72,13 +77,25 @@ export default function Listings() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState('Highest Rated');
 
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(4);
 
-  const toggleFavorite = (e: React.MouseEvent, id: string) => {
+  const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const newFavorites = favorites.includes(id) 
+      ? favorites.filter(fId => fId !== id) 
+      : [...favorites, id];
+    
+    try {
+      await updateProfileData({ favorites: newFavorites });
+    } catch (error) {
+      console.error("Error updating favorites:", error);
+    }
   };
 
   // Slideshow State

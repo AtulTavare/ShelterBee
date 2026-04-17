@@ -324,38 +324,37 @@ export default function PropertyDetail() {
               </p>
             </div>
 
-            {/* Amenities */}
-            <div className="space-y-4 md:space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-lg md:text-xl font-extrabold text-[#1E1B4B]">Signature Amenities</h2>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-                {/* Compulsory Amenities - Always Provided */}
-                {['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].map((amenity) => (
-                  <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                    <span className="material-symbols-outlined text-emerald-500 text-lg md:text-xl">check_circle</span>
-                    <span className="font-medium text-xs md:text-sm">{amenity}</span>
+                <div className="space-y-4 md:space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-1 bg-[#F59E0B] rounded-full"></div>
+                    <h2 className="text-lg md:text-xl font-extrabold text-[#1E1B4B]">Signature Amenities</h2>
                   </div>
-                ))}
-
-                {/* Selective Amenities - Show all with check/x */}
-                {AMENITIES_LIST.map((amenity) => {
-                  const isProvided = property.amenities.includes(amenity);
-                  return (
-                    <div key={amenity} className="flex items-center gap-2 text-[#1E1B4B]">
-                      <span className={`material-symbols-outlined text-lg md:text-xl ${isProvided ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {isProvided ? 'check_circle' : 'cancel'}
-                      </span>
-                      <span className={`font-medium text-xs md:text-sm ${isProvided ? 'opacity-100' : 'opacity-50'}`}>
-                        {amenity}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+    
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-4">
+                    {/* Compulsory Amenities - Always Provided */}
+                    {['24/7 Water Supply', 'Hot Water', '24/7 Electricity'].map((amenity) => (
+                      <div key={amenity} className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <span className="material-symbols-outlined text-emerald-500 text-lg">verified</span>
+                        <span className="font-bold text-[10px] md:text-xs uppercase tracking-tight text-[#1E1B4B]">{amenity}</span>
+                      </div>
+                    ))}
+    
+                    {/* Selective Amenities - Show all with check/x */}
+                    {AMENITIES_LIST.map((amenity) => {
+                      const isProvided = property.amenities.includes(amenity);
+                      return (
+                        <div key={amenity} className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${isProvided ? 'bg-white border-slate-100 shadow-sm' : 'bg-slate-50/30 border-slate-50 opacity-40 grayscale'}`}>
+                          <span className={`material-symbols-outlined text-lg ${isProvided ? 'text-emerald-500' : 'text-slate-300'}`}>
+                            {isProvided ? 'check_circle' : 'cancel'}
+                          </span>
+                          <span className={`font-bold text-[10px] md:text-xs uppercase tracking-tight ${isProvided ? 'text-[#1E1B4B]' : 'text-slate-400'}`}>
+                            {amenity}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
             {/* About Place */}
             <div className="space-y-4">
@@ -387,6 +386,14 @@ export default function PropertyDetail() {
                         <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
                           <span className="text-xs md:text-sm font-medium text-[#64748B]">Bathrooms</span>
                           <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.bathrooms || 1} Baths</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
+                          <span className="text-xs md:text-sm font-medium text-[#64748B]">Check-in Timing</span>
+                          <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.checkInTime || '12:00 PM'}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-slate-50">
+                          <span className="text-xs md:text-sm font-medium text-[#64748B]">Check-out Timing</span>
+                          <span className="text-xs md:text-sm font-bold text-[#1E1B4B]">{property.checkOutTime || '11:00 AM'}</span>
                         </div>
                       </div>
                     </div>

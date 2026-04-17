@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
+  const { user, profile, updateProfileData } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('Any Type');
   const [occupancy, setOccupancy] = useState<number | 'Any'>(1);
@@ -13,9 +15,10 @@ export default function Home() {
   const [isOccupancyDropdownOpen, setIsOccupancyDropdownOpen] = useState(false);
   const [topFilter, setTopFilter] = useState<'ratings' | 'reviews'>('ratings');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const navigate = useNavigate();
+
+  const favorites = profile?.favorites || [];
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -29,11 +32,22 @@ export default function Home() {
     fetchProperties();
   }, []);
 
-  const toggleFavorite = (e: React.MouseEvent, id: string) => {
+  const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setFavorites(prev => 
-      prev.includes(id) ? prev.filter(fId => fId !== id) : [...prev, id]
-    );
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const newFavorites = favorites.includes(id) 
+      ? favorites.filter(fId => fId !== id) 
+      : [...favorites, id];
+    
+    try {
+      await updateProfileData({ favorites: newFavorites });
+    } catch (error) {
+      console.error("Error updating favorites:", error);
+    }
   };
 
   const propertyTypes = ['Any Type', 'Flat', 'PG', 'Room', 'Hostel'];
@@ -110,7 +124,7 @@ export default function Home() {
         {/* YouTube Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden z-0 bg-black">
           <iframe
-            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&showinfo=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&start=50&end=150"
+            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&showinfo=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&start=50&end=100"
             className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[100vh] min-w-[177.77vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             allow="autoplay; encrypted-media"
             allowFullScreen

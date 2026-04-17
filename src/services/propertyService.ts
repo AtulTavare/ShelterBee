@@ -28,6 +28,8 @@ export interface Property {
   beds?: number;
   bathrooms?: number;
   gender?: string[]; // Male, Female, Other
+  checkInTime?: string;
+  checkOutTime?: string;
   submissionType?: 'new listing' | 'changes approval';
   unavailabilityUntil?: any; // Date or 'permanently' or 'manual'
   availabilityStatus?: 'available' | 'unavailable';

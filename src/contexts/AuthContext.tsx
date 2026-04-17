@@ -6,6 +6,7 @@ import { auth, db, googleProvider } from '../firebase';
 export type UserRole = 'visitor' | 'owner' | 'admin';
 
 export interface UserProfile {
+  id?: string;
   uid: string;
   email: string;
   displayName: string | null;
@@ -18,6 +19,7 @@ export interface UserProfile {
   emailVerified?: boolean;
   name?: string;
   status?: 'Active' | 'Inactive';
+  favorites?: string[];
 }
 
 interface AuthContextType {

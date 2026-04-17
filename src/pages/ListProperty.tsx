@@ -72,6 +72,8 @@ export default function ListProperty() {
     beds: 1,
     bathrooms: 1,
     gender: [] as string[],
+    checkInTime: '12:00 PM',
+    checkOutTime: '11:00 AM',
   });
 
   const [isEditMode, setIsEditMode] = useState(false);
@@ -113,6 +115,8 @@ export default function ListProperty() {
         beds: property.beds || 1,
         bathrooms: property.bathrooms || 1,
         gender: property.gender || [],
+        checkInTime: property.checkInTime || '12:00 PM',
+        checkOutTime: property.checkOutTime || '11:00 AM',
       });
       // Store existing photos to show them
       (window as any)._existingPhotos = property.photos;
@@ -132,6 +136,14 @@ export default function ListProperty() {
         showToast("Please enter the rent per day.", "error");
         return;
       }
+      if (formData.gender.length === 0) {
+        showToast("Please select at least one gender specification.", "error");
+        return;
+      }
+      if (!formData.checkInTime || !formData.checkOutTime) {
+        showToast("Please specify check-in and check-out timings.", "error");
+        return;
+      }
     } else if (step === 3) {
       if (!isEditMode && formData.photos.length !== 5) {
         showToast("Please upload exactly 5 images.", "error");
@@ -142,10 +154,6 @@ export default function ListProperty() {
         return;
       }
     } else if (step === 4) {
-      if (formData.gender.length === 0) {
-        showToast("Please select at least one gender specification.", "error");
-        return;
-      }
       if (!formData.weProvideCompulsoryAmenities) {
         showToast("Please confirm that you provide the compulsory amenities.", "error");
         return;
@@ -338,6 +346,8 @@ export default function ListProperty() {
         beds: formData.beds,
         bathrooms: formData.bathrooms,
         gender: formData.gender,
+        checkInTime: formData.checkInTime,
+        checkOutTime: formData.checkOutTime,
         submissionType: isEditMode ? 'changes approval' : 'new listing' as any,
       };
 
@@ -452,7 +462,7 @@ export default function ListProperty() {
 
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full">
         {/* Left Side: Details */}
-        <div className="lg:w-5/12 p-6 md:p-8 lg:p-16 bg-surface-container-lowest lg:border-r border-outline-variant flex flex-col justify-center">
+        <div className="lg:w-5/12 p-6 md:p-8 lg:p-16 bg-surface-container-lowest lg:border-r border-outline-variant flex flex-col justify-start pt-12 md:pt-24 lg:pt-32">
           <AnimatePresence mode="wait">
             <motion.div
               key={`detail-${step}`}
@@ -547,31 +557,85 @@ export default function ListProperty() {
                   className="space-y-8"
                 >
                   <div className="grid grid-cols-1 gap-6">
-                    {[
+                    {[ 
                       { label: 'Guests', key: 'guests' },
                       { label: 'Bedrooms', key: 'bedrooms' },
                       { label: 'Beds', key: 'beds' },
                       { label: 'Bathrooms', key: 'bathrooms' }
                     ].map((item) => (
                       <div key={item.key} className="flex items-center justify-between p-4 bg-surface-container-lowest border border-outline-variant rounded-2xl">
-                        <span className="font-bold text-on-surface">{item.label}</span>
+                        <span className="font-bold text-on-surface text-sm">{item.label}</span>
                         <div className="flex items-center gap-4">
                           <button 
                             onClick={() => setFormData(prev => ({ ...prev, [item.key]: Math.max(1, (prev as any)[item.key] - 1) }))}
-                            className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors"
+                            className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors font-bold"
                           >
                             -
                           </button>
                           <span className="font-bold w-4 text-center">{(formData as any)[item.key]}</span>
                           <button 
                             onClick={() => setFormData(prev => ({ ...prev, [item.key]: (prev as any)[item.key] + 1 }))}
-                            className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors"
+                            className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors font-bold"
                           >
                             +
                           </button>
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="pt-4">
+                    <label className="block text-sm font-bold text-on-surface mb-4">Allowed Gender</label>
+                    <div className="grid grid-cols-3 gap-3 mb-8">
+                      {[
+                        { id: 'Male', icon: 'male' },
+                        { id: 'Female', icon: 'female' },
+                        { id: 'Other', icon: 'transgender' }
+                      ].map((g) => (
+                        <button
+                          key={g.id}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              gender: prev.gender.includes(g.id) 
+                                ? prev.gender.filter(x => x !== g.id)
+                                : [...prev.gender, g.id]
+                            }));
+                          }}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all ${ 
+                            formData.gender.includes(g.id) 
+                              ? 'border-primary bg-primary-container/20 text-primary' 
+                              : 'border-outline-variant hover:bg-surface-container text-on-surface-variant'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-xl">{g.icon}</span>
+                          <span className="text-[10px] font-bold">{g.id}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Check-in time</label>
+                      <input 
+                        type="text" 
+                        value={formData.checkInTime} 
+                        onChange={e => setFormData({...formData, checkInTime: e.target.value})}
+                        className="w-full border border-outline-variant rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary bg-surface-container-lowest text-on-surface"
+                        placeholder="e.g. 12:00 PM"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Check-out time</label>
+                      <input 
+                        type="text" 
+                        value={formData.checkOutTime} 
+                        onChange={e => setFormData({...formData, checkOutTime: e.target.value})}
+                        className="w-full border border-outline-variant rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary bg-surface-container-lowest text-on-surface"
+                        placeholder="e.g. 11:00 AM"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -669,35 +733,6 @@ export default function ListProperty() {
                   className="space-y-8"
                 >
                   <div>
-                    <label className="block text-sm font-bold text-on-surface mb-4">Gender Specifications</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-                      {[
-                        { id: 'Male', icon: 'male' },
-                        { id: 'Female', icon: 'female' },
-                        { id: 'Other', icon: 'transgender' }
-                      ].map((g) => (
-                        <button
-                          key={g.id}
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              gender: prev.gender.includes(g.id) 
-                                ? prev.gender.filter(x => x !== g.id)
-                                : [...prev.gender, g.id]
-                            }));
-                          }}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
-                            formData.gender.includes(g.id) 
-                              ? 'border-primary bg-primary-container/20 text-primary' 
-                              : 'border-outline-variant hover:bg-surface-container text-on-surface-variant'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-2xl">{g.icon}</span>
-                          <span className="text-xs font-bold">{g.id}</span>
-                        </button>
-                      ))}
-                    </div>
-
                     <label className="block text-sm font-medium text-on-surface mb-4">Compulsory Amenities</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
                       {COMPULSORY_AMENITIES.map(amenity => (

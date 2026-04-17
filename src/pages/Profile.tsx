@@ -38,6 +38,8 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
+import PropertyCard from '../components/PropertyCard';
+
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -162,6 +164,7 @@ export default function Profile() {
   ] : [
     { id: 'personal', label: 'Personal Info', icon: User },
     { id: 'history', label: 'My Bookings', icon: History },
+    { id: 'favourites', label: 'Favourites', icon: Heart },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'security', label: 'Security', icon: ShieldCheck },
   ];
@@ -919,10 +922,9 @@ function MyBookingsTab() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [ownerInfo, setOwnerInfo] = useState<any>(null);
-  const [loadingOwner, setLoadingOwner] = useState(false);
+  const [ownersInfo, setOwnersInfo] = useState<Record<string, any>>({});
+  const [loadingOwners, setLoadingOwners] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -953,6 +955,22 @@ function MyBookingsTab() {
         });
 
         setBookings(bookingsWithProperties);
+
+        // Fetch owner info for confirmed bookings
+        bookingsWithProperties.forEach(async (booking) => {
+          if (booking.status === 'confirmed' && !ownersInfo[booking.ownerId]) {
+            setLoadingOwners(prev => ({ ...prev, [booking.ownerId]: true }));
+            try {
+              const owner = await userService.getUserProfile(booking.ownerId);
+              setOwnersInfo(prev => ({ ...prev, [booking.ownerId]: owner }));
+            } catch (error) {
+              console.error("Error fetching owner info:", error);
+            } finally {
+              setLoadingOwners(prev => ({ ...prev, [booking.ownerId]: false }));
+            }
+          }
+        });
+
       } catch (error) {
         console.error("Error syncing bookings:", error);
       } finally {
@@ -976,24 +994,7 @@ function MyBookingsTab() {
     };
   }, [user]);
 
-  const openBookingDetails = async (booking: any) => {
-    setSelectedBooking(booking);
-    setShowDetailsModal(true);
-    document.body.style.overflow = 'hidden';
-    
-    setLoadingOwner(true);
-    try {
-      const owner = await userService.getUserProfile(booking.ownerId);
-      setOwnerInfo(owner);
-    } catch (error) {
-      console.error("Error fetching owner info:", error);
-    } finally {
-      setLoadingOwner(false);
-    }
-  };
-
   const closeModals = () => {
-    setShowDetailsModal(false);
     setShowReviewModal(false);
     setShowReportModal(false);
     setShowCancellationModal(false);
@@ -1009,214 +1010,177 @@ function MyBookingsTab() {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+    <div className="space-y-6">
       {bookings.length === 0 ? (
-        <div className="text-center py-12">
-          <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No bookings yet</h3>
-          <p className="text-gray-500">When you book a property, your bookings will appear here.</p>
+        <div className="bg-white rounded-3xl p-12 shadow-sm border border-gray-100 text-center">
+          <History className="w-16 h-16 text-gray-200 mx-auto mb-6" />
+          <h3 className="text-xl font-bold text-[#1A1A2E] mb-2">No bookings yet</h3>
+          <p className="text-gray-500 max-w-xs mx-auto text-sm leading-relaxed">Your travel history is empty. Start exploring properties to make your first stay unforgettable!</p>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="mt-8 px-8 py-3 bg-[#1A1A2E] text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm"
+          >
+            Explore Properties
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {bookings.map((booking) => (
-            <div 
-              key={booking.id} 
-              onClick={() => openBookingDetails(booking)}
-              className="group cursor-pointer bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
-            >
-              <div className="relative h-40 overflow-hidden">
-                <img 
-                  src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=300&h=200`} 
-                  alt="Property" 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute top-4 right-4">
-                  <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md ${
-                    booking.status === 'confirmed' ? 'bg-emerald-500 text-white' :
-                    booking.status === 'pending' ? 'bg-amber-500 text-white' :
-                    booking.status === 'cancelled' ? 'bg-red-500 text-white' :
-                    'bg-gray-500 text-white'
-                  }`}>
-                    {booking.status}
-                  </span>
-                </div>
-              </div>
-              <div className="p-5">
-                <h3 className="font-bold text-[#1A1A2E] text-lg mb-1 truncate">{booking.property?.title || 'Unknown Property'}</h3>
-                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4">
-                  <MapPin className="w-4 h-4 text-gray-400" /> {booking.property?.area || 'Unknown Location'}
-                </p>
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</span>
-                  <button 
-                    className="px-4 py-2 bg-[#1A1A2E] text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
-                  >
-                    Show Details
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        <div className="grid grid-cols-1 gap-8">
+          {bookings.map((booking) => {
+            const owner = ownersInfo[booking.ownerId];
+            const isLoadingOwner = loadingOwners[booking.ownerId];
+            const hasReviewed = userReviews.some(r => r.propertyId === booking.propertyId);
 
-      {/* Booking Details Popup */}
-      <AnimatePresence>
-        {showDetailsModal && selectedBooking && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={closeModals}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-gray-100 p-6 flex justify-between items-center z-10">
-                <h3 className="text-xl font-bold text-[#1A1A2E]">Booking Details</h3>
-                <button onClick={closeModals} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                  <XCircle className="w-6 h-6 text-gray-400" />
-                </button>
-              </div>
-
-              <div className="p-8 space-y-8">
-                {/* Property Brief */}
-                <div className="flex gap-6">
-                  <img 
-                    src={selectedBooking.property?.photos?.[0] || 'https://picsum.photos/seed/prop/300/200'}
-                    className="w-32 h-24 object-cover rounded-2xl shadow-sm"
-                    alt="Prop"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div>
-                    <h4 className="font-bold text-xl text-[#1A1A2E]">{selectedBooking.property?.title}</h4>
-                    <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
-                      <MapPin className="w-4 h-4" /> {selectedBooking.property?.area}
-                    </p>
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
-                        selectedBooking.status === 'confirmed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                        selectedBooking.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                        'bg-red-50 text-red-600 border border-red-100'
+            return (
+              <div 
+                key={booking.id} 
+                className="bg-white rounded-[2.5rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.08)] transition-all duration-500"
+              >
+                <div className="flex flex-col lg:flex-row">
+                  {/* Left: Property Preview */}
+                  <div className="lg:w-1/3 relative h-64 lg:h-auto overflow-hidden">
+                    <img 
+                      src={booking.property?.photos?.[0] || `https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=600&h=400`} 
+                      alt="Property" 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-6 left-6">
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-2xl backdrop-blur-xl border border-white/20 ${
+                        booking.status === 'confirmed' ? 'bg-emerald-500/90 text-white' :
+                        booking.status === 'pending' ? 'bg-amber-500/90 text-white' :
+                        booking.status === 'cancelled' ? 'bg-red-500/90 text-white' :
+                        'bg-slate-500/90 text-white'
                       }`}>
-                        {selectedBooking.status}
+                        {booking.status}
                       </span>
                     </div>
                   </div>
-                </div>
 
-                {/* Stay Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Check In</p>
-                    <p className="font-bold text-[#1A1A2E]">{selectedBooking.checkIn ? format(selectedBooking.checkIn, 'MMM dd, yyyy') : 'TBD'}</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Check Out</p>
-                    <p className="font-bold text-[#1A1A2E]">{selectedBooking.checkOut ? format(selectedBooking.checkOut, 'MMM dd, yyyy') : 'TBD'}</p>
-                  </div>
-                </div>
-
-                {/* Owner Contact */}
-                <div className="space-y-4">
-                  <h5 className="font-bold text-lg text-[#1A1A2E] flex items-center gap-2">
-                    <User className="w-5 h-5 text-[#F59E0B]" />
-                    Owner Information
-                  </h5>
-                  {loadingOwner ? (
-                    <div className="h-20 bg-slate-50 rounded-2xl animate-pulse" />
-                  ) : ownerInfo ? (
-                    <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
-                      <div className="flex items-center gap-4 mb-6">
-                        <img 
-                          src={ownerInfo.photoURL || getAvatarUrl(ownerInfo.displayName || 'Owner')} 
-                          className="w-14 h-14 rounded-full border-2 border-amber-100"
-                          alt="Owner"
-                          referrerPolicy="no-referrer"
-                        />
+                  {/* Right: Detailed Info */}
+                  <div className="flex-1 p-8 lg:p-10 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-6">
                         <div>
-                          <p className="font-bold text-[#1A1A2E] text-lg">{ownerInfo.displayName || 'Property Owner'}</p>
-                          <p className="text-xs text-gray-400 font-medium">Verified Property Owner</p>
+                          <h3 className="font-black text-[#1A1A2E] text-2xl lg:text-3xl mb-2 tracking-tight">{booking.property?.title || 'Unknown Property'}</h3>
+                          <p className="text-sm text-gray-500 flex items-center gap-2 font-medium">
+                            <MapPin className="w-4 h-4 text-[#F59E0B]" /> {booking.property?.address || booking.property?.area || 'Location hidden'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
+                          <p className="text-2xl font-black text-[#1A1A2E]">₹{booking.totalAmount || (booking as any).estimatedCost}</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <a href={`tel:${ownerInfo.phone || '9876543210'}`} className="flex items-center gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 group transition-all hover:bg-emerald-100">
-                          <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                            <Phone className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Call Now</p>
-                            <p className="font-bold text-[#1A1A2E]">{ownerInfo.phone || 'N/A'}</p>
-                          </div>
-                        </a>
-                        <a 
-                          href={`https://wa.me/${(ownerInfo.phone || '919876543210').replace(/\+/g, '')}?text=${encodeURIComponent(`Hello, I have booked your property "${selectedBooking.property?.title}" on ShelterBee.`)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-100 group transition-all hover:bg-green-100"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-lg shadow-green-500/20">
-                            <span className="material-symbols-outlined">chat</span>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">WhatsApp</p>
-                            <p className="font-bold text-[#1A1A2E]">Chat with Host</p>
-                          </div>
-                        </a>
+
+                      <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="bg-slate-50/50 p-5 rounded-[1.5rem] border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Calendar className="w-3 h-3" /> Check In
+                          </p>
+                          <p className="font-bold text-[#1A1A2E] text-lg">{booking.checkIn ? format(booking.checkIn, 'MMM dd, yyyy') : 'TBD'}</p>
+                        </div>
+                        <div className="bg-slate-50/50 p-5 rounded-[1.5rem] border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Calendar className="w-3 h-3" /> Check Out
+                          </p>
+                          <p className="font-bold text-[#1A1A2E] text-lg">{booking.checkOut ? format(booking.checkOut, 'MMM dd, yyyy') : 'TBD'}</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-4 italic">Owner contact details hidden or unavailable.</p>
-                  )}
-                </div>
 
-                {/* Actions */}
-                <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-4">
-                  {selectedBooking.status === 'confirmed' && (
-                    <button 
-                      onClick={() => setShowCancellationModal(true)}
-                      className="flex-1 py-4 bg-red-50 text-red-600 rounded-2xl font-bold hover:bg-red-100 transition-all border border-red-100 flex items-center justify-center gap-2"
-                    >
-                      <XCircle className="w-5 h-5" /> Cancel Booking
-                    </button>
-                  )}
-                  
-                  {userReviews.find(r => r.propertyId === selectedBooking.propertyId) ? (
-                    <div className="flex-1 p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                      <p className="text-xs font-bold text-amber-600 mb-1 flex items-center gap-1">
-                        <Star className="w-3 h-3 fill-current" /> Your Review
-                      </p>
-                      <p className="text-sm text-amber-800 italic truncate italic">"{userReviews.find(r => r.propertyId === selectedBooking.propertyId).text}"</p>
+                      {/* Owner Info - Only shown post-booking (confirmed) */}
+                      {booking.status === 'confirmed' && (
+                        <div className="mb-8 bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm">
+                          <h4 className="text-[10px] font-black text-[#F59E0B] uppercase tracking-[0.2em] mb-4">Host Contact Details</h4>
+                          {isLoadingOwner ? (
+                            <div className="flex items-center gap-4 animate-pulse">
+                              <div className="w-12 h-12 bg-slate-100 rounded-full"></div>
+                              <div className="flex-1 space-y-2">
+                                <div className="h-4 bg-slate-100 rounded w-1/3"></div>
+                                <div className="h-3 bg-slate-100 rounded w-1/4"></div>
+                              </div>
+                            </div>
+                          ) : owner ? (
+                            <div className="flex flex-col sm:flex-row items-center gap-6">
+                              <div className="flex items-center gap-4 flex-1">
+                                <img 
+                                  src={getAvatarUrl(owner.displayName || 'Owner')} 
+                                  className="w-14 h-14 rounded-full border-2 border-amber-100"
+                                  alt="Owner"
+                                />
+                                <div>
+                                  <p className="font-black text-[#1A1A2E] text-lg">{owner.displayName || 'Host'}</p>
+                                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{owner.phone || 'Contact not listed'}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <a 
+                                  href={`tel:${owner.phone || '9876543210'}`}
+                                  className="flex-1 sm:flex-none p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all border border-emerald-100 flex items-center justify-center shadow-lg shadow-emerald-500/5"
+                                >
+                                  <Phone className="w-5 h-5 font-bold" />
+                                </a>
+                                <a 
+                                  href={`https://wa.me/${(owner.phone || '919876543210').replace(/\D/g, '')}?text=${encodeURIComponent(`Hello, I've booked your property \"${booking.property?.title}\" on ShelterBee.`)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 sm:flex-none px-6 py-3 bg-[#25D366] hover:bg-[#20bd5c] text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+                                >
+                                  <span className="material-symbols-outlined text-xl">chat</span>
+                                  <span className="text-xs uppercase">WhatsApp</span>
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                              <p className="text-sm text-slate-400 italic">Host information will be available shortly.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setShowReviewModal(true)}
-                      className="flex-1 py-4 bg-amber-50 text-[#F59E0B] rounded-2xl font-bold hover:bg-amber-100 transition-all border border-amber-100 flex items-center justify-center gap-2"
-                    >
-                      <Star className="w-5 h-5" /> Rate & Review
-                    </button>
-                  )}
 
-                  <button 
-                    onClick={() => setShowReportModal(true)}
-                    className="flex-1 py-4 bg-slate-50 text-slate-600 rounded-2xl font-bold hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center gap-2"
-                  >
-                    <ShieldAlert className="w-5 h-5" /> Report Property
-                  </button>
+                    {/* Action Suite */}
+                    <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-slate-50">
+                      {booking.status === 'confirmed' && (
+                        <button 
+                          onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
+                          disabled={hasReviewed}
+                          className={`flex-1 min-w-[140px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${
+                            hasReviewed 
+                              ? 'bg-amber-50 text-amber-300 cursor-not-allowed border border-amber-100' 
+                              : 'bg-amber-50 text-[#F59E0B] hover:bg-amber-100 border border-amber-100 shadow-amber-500/5'
+                          }`}
+                        >
+                          <Star className={`w-4 h-4 ${hasReviewed ? 'fill-amber-200' : 'fill-amber-400 text-amber-400'}`} />
+                          {hasReviewed ? 'Reviewed' : 'Rate & Review'}
+                        </button>
+                      )}
+                      
+                      {booking.status === 'confirmed' && (
+                        <button 
+                          onClick={() => { setSelectedBooking(booking); setShowCancellationModal(true); }}
+                          className="flex-1 min-w-[140px] py-4 bg-white hover:bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2 shadow-lg shadow-red-500/5"
+                        >
+                          <XCircle className="w-4 h-4" /> Cancel Booking
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
+                        className="flex-1 min-w-[140px] py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-slate-200 flex items-center justify-center gap-2 shadow-lg shadow-slate-500/5"
+                      >
+                        <ShieldAlert className="w-4 h-4" /> Report
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Review Modal */}
+      {/* Modals are kept separate to maintain context and clean code */}
       <ReviewModal 
         isOpen={showReviewModal} 
         onClose={closeModals} 
@@ -1224,7 +1188,6 @@ function MyBookingsTab() {
         profile={profile}
       />
 
-      {/* Report Modal */}
       <ReportModal 
         isOpen={showReportModal} 
         onClose={closeModals} 
@@ -1240,7 +1203,7 @@ function MyBookingsTab() {
   );
 }
 
-function CancellationModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: () => void, booking: any }) {
+      function CancellationModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: () => void, booking: any }) {
   const [step, setStep] = useState(1);
   const [reason, setReason] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -1486,7 +1449,7 @@ function PaymentsTab() {
 }
 
 function FavouritesTab() {
-  const { user } = useAuth();
+  const { user, profile, updateProfileData } = useAuth();
   const navigate = useNavigate();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1499,21 +1462,36 @@ function FavouritesTab() {
   const [selectedPropertyTitle, setSelectedPropertyTitle] = useState('');
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
 
-  const fetchMyProperties = async () => {
+  const isOwner = profile?.role === 'owner';
+
+  const fetchContent = async () => {
     if (!user) return;
+    setLoading(true);
     try {
-      const myProps = await propertyService.getPropertiesByOwner(user.uid);
-      setProperties(myProps);
+      if (isOwner) {
+        const myProps = await propertyService.getPropertiesByOwner(user.uid);
+        setProperties(myProps);
+      } else {
+        const favoriteIds = profile?.favorites || [];
+        if (favoriteIds.length > 0) {
+          const favoriteProps = await Promise.all(
+            favoriteIds.map(id => propertyService.getPropertyById(id))
+          );
+          setProperties(favoriteProps.filter(Boolean));
+        } else {
+          setProperties([]);
+        }
+      }
     } catch (error) {
-      console.error("Error fetching my properties:", error);
+      console.error("Error fetching content:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMyProperties();
-  }, [user]);
+    fetchContent();
+  }, [user, profile?.favorites]);
 
   const [showHideModal, setShowHideModal] = useState(false);
   const [selectedPropertyToHide, setSelectedPropertyToHide] = useState<any>(null);
@@ -1546,7 +1524,7 @@ function FavouritesTab() {
           unavailableTo: to
         });
         showToast(`Property hidden from website`, "success");
-        fetchMyProperties();
+        fetchContent();
         setShowHideModal(false);
       } catch (error) {
         console.error("Error hiding property:", error);
@@ -1559,7 +1537,7 @@ function FavouritesTab() {
     showConfirm("Are you sure you want to remove this listing?", async () => {
       try {
         await propertyService.deleteProperty(id);
-        fetchMyProperties();
+        fetchContent();
       } catch (error) {
         console.error("Error removing listing:", error);
         showToast("An error occurred", "error");
@@ -1683,117 +1661,157 @@ function FavouritesTab() {
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <div className="flex justify-between items-center mb-6">
-        <div />
-        <button 
-          onClick={() => navigate('/list-property')}
-          className="flex items-center gap-2 bg-[#F59E0B] hover:bg-amber-400 text-white px-4 py-2 rounded-xl font-bold transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Add New Property
-        </button>
-      </div>
+      {isOwner && (
+        <div className="flex justify-between items-center mb-10">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-amber-50 rounded-2xl">
+              <Building2 className="w-6 h-6 text-[#F59E0B]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-[#1A1A2E] tracking-tight">Manage Listings</h2>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Control your property presence</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate('/list-property')}
+            className="flex items-center gap-2 bg-[#F59E0B] hover:bg-amber-400 text-white px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-xl shadow-amber-500/20 active:scale-95"
+          >
+            <Plus className="w-5 h-5" /> Add New Property
+          </button>
+        </div>
+      )}
+
       {properties.length === 0 ? (
-        <div className="text-center py-12">
-          <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No listings yet</h3>
-          <p className="text-gray-500">You haven't listed any properties yet.</p>
+        <div className="text-center py-20 px-4">
+          <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-slate-100">
+            {isOwner ? (
+              <Building2 className="w-10 h-10 text-slate-300" />
+            ) : (
+              <Heart className="w-10 h-10 text-slate-300" />
+            )}
+          </div>
+          <h3 className="text-2xl font-black text-[#1A1A2E] mb-3 tracking-tight">
+            {isOwner ? "No listings yet" : "No saved properties"}
+          </h3>
+          <p className="text-gray-400 max-w-xs mx-auto text-sm font-medium leading-relaxed">
+            {isOwner 
+              ? "You haven't listed any properties yet. Start your hosting journey today!" 
+              : "Your favorites list is empty. Start exploring properties and save the ones you love!"}
+          </p>
+          {!isOwner && (
+            <button 
+              onClick={() => navigate('/listings')}
+              className="mt-8 px-8 py-3 bg-[#1A1A2E] text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm"
+            >
+              Explore Properties
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className={`grid grid-cols-1 ${isOwner ? 'md:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-8`}>
           {properties.map((property, index) => (
-            <div key={`${property.id}-${index}`} className="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300">
-              <div className="relative h-48 overflow-hidden">
-                <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=100"} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                
-                <div className="absolute top-4 right-4 flex flex-col gap-2">
-                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${
-                    property.status === 'Approved' ? 'bg-emerald-500/90 text-white' :
-                    property.status === 'Pending' ? 'bg-amber-500/90 text-white' :
-                    'bg-red-500/90 text-white'
-                  }`}>
-                    {property.status}
+            isOwner ? (
+              <div key={`${property.id}-${index}`} className="group bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.08)] transition-all duration-500">
+                <div className="relative h-56 overflow-hidden">
+                  <img src={property.photos?.[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=600"} alt={property.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  
+                  <div className="absolute top-6 right-6 flex flex-col gap-3">
+                    <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-xl border border-white/20 ${
+                      property.status === 'Approved' ? 'bg-emerald-500/90 text-white' :
+                      property.status === 'Pending' ? 'bg-amber-500/90 text-white' :
+                      'bg-red-500/90 text-white'
+                    }`}>
+                      {property.status}
+                    </div>
+                    <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-xl border border-white/20 ${
+                      property.availabilityStatus !== 'unavailable' ? 'bg-blue-500/90 text-white' : 'bg-slate-500/90 text-white'
+                    }`}>
+                      {property.availabilityStatus !== 'unavailable' ? 'Available' : 'Hidden'}
+                    </div>
                   </div>
-                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${
-                    property.availabilityStatus !== 'unavailable' ? 'bg-blue-500/90 text-white' : 'bg-gray-500/90 text-white'
-                  }`}>
-                    {property.availabilityStatus !== 'unavailable' ? 'Available' : 'Hidden'}
+                </div>
+
+                <div className="p-8">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="font-black text-[#1A1A2E] text-2xl tracking-tighter truncate flex-1">{property.title}</h3>
+                    <div className="flex items-center gap-2 text-[#F59E0B] bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <span className="text-xs font-black tracking-tight">{property.rating || '4.8'}</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-gray-500 flex items-center gap-2 mb-6 font-medium">
+                    <MapPin className="w-4 h-4 text-[#F59E0B]" /> {property.area}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => navigate(`/list-property?edit=${property.id}`)}
+                      className={`col-span-2 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
+                        property.status === 'Rejected' 
+                          ? 'bg-red-500 text-white hover:bg-red-600' 
+                          : 'bg-[#1A1A2E] text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      {property.status === 'Rejected' ? 'Reapply Listing' : 'Edit Listing'}
+                    </button>
+
+                    <button 
+                      onClick={() => viewBookings(property.id, property.title)}
+                      className="py-4 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
+                    >
+                      <Calendar className="w-4 h-4 text-[#F59E0B]" /> Bookings
+                    </button>
+
+                    <button 
+                      onClick={() => viewReviews(property.id, property.title)}
+                      className="py-4 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
+                    >
+                      <Star className="w-4 h-4 text-[#F59E0B]" /> Reviews
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        if (property.availabilityStatus !== 'unavailable') {
+                          setSelectedPropertyToHide(property);
+                          setShowHideModal(true);
+                        } else {
+                          propertyService.updateProperty(property.id, { availabilityStatus: 'available', unavailabilityOption: null, unavailableFrom: null, unavailableTo: null }).then(() => {
+                            showToast("Property is now available", "success");
+                            fetchContent();
+                          });
+                        }
+                      }}
+                      className="py-4 bg-slate-50 hover:bg-slate-100 text-[#1A1A2E] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-[#F59E0B]" />
+                      {property.availabilityStatus !== 'unavailable' ? 'Hide' : 'Show'}
+                    </button>
+
+                    <button 
+                      onClick={() => removeListing(property.id)}
+                      className="py-4 bg-red-50 hover:bg-red-100 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2"
+                    >
+                      <XCircle className="w-4 h-4" /> Delete
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-[#1A1A2E] text-xl truncate flex-1">{property.title}</h3>
-                  <div className="flex items-center gap-1 text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">
-                    <Star className="w-3 h-3 fill-current" />
-                    <span className="text-xs font-bold">{property.rating || '4.8'}</span>
-                  </div>
-                </div>
-                
-                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4">
-                  <MapPin className="w-4 h-4 text-gray-400" /> {property.area}
-                </p>
-
-                <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-2xl font-black text-[#1A1A2E]">₹{property.pricePerDay}</span>
-                  <span className="text-sm text-gray-400 font-medium">/ night</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    onClick={() => navigate(`/list-property?edit=${property.id}`)}
-                    className={`col-span-2 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                      property.status === 'Rejected' 
-                        ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20' 
-                        : 'bg-[#1A1A2E] text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'
-                    }`}
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    {property.status === 'Rejected' ? 'Reapply Listing' : 'Edit Property'}
-                  </button>
-
-                  <button 
-                    onClick={() => viewBookings(property.id, property.title)}
-                    className="py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-2"
-                  >
-                    <Calendar className="w-4 h-4" /> Bookings
-                  </button>
-
-                  <button 
-                    onClick={() => viewReviews(property.id, property.title)}
-                    className="py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-2"
-                  >
-                    <Star className="w-4 h-4" /> Reviews
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      if (property.availabilityStatus !== 'unavailable') {
-                        setSelectedPropertyToHide(property);
-                        setShowHideModal(true);
-                      } else {
-                        propertyService.updateProperty(property.id, { availabilityStatus: 'available', unavailabilityOption: null, unavailableFrom: null, unavailableTo: null }).then(() => {
-                          showToast("Property is now available", "success");
-                          fetchMyProperties();
-                        });
-                      }
-                    }}
-                    className="py-3 bg-gray-50 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-2"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    {property.availabilityStatus !== 'unavailable' ? 'Hide' : 'Show'}
-                  </button>
-
-                  <button 
-                    onClick={() => removeListing(property.id)}
-                    className="py-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors border border-red-100 flex items-center justify-center gap-2"
-                  >
-                    <XCircle className="w-4 h-4" /> Remove
-                  </button>
-                </div>
-              </div>
-            </div>
+            ) : (
+              <PropertyCard 
+                key={`${property.id}-${index}`}
+                property={property}
+                isFavorite={true}
+                onToggleFavorite={async (e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const favs = profile?.favorites || [];
+                  const newFavs = favs.filter(id => id !== property.id);
+                  await updateProfileData({ favorites: newFavs });
+                }}
+              />
+            )
           ))}
         </div>
       )}
@@ -2908,7 +2926,7 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
         propertyId: booking.propertyId,
         visitorId: booking.visitorId,
         visitorName: profile?.displayName || 'Anonymous',
-        visitorAvatar: profile?.photoURL || getAvatarUrl(profile?.displayName || 'Anonymous', profile?.gender, profile?.role),
+        visitorAvatar: profile?.photoURL || getAvatarUrl(profile?.displayName || 'Anonymous'),
         text,
         rating,
         ratings,

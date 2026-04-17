@@ -151,7 +151,7 @@ export default function Navbar() {
                   </Link>
                   <Link to={isAdmin ? '/admin-secret-dashboard' : '/profile'} className="hidden sm:block cursor-pointer">
                     <img 
-                      src={user.photoURL || getAvatarUrl(user.email || user.uid, profile?.gender, profile?.role)} 
+                      src={user.photoURL || getAvatarUrl(user.email || user.uid)} 
                       alt="Profile" 
                       className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-outline-variant hover:border-primary transition-colors bg-gray-100" 
                     />
@@ -266,7 +266,7 @@ export default function Navbar() {
             <div className="p-4">
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
                 <img 
-                  src={user?.photoURL || getAvatarUrl(user?.email || user?.uid || 'guest', profile?.gender, profile?.role)} 
+                  src={user?.photoURL || getAvatarUrl(user?.email || user?.uid || 'guest')} 
                   alt="Profile" 
                   className="w-16 h-16 rounded-full border-2 border-primary/10 object-cover" 
                 />
