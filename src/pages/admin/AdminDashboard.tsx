@@ -191,8 +191,8 @@ export const AdminDashboard = () => {
     { label: 'Total Listings', value: dashboardStats.loading ? '...' : dashboardStats.totalListings.toString(), icon: Building2, color: 'text-blue-600', bg: 'bg-blue-100' },
     { label: 'Pending Approvals', value: dashboardStats.loading ? '...' : dashboardStats.pendingApprovals.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-100' },
     { label: 'Total Users', value: dashboardStats.loading ? '...' : dashboardStats.totalUsers.toString(), icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-    { label: 'Revenue Today', value: dashboardStats.loading ? '...' : `₹${dashboardStats.revenueToday.toLocaleString()}`, icon: Banknote, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-    { label: 'Total Revenue', value: dashboardStats.loading ? '...' : `₹${dashboardStats.revenueThisMonth.toLocaleString()}`, icon: Wallet, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { label: 'Revenue Today', value: dashboardStats.loading ? '...' : `₹${(dashboardStats.revenueToday || 0).toLocaleString()}`, icon: Banknote, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { label: 'Total Revenue', value: dashboardStats.loading ? '...' : `₹${(dashboardStats.revenueThisMonth || 0).toLocaleString()}`, icon: Wallet, color: 'text-purple-600', bg: 'bg-purple-100' },
     { label: 'Total Bookings', value: dashboardStats.loading ? '...' : dashboardStats.totalBookings.toString(), icon: CalendarCheck, color: 'text-rose-600', bg: 'bg-rose-100' },
   ];
 

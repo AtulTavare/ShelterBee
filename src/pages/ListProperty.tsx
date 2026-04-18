@@ -203,8 +203,16 @@ export default function ListProperty() {
         body: JSON.stringify({ folder })
       });
       
-      if (!sigRes.ok) throw new Error('Failed to get upload signature');
+      if (!sigRes.ok) {
+        const sigError = await sigRes.json().catch(() => ({ error: 'Unknown server error' }));
+        console.error("Cloudinary Signature API Error:", sigError);
+        throw new Error(sigError.error || 'Failed to get upload signature - Server error');
+      }
       const { signature, timestamp, cloudName, apiKey } = await sigRes.json();
+
+      if (!cloudName || !apiKey || !signature) {
+        throw new Error("Cloudinary configuration missing on server. Check environment variables.");
+      }
       
       // Step 3: Upload directly to Cloudinary
       setUploadProgress(prev => ({
@@ -225,8 +233,9 @@ export default function ListProperty() {
       );
       
       if (!uploadRes.ok) {
-        const errorData = await uploadRes.json();
-        throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+        const errorData = await uploadRes.json().catch(() => ({ error: { message: 'Network or parsing error' } }));
+        console.error("Cloudinary Upload API Error:", errorData);
+        throw new Error(errorData.error?.message || 'Cloudinary upload failed - check API key and Cloud name');
       }
       
       const data = await uploadRes.json();

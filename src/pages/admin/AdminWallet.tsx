@@ -131,7 +131,7 @@ export const AdminWallet = () => {
           </div>
           <div className="text-3xl font-black text-slate-900 flex items-center gap-1">
             <IndianRupee className="w-6 h-6 text-orange-500" />
-            {stats.totalPendingSettlements.toLocaleString()}
+            {(stats.totalPendingSettlements || 0).toLocaleString()}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">To be moved to available balance</div>
         </div>
@@ -148,7 +148,7 @@ export const AdminWallet = () => {
           </div>
           <div className="text-3xl font-black text-slate-900 flex items-center gap-1">
             <IndianRupee className="w-6 h-6 text-blue-500" />
-            {stats.totalPendingWithdrawals.toLocaleString()}
+            {(stats.totalPendingWithdrawals || 0).toLocaleString()}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">Requested by users</div>
         </div>
@@ -199,7 +199,7 @@ export const AdminWallet = () => {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">
-                        +₹{txn.amount.toLocaleString()}
+                        +₹{(txn.amount || 0).toLocaleString()}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button 
@@ -226,7 +226,7 @@ export const AdminWallet = () => {
                         </div>
                         <span className="text-xs font-bold text-slate-900">{txn.userId.substring(0, 8)}...</span>
                       </div>
-                      <span className="text-sm font-bold text-emerald-600">+₹{txn.amount.toLocaleString()}</span>
+                      <span className="text-sm font-bold text-emerald-600">+₹{(txn.amount || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex flex-col gap-1">
@@ -308,7 +308,7 @@ export const AdminWallet = () => {
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm font-black text-slate-900">
-                        ₹{req.amount.toLocaleString()}
+                        ₹{(req.amount || 0).toLocaleString()}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
@@ -357,7 +357,7 @@ export const AdminWallet = () => {
                         </div>
                         <span className="text-xs font-bold text-slate-900">{req.userId.substring(0, 8)}...</span>
                       </div>
-                      <span className="text-sm font-black text-slate-900">₹{req.amount.toLocaleString()}</span>
+                      <span className="text-sm font-black text-slate-900">₹{(req.amount || 0).toLocaleString()}</span>
                     </div>
                     <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                       <div className="text-[10px] font-bold text-slate-700">{req.bankAccount.bankName}</div>

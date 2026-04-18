@@ -121,7 +121,7 @@ export const AdminOwnerDetails = () => {
                           {prop.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">₹{prop.pricePerDay}/day</td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900">₹{(prop.pricePerDay || 0).toLocaleString()}/day</td>
                     </tr>
                   ))}
                   {properties.length === 0 && (

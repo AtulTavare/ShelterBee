@@ -568,11 +568,11 @@ export default function BookingPage() {
                           </div>
                           <div className="flex justify-between text-xs sm:text-sm text-white/70 font-medium">
                             <span>Base Rent</span>
-                            <span className="text-white font-bold">₹{property.pricePerDay}/day</span>
+                            <span className="text-white font-bold">₹{(property.pricePerDay || 0).toLocaleString()}/day</span>
                           </div>
                           <div className="pt-4 sm:pt-6 border-t border-white/10 flex justify-between items-end">
                             <span className="text-xs sm:text-sm font-bold text-white/70">Total Amount</span>
-                            <span className="text-3xl sm:text-4xl font-black">₹{totalAmount}</span>
+                            <span className="text-3xl sm:text-4xl font-black">₹{(totalAmount || 0).toLocaleString()}</span>
                           </div>
                         </div>
                       </div>
@@ -723,7 +723,7 @@ export default function BookingPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Price per day</span>
-                    <span className="text-[#1A1A2E] font-black">₹{property.pricePerDay}</span>
+                    <span className="text-[#1A1A2E] font-black">₹{(property.pricePerDay || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nights</span>
@@ -738,7 +738,7 @@ export default function BookingPage() {
                 <div className="pt-6 border-t border-slate-100 space-y-4">
                   <div className="flex justify-between items-end">
                     <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Amount</span>
-                    <span className="text-3xl font-black text-[#1A1A2E]">₹{totalAmount}</span>
+                    <span className="text-3xl font-black text-[#1A1A2E]">₹{(totalAmount || 0).toLocaleString()}</span>
                   </div>
                   <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
                     <p className="text-[10px] text-[#1E1B4B] font-bold leading-relaxed italic">

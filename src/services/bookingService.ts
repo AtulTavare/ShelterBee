@@ -27,6 +27,7 @@ export interface Booking {
   rejectionReason?: string;
   guests: GuestDetail[];
   govIdAcknowledged: boolean;
+  visitTime?: string;
   createdAt: any;
   updatedAt: any;
   // These are for UI convenience when loaded by owner/admin
