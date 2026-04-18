@@ -1,26 +1,11 @@
-import express from "express";
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
 
-dotenv.config();
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
-const app = express();
-
-app.use(express.json());
-
-// Set up Nodemailer transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-// API Route to send emails
-app.post("/api/send-email", async (req, res) => {
   try {
     const { to, subject, text, html, from, replyTo } = req.body;
 
@@ -29,6 +14,16 @@ app.post("/api/send-email", async (req, res) => {
         error: "SMTP credentials not configured on server. Please add them to your environment variables." 
       });
     }
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || "587"),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
 
     const info = await transporter.sendMail({
       from: from || process.env.FROM_EMAIL || process.env.SMTP_USER,
@@ -44,6 +39,4 @@ app.post("/api/send-email", async (req, res) => {
     console.error("Error sending email:", error);
     res.status(500).json({ error: "Failed to send email" });
   }
-});
-
-export default app;
+}
