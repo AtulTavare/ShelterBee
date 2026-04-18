@@ -7,7 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { image, folder } = req.body;
+    const { image, folder, quality, flags } = req.body;
 
     if (!image) {
       return res.status(400).json({ error: "Image data is required (base64 or URL)" });
@@ -30,6 +30,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Support for large payloads (Vercel has limitations, but base64 is common)
     const result = await cloudinary.uploader.upload(image, {
       folder: folder || "shelterbee",
+      quality: quality || 'auto:good',
+      flags: flags,
     });
 
     res.json(result);

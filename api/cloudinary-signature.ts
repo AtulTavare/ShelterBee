@@ -7,7 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { folder } = req.body;
+    const { folder, ...otherParams } = req.body;
     const timestamp = Math.round(new Date().getTime() / 1000);
     
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const signature = cloudinary.utils.api_sign_request(
-      { folder, timestamp },
+      { folder, timestamp, ...otherParams },
       apiSecret
     );
 

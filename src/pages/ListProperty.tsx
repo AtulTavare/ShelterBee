@@ -177,19 +177,36 @@ export default function ListProperty() {
     }));
   };
 
-  const uploadToCloudinary = async (file: File, folder: string, fileName: string): Promise<string> => {
+  const uploadToCloudinary = async (file: File, folder: string, fileName: string, isDocument: boolean = false): Promise<string> => {
     try {
-      // Step 1: Compress
-      setUploadProgress(prev => ({
-        ...prev,
-        fileStatuses: { ...prev.fileStatuses, [fileName]: 'Compressing...' }
-      }));
-      
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.8,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true
-      });
+      let finalFile: Blob | File = file;
+      const otherParams: Record<string, string> = {};
+
+      if (!isDocument) {
+        // Step 1: Light Compression for Photos
+        setUploadProgress(prev => ({
+          ...prev,
+          fileStatuses: { ...prev.fileStatuses, [fileName]: 'Optimizing...' }
+        }));
+        
+        finalFile = await imageCompression(file, {
+          maxSizeMB: 1.5,
+          maxWidthOrHeight: 2048,
+          useWebWorker: true,
+          initialQuality: 0.9
+        });
+        
+        otherParams.quality = 'auto:good';
+      } else {
+        // No compression for documents - clarify for verification
+        setUploadProgress(prev => ({
+          ...prev,
+          fileStatuses: { ...prev.fileStatuses, [fileName]: 'Preparing...' }
+        }));
+        
+        otherParams.quality = 'auto:best';
+        otherParams.flags = 'preserve_transparency';
+      }
       
       // Step 2: Get signature from server
       setUploadProgress(prev => ({
@@ -200,7 +217,7 @@ export default function ListProperty() {
       const sigRes = await fetch('/api/cloudinary-signature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder })
+        body: JSON.stringify({ folder, ...otherParams })
       });
       
       if (!sigRes.ok) {
@@ -221,11 +238,16 @@ export default function ListProperty() {
       }));
       
       const formData = new FormData();
-      formData.append('file', compressed);
+      formData.append('file', finalFile);
       formData.append('signature', signature);
       formData.append('timestamp', timestamp);
       formData.append('api_key', apiKey);
       formData.append('folder', folder);
+      
+      // Append additional signed parameters
+      Object.entries(otherParams).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
       
       const uploadRes = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
@@ -277,8 +299,8 @@ export default function ListProperty() {
     const docsFolder = `shelterbee_v2/users/${userName}/kyc`;
 
     try {
-      // Prepare files to upload
-      const filesToUpload: { file: File; folder: string; name: string; key: string }[] = [];
+      // Prepare files to upload with specific types for optimization
+      const filesToUpload: { file: File; folder: string; name: string; key: string; isDocument: boolean }[] = [];
       
       formData.photos.forEach((file, index) => {
         if (file) {
@@ -286,19 +308,20 @@ export default function ListProperty() {
             file, 
             folder: imagesFolder, 
             name: `Photo ${index + 1}`,
-            key: `photo_${index}`
+            key: `photo_${index}`,
+            isDocument: false
           });
         }
       });
 
       if (formData.aadhaarFront) {
-        filesToUpload.push({ file: formData.aadhaarFront, folder: docsFolder, name: 'Aadhaar Front', key: 'aadhaarFront' });
+        filesToUpload.push({ file: formData.aadhaarFront, folder: docsFolder, name: 'Aadhaar Front', key: 'aadhaarFront', isDocument: true });
       }
       if (formData.aadhaarBack) {
-        filesToUpload.push({ file: formData.aadhaarBack, folder: docsFolder, name: 'Aadhaar Back', key: 'aadhaarBack' });
+        filesToUpload.push({ file: formData.aadhaarBack, folder: docsFolder, name: 'Aadhaar Back', key: 'aadhaarBack', isDocument: true });
       }
       if (formData.propertyProof) {
-        filesToUpload.push({ file: formData.propertyProof, folder: docsFolder, name: 'Property Proof', key: 'propertyProof' });
+        filesToUpload.push({ file: formData.propertyProof, folder: docsFolder, name: 'Property Proof', key: 'propertyProof', isDocument: true });
       }
 
       setUploadProgress({
@@ -317,7 +340,7 @@ export default function ListProperty() {
         setUploadProgress(prev => ({ ...prev, status: `Uploading batch ${Math.floor(i/3) + 1}...` }));
         
         const batchResults = await Promise.all(
-          batch.map(item => uploadToCloudinary(item.file, item.folder, item.name))
+          batch.map(item => uploadToCloudinary(item.file, item.folder, item.name, item.isDocument))
         );
         
         batch.forEach((item, index) => {
