@@ -217,7 +217,7 @@ export default function ListProperty() {
       const sigRes = await fetch('/api/cloudinary-signature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder, ...otherParams })
+        body: JSON.stringify({ folder })
       });
       
       if (!sigRes.ok) {
@@ -243,11 +243,6 @@ export default function ListProperty() {
       formData.append('timestamp', timestamp);
       formData.append('api_key', apiKey);
       formData.append('folder', folder);
-      
-      // Append additional signed parameters
-      Object.entries(otherParams).forEach(([key, value]) => {
-        formData.append(key, value);
-      });
       
       const uploadRes = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
