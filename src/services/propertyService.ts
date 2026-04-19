@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export interface Property {
@@ -16,6 +16,7 @@ export interface Property {
   status: 'Pending' | 'Approved' | 'Rejected';
   rejectionReason?: string;
   createdAt: any;
+  updatedAt?: any;
   availableFrom?: string;
   isAvailable?: boolean;
   rating?: number;
@@ -31,7 +32,7 @@ export interface Property {
   gender?: string[]; // Male, Female, Other
   checkInTime?: string;
   checkOutTime?: string;
-  submissionType?: 'new listing' | 'changes approval';
+  submissionType?: 'new listing' | 'changes approval' | 'resubmission';
   unavailabilityUntil?: any; // Date or 'permanently' or 'manual'
   availabilityStatus?: 'available' | 'unavailable';
   unavailableFrom?: string; // ISO string
@@ -114,7 +115,7 @@ export const propertyService = {
 
   async updateProperty(id: string, data: Partial<Property>) {
     const docRef = doc(db, 'properties', id);
-    await updateDoc(docRef, data);
+    await setDoc(docRef, data, { merge: true });
   },
 
   async deleteProperty(id: string) {

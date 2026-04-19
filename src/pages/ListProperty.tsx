@@ -13,6 +13,7 @@ const SECURITY_FEATURES = ['CCTV Surveillance', 'Security Guard', 'Biometric Ent
 
 import { propertyService } from '../services/propertyService';
 import { storage } from '../firebase';
+import { serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import { emailService } from '../services/emailService';
@@ -84,10 +85,13 @@ export default function ListProperty() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const editId = params.get('edit');
-    if (editId) {
+    const propertyIdToUse = editId ? editId.trim() : null;
+    
+    if (propertyIdToUse) {
       setIsEditMode(true);
-      setPropertyId(editId);
-      fetchPropertyData(editId);
+      setPropertyId(propertyIdToUse);
+      console.log(`DIAGNOSTIC - Edit Mode Init: ID="${propertyIdToUse}"`);
+      fetchPropertyData(propertyIdToUse);
     }
   }, []);
 
@@ -375,18 +379,39 @@ export default function ListProperty() {
         gender: formData.gender,
         checkInTime: formData.checkInTime,
         checkOutTime: formData.checkOutTime,
-        submissionType: isEditMode ? 'changes approval' : 'new listing' as any,
+        submissionType: isEditMode 
+          ? (existingProperty?.status === 'Rejected' ? 'resubmission' : 'changes approval') 
+          : 'new listing' as any,
       };
 
       if (isEditMode && propertyId) {
-        await propertyService.updateProperty(propertyId, {
-          ...propertyData,
-          status: 'Pending',
-        });
-        showToast("Property updates submitted for approval!", "success");
+        try {
+          console.log(`DIAGNOSTIC: Attempting UPDATE. Document ID: "${propertyId}", User UID: "${user.uid}"`);
+          
+          // Remove ownerId and submissionType from update to avoid immutable field or schema errors
+          const { ownerId, submissionType, ...updateData } = propertyData;
+          
+          await propertyService.updateProperty(propertyId, {
+            ...updateData,
+            status: 'Pending',
+            updatedAt: serverTimestamp(),
+          });
+          console.log("DIAGNOSTIC: Update successful");
+          showToast("Property updates submitted for approval!", "success");
+        } catch (updateErr: any) {
+          console.error("DIAGNOSTIC: Update failed", updateErr);
+          throw new Error(`Update failed for ID "${propertyId}": ${updateErr.message}`);
+        }
       } else {
-        await propertyService.addProperty(propertyData);
-        showToast("Property listed successfully! Waiting for approval.", "success");
+        try {
+          console.log(`DIAGNOSTIC: Attempting CREATE. User UID: "${user.uid}"`);
+          await propertyService.addProperty(propertyData);
+          console.log("DIAGNOSTIC: Create successful");
+          showToast("Property listed successfully! Waiting for approval.", "success");
+        } catch (createErr: any) {
+          console.error("DIAGNOSTIC: Create failed", createErr);
+          throw new Error(`Create failed: ${createErr.message}`);
+        }
       }
 
       if (profile && user.email) {

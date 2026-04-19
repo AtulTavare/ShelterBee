@@ -132,7 +132,8 @@ export const AdminPendingApprovals = () => {
                 </span>
                 {prop.submissionType && (
                   <span className={`px-2.5 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                    prop.submissionType === 'changes approval' ? 'bg-blue-500' : 'bg-purple-500'
+                    prop.submissionType === 'changes approval' ? 'bg-blue-500' : 
+                    prop.submissionType === 'resubmission' ? 'bg-indigo-500' : 'bg-purple-500'
                   }`}>
                     {prop.submissionType}
                   </span>

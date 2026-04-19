@@ -1,12 +1,26 @@
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from './src/firebase';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import config from './firebase-applet-config.json';
+
+const app = initializeApp(config);
+const db = getFirestore(app);
 
 async function check() {
-  const snapshot = await getDocs(collection(db, 'properties'));
-  console.log(`Found ${snapshot.docs.length} properties.`);
-  snapshot.docs.forEach(doc => {
-    console.log(doc.id, doc.data().title, 'Status:', doc.data().status);
-  });
-  process.exit(0);
+  try {
+    console.log("Checking Firestore Connection...");
+    const testDoc = doc(db, 'properties', 'test_connection_doc');
+    await getDoc(testDoc);
+    console.log("Read Success");
+    
+    try {
+      await updateDoc(testDoc, { lastCheck: new Date().toISOString() });
+      console.log("Write Success");
+    } catch (e: any) {
+      console.error("Write Failed:", e.message);
+    }
+  } catch (e: any) {
+    console.error("Read Failed:", e.message);
+  }
 }
+
 check();

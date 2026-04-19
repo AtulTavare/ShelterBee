@@ -1977,19 +1977,7 @@ function FavouritesTab() {
                     {property.status === 'Rejected' ? (
                       <>
                         <button 
-                          onClick={async () => {
-                            try {
-                              showToast("Reapplying stay listing...", "info");
-                              await propertyService.updateProperty(property.id, { 
-                                status: 'Pending',
-                                rejectionReason: null 
-                              });
-                              showToast("Listing re-submitted.", "success");
-                              fetchContent();
-                            } catch (error) {
-                              showToast("Failed to reapply.", "error");
-                            }
-                          }}
+                          onClick={() => navigate(`/list-property?edit=${property.id}`)}
                           className="h-10 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[8px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
                         >
                           <RefreshCw className="w-3.5 h-3.5" /> Reapply
