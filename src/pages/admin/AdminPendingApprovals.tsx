@@ -1,5 +1,6 @@
 import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { emailService } from '../../services/emailService';
@@ -18,6 +19,7 @@ const rejectionReasons = [
 ];
 
 export const AdminPendingApprovals = () => {
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -132,10 +134,9 @@ export const AdminPendingApprovals = () => {
                 </span>
                 {prop.submissionType && (
                   <span className={`px-2.5 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                    prop.submissionType === 'changes approval' ? 'bg-blue-500' : 
-                    prop.submissionType === 'resubmission' ? 'bg-indigo-500' : 'bg-purple-500'
+                    (prop.submissionType === 'changes approval' || prop.submissionType === 'resubmission') ? 'bg-indigo-500' : 'bg-purple-500'
                   }`}>
-                    {prop.submissionType}
+                    {(prop.submissionType === 'changes approval' || prop.submissionType === 'resubmission') ? 'Resubmission' : 'New Listing'}
                   </span>
                 )}
               </div>
@@ -161,11 +162,11 @@ export const AdminPendingApprovals = () => {
       {/* Property Details Modal */}
       {selectedProperty && !showRejectModal && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[100px] bg-slate-900/50 backdrop-blur-sm overflow-y-auto"
           onClick={() => setSelectedProperty(null)}
         >
           <div 
-            className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-xl"
+            className="bg-white rounded-2xl w-full max-w-3xl max-h-[calc(100vh-140px)] flex flex-col shadow-xl my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
@@ -271,20 +272,27 @@ export const AdminPendingApprovals = () => {
               </div>
             </div>
             
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0 rounded-b-2xl">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap gap-3 shrink-0 rounded-b-2xl">
               <button 
                 onClick={() => handleApprove(selectedProperty.id)}
-                className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="flex-1 min-w-[120px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                Approve Property
+                Approve
+              </button>
+              <button 
+                onClick={() => navigate(`/list-property?edit=${selectedProperty.id}&adminEdit=true`)}
+                className="flex-1 min-w-[120px] py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">edit</span>
+                Edit Property
               </button>
               <button 
                 onClick={() => setShowRejectModal(true)}
-                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="flex-1 min-w-[120px] py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined text-[18px]">cancel</span>
-                Reject Property
+                Reject
               </button>
             </div>
           </div>

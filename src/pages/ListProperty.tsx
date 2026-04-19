@@ -78,6 +78,7 @@ export default function ListProperty() {
   });
 
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isAdminEdit, setIsAdminEdit] = useState(false);
   const [propertyId, setPropertyId] = useState<string | null>(null);
   const [showResubmitConfirm, setShowResubmitConfirm] = useState(false);
   const [resubmitAgreed, setResubmitAgreed] = useState(false);
@@ -86,11 +87,16 @@ export default function ListProperty() {
     const params = new URLSearchParams(window.location.search);
     const editId = params.get('edit');
     const propertyIdToUse = editId ? editId.trim() : null;
+    const adminEditParam = params.get('adminEdit') === 'true';
+    
+    if (adminEditParam) {
+      setIsAdminEdit(true);
+    }
     
     if (propertyIdToUse) {
       setIsEditMode(true);
       setPropertyId(propertyIdToUse);
-      console.log(`DIAGNOSTIC - Edit Mode Init: ID="${propertyIdToUse}"`);
+      console.log(`DIAGNOSTIC - Edit Mode Init: ID="${propertyIdToUse}", AdminEdit=${adminEditParam}`);
       fetchPropertyData(propertyIdToUse);
     }
   }, []);
@@ -163,7 +169,7 @@ export default function ListProperty() {
         return;
       }
     } else if (step === 5) {
-      if (!isEditMode && (!formData.aadhaarFront || !formData.aadhaarBack || !formData.propertyProof)) {
+      if (!isEditMode && !isAdminEdit && (!formData.aadhaarFront || !formData.aadhaarBack || !formData.propertyProof)) {
         showToast("Please upload all required documents.", "error");
         return;
       }
@@ -285,7 +291,7 @@ export default function ListProperty() {
       return;
     }
     
-    if (profile?.emailVerified === false) {
+    if (profile?.emailVerified === false && !isAdminEdit) {
       setShowVerificationPopup(true);
       return;
     }
@@ -386,17 +392,22 @@ export default function ListProperty() {
 
       if (isEditMode && propertyId) {
         try {
-          console.log(`DIAGNOSTIC: Attempting UPDATE. Document ID: "${propertyId}", User UID: "${user.uid}"`);
+          console.log(`DIAGNOSTIC: Attempting UPDATE. Document ID: "${propertyId}", User UID: "${user.uid}", AdminEdit: ${isAdminEdit}`);
           
           // Remove ownerId and submissionType from update to avoid immutable field or schema errors
           const { ownerId, submissionType, ...updateData } = propertyData;
           
           await propertyService.updateProperty(propertyId, {
             ...updateData,
-            status: 'Pending',
+            status: isAdminEdit ? 'Approved' : 'Pending',
             updatedAt: serverTimestamp(),
           });
           console.log("DIAGNOSTIC: Update successful");
+          if (isAdminEdit) {
+            showToast("Property updated successfully!", "success");
+            navigate('/admin-secret-dashboard');
+            return;
+          }
           showToast("Property updates submitted for approval!", "success");
         } catch (updateErr: any) {
           console.error("DIAGNOSTIC: Update failed", updateErr);
@@ -981,11 +992,11 @@ export default function ListProperty() {
               </button>
             ) : (
               <button 
-                onClick={() => isEditMode ? setShowResubmitConfirm(true) : handleSubmit(new Event('submit') as any)}
+                onClick={() => (isEditMode && !isAdminEdit) ? setShowResubmitConfirm(true) : handleSubmit(new Event('submit') as any)}
                 disabled={!formData.termsAccepted || isSubmitting}
                 className={`flex-1 md:flex-none flex items-center justify-center gap-2 font-bold px-4 md:px-8 py-2.5 md:py-3 rounded-xl shadow-lg transition-colors ${formData.termsAccepted && !isSubmitting ? 'bg-primary text-on-primary hover:bg-primary/90' : 'bg-surface-variant text-on-surface-variant cursor-not-allowed'}`}
               >
-                {isSubmitting ? 'Submitting...' : (isEditMode ? 'Resubmit' : 'Submit Listing')} <CheckCircle2 className="w-4 h-4" />
+                {isSubmitting ? 'Submitting...' : (isAdminEdit ? 'Save Details' : (isEditMode ? 'Resubmit' : 'Submit Listing'))} <CheckCircle2 className="w-4 h-4" />
               </button>
             )}
           </div>
