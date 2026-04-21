@@ -1,30 +1,32 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
+import * as admin from 'firebase-admin';
 
-// Initialize Admin SDK once
-const initAdmin = () => {
-  if (getApps().length === 0) {
-    try {
-      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-      if (serviceAccount) {
-        initializeApp({
-          credential: cert(JSON.parse(serviceAccount))
-        });
-      } else {
-        console.error("FIREBASE_SERVICE_ACCOUNT_JSON is missing");
-      }
-    } catch (error) {
-      console.error("Firebase Admin initialization error:", error);
-    }
+function initAdmin() {
+  try {
+    if (admin.apps.length > 0) return;
+    
+    const serviceAccount = JSON.parse(
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON!
+    );
+    
+    // Fix double-escaped newlines in private key
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    
+  } catch (error) {
+    console.error('Firebase Admin initialization error:', error);
+    throw error;
   }
-};
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   initAdmin();
-  const auth = getAuth();
+  const auth = admin.auth();
 
   const { action, email, newPassword, uid } = req.body;
 
