@@ -22,7 +22,6 @@ cloudinary.config({
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize Firebase Admin with default credentials
-// This works automatically in Google Cloud Run environments
 try {
   initializeApp();
 } catch (error) {
@@ -54,7 +53,7 @@ async function startServer() {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
+    secure: process.env.SMTP_SECURE === "true",
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -116,28 +115,35 @@ async function startServer() {
     }
   });
 
-  // API Route to reset password
+  // API Route to reset password - handles both check-user and update-password actions
   app.post("/api/reset-password", async (req, res) => {
     try {
-      const { email, newPassword } = req.body;
+      const { action, email, newPassword, uid } = req.body;
 
-      if (!email || !newPassword) {
-        return res.status(400).json({ error: "Email and new password are required" });
+      if (action === 'check-user') {
+        if (!email) return res.status(400).json({ error: "Email is required" });
+        const user = await getAuth().getUserByEmail(email);
+        return res.status(200).json({
+          exists: true,
+          uid: user.uid,
+          emailVerified: user.emailVerified
+        });
       }
 
-      // Get user by email
-      const userRecord = await getAuth().getUserByEmail(email);
-      
-      // Update password
-      await getAuth().updateUser(userRecord.uid, {
-        password: newPassword
-      });
+      if (action === 'update-password') {
+        if (!uid || !newPassword) {
+          return res.status(400).json({ error: "UID and new password are required" });
+        }
+        await getAuth().updateUser(uid, { password: newPassword });
+        return res.status(200).json({ success: true });
+      }
 
-      res.json({ success: true });
+      return res.status(400).json({ error: "Invalid action" });
+
     } catch (error: any) {
       console.error("Error resetting password:", error);
       if (error.code === 'auth/user-not-found') {
-        res.status(404).json({ error: "No account found with this email address." });
+        res.status(404).json({ exists: false, error: "No account found with this email. Please register." });
       } else {
         res.status(500).json({ error: "Failed to reset password" });
       }
@@ -188,7 +194,7 @@ async function startServer() {
     res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
   });
 
-  // Global error handler for API and other routes
+  // Global error handler
   app.use((err: any, req: any, res: any, next: any) => {
     console.error("Unhandled Server Error:", err);
     if (req.url.startsWith('/api/')) {
