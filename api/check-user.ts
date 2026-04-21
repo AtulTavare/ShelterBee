@@ -1,12 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { initializeApp, getApps } from "firebase-admin/app";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 // Initialize Firebase Admin
 if (!getApps().length) {
   try {
-    initializeApp();
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (serviceAccount) {
+      initializeApp({
+        credential: cert(JSON.parse(serviceAccount))
+      });
+    } else {
+      initializeApp();
+    }
   } catch (error) {
     console.error("Firebase Admin initialization error:", error);
   }
