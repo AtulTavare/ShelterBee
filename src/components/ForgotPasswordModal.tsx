@@ -136,10 +136,14 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
       
       const checkData = await checkRes.json();
       
-      if (!checkRes.ok) {
-        setError("No account found with this email. Please register.");
+      // Fix: check response.ok AND data.exists
+      if (!checkRes.ok || !checkData.exists) {
+        setError(checkData.error || "No account found with this email. Please register.");
         return;
       }
+
+      // Store UID for the next steps
+      setUid(checkData.uid);
 
       // 2. Query user type from Firestore
       const usersRef = collection(db, 'users');
@@ -152,7 +156,6 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
         typeLabel = userData.role === 'owner' ? "Property Owner" : "Visitor";
       }
       setAccountType(typeLabel);
-      setUid(checkData.uid);
 
       // 3. Send OTP
       const sent = await sendOTP(email);
