@@ -146,14 +146,18 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
       setUid(checkData.uid);
 
       // 2. Query user type from Firestore
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const querySnapshot = await getDocs(q);
-      
-      let typeLabel = "Unknown Account";
-      if (!querySnapshot.empty) {
-        const userData = querySnapshot.docs[0].data();
-        typeLabel = userData.role === 'owner' ? "Property Owner" : "Visitor";
+      let typeLabel = "Account";
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const userData = querySnapshot.docs[0].data();
+          typeLabel = userData.role === 'owner' ? "Property Owner" : "Visitor";
+        }
+      } catch (firestoreErr) {
+        console.warn('Could not fetch user type:', firestoreErr);
+        // Continue anyway - user type is not critical for password reset
       }
       setAccountType(typeLabel);
 
