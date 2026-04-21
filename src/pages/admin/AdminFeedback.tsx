@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const mockFeedback = [
   { id: 1, type: 'Report', user: 'John Doe', target: 'Sunrise Apartments', date: '2023-11-16', status: 'Open', description: 'The property images are misleading. The actual room is much smaller.' },
@@ -8,6 +9,17 @@ const mockFeedback = [
 
 export const AdminFeedback = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (selectedItem) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedItem]);
 
   return (
     <div className="space-y-8">
@@ -51,67 +63,81 @@ export const AdminFeedback = () => {
       </div>
 
       {/* Detail Modal */}
-      {selectedItem && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
-          onClick={() => setSelectedItem(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-lg flex flex-col shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0 rounded-t-2xl">
-              <h2 className="text-lg font-semibold text-slate-900">{selectedItem.type} Details</h2>
-              <button onClick={() => setSelectedItem(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="flex items-center gap-3 mb-6">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  selectedItem.type === 'Report' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {selectedItem.type}
-                </span>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  selectedItem.status === 'Open' ? 'bg-orange-100 text-orange-700' : selectedItem.status === 'Reviewed' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                }`}>
-                  Status: {selectedItem.status}
-                </span>
+      <AnimatePresence>
+        {selectedItem && (
+          <div className="modal-overlay p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+              onClick={() => setSelectedItem(null)} 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 30 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 30 }} 
+              className="modal-content bg-white rounded-3xl w-full max-w-lg flex flex-col shadow-2xl"
+            >
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0 rounded-t-3xl">
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">{selectedItem.type} Details</h2>
+                <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
               </div>
-
-              <div>
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Submitted By</div>
-                <div className="font-medium text-slate-900 text-sm">{selectedItem.user} <span className="text-slate-500 font-normal">on {selectedItem.date}</span></div>
-              </div>
-              
-              <div>
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Target Entity</div>
-                <div className="font-medium text-slate-900 text-sm">{selectedItem.target}</div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</div>
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed">
-                  {selectedItem.description}
+              <div className="p-6 space-y-5">
+                <div className="flex items-center gap-3">
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    selectedItem.type === 'Report' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {selectedItem.type}
+                  </span>
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    selectedItem.status === 'Open' ? 'bg-orange-100 text-orange-700' : selectedItem.status === 'Reviewed' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    Status: {selectedItem.status}
+                  </span>
+                </div>
+  
+                <div>
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Submitted By</div>
+                  <div className="font-bold text-slate-900 text-sm">{selectedItem.user} <span className="text-slate-500 font-normal ml-1">on {selectedItem.date}</span></div>
+                </div>
+                
+                <div>
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Entity</div>
+                  <div className="font-bold text-slate-900 text-sm">{selectedItem.target}</div>
+                </div>
+  
+                <div>
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description</div>
+                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 text-sm text-slate-700 leading-relaxed font-medium">
+                    {selectedItem.description}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3 justify-end shrink-0 rounded-b-2xl">
-              {selectedItem.status === 'Open' && (
-                <button className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors">
-                  Mark as Reviewed
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3 justify-end shrink-0 rounded-b-3xl">
+                {selectedItem.status === 'Open' && (
+                  <button className="py-2.5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-95">
+                    Mark as Reviewed
+                  </button>
+                )}
+                {(selectedItem.status === 'Open' || selectedItem.status === 'Reviewed') && (
+                  <button className="py-2.5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-emerald-600/20 active:scale-95">
+                    Mark as Resolved
+                  </button>
+                )}
+                <button 
+                  onClick={() => setSelectedItem(null)}
+                  className="py-2.5 px-6 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all active:scale-95 text-sm"
+                >
+                  Close
                 </button>
-              )}
-              {(selectedItem.status === 'Open' || selectedItem.status === 'Reviewed') && (
-                <button className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors">
-                  Mark as Resolved
-                </button>
-              )}
-            </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };

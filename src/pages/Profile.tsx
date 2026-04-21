@@ -12,7 +12,7 @@ import { reviewService, Review } from '../services/reviewService';
 import { walletService } from '../services/walletService';
 import { Bed } from 'lucide-react';
 import { emailTemplates } from '../services/emailTemplates';
-import { format } from 'date-fns';
+import { format, differenceInHours } from 'date-fns';
 import { 
   User, 
   CreditCard, 
@@ -42,7 +42,9 @@ import {
   Trash2,
   MessageSquare,
   Eye,
-  EyeOff
+  EyeOff,
+  IndianRupee,
+  Landmark
 } from 'lucide-react';
 
 import PropertyCard from '../components/PropertyCard';
@@ -116,6 +118,17 @@ export default function Profile() {
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [rejectedProperties, setRejectedProperties] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (showOTPModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showOTPModal]);
 
   useEffect(() => {
     if (isOwner && user) {
@@ -324,6 +337,17 @@ function NewBookingsTab() {
   const [processing, setProcessing] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'new' | 'confirmed' | 'cancelled' | 'past'>('new');
 
+  useEffect(() => {
+    if (showRejectModal || showConfirmModal || !!selectedBooking) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showRejectModal, showConfirmModal, selectedBooking]);
+
   const handleReject = async () => {
     // ... same as before
     if (!rejectionReason.trim() || !selectedBooking) {
@@ -337,18 +361,11 @@ function NewBookingsTab() {
         throw new Error("Financial records not found for this booking.");
       }
 
-      await walletService.processRefund(
-        selectedBooking.visitorId,
-        selectedBooking.ownerId,
-        selectedBooking.totalAmount,
-        financials.receivedAmount,
-        selectedBooking.id
-      );
-
       await bookingService.updateBookingStatus(selectedBooking.id, 'rejected', {
         rejectionReason,
         rejectedBy: 'owner',
-        rejectedAt: serverTimestamp()
+        rejectedAt: serverTimestamp(),
+        refundPercentage: 100 // Rejection always 100% refund in this logic
       });
 
       const template = emailTemplates.getBookingRejection(
@@ -982,6 +999,17 @@ function MyBookingsTab() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
+
+  useEffect(() => {
+    if (showReviewModal || showReportModal || showCancellationModal || !!selectedBooking) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showReviewModal, showReportModal, showCancellationModal, selectedBooking]);
   const [ownersInfo, setOwnersInfo] = useState<Record<string, any>>({});
   const [loadingOwners, setLoadingOwners] = useState<Record<string, boolean>>({});
 
@@ -1087,7 +1115,7 @@ function MyBookingsTab() {
           {bookings.map((booking) => {
             const owner = ownersInfo[booking.ownerId];
             const isLoadingOwner = loadingOwners[booking.ownerId];
-            const hasReviewed = userReviews.some(r => r.propertyId === booking.propertyId);
+            const hasReviewed = userReviews.some(r => r.bookingId === booking.id);
 
             return (
               <div 
@@ -1221,14 +1249,29 @@ function MyBookingsTab() {
                         </button>
                       )}
                       
-                      {booking.status === 'confirmed' && (
-                        <button 
-                          onClick={() => { setSelectedBooking(booking); setShowCancellationModal(true); }}
-                          className="flex-1 min-w-[140px] py-4 bg-white hover:bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2 shadow-lg shadow-red-500/5"
-                        >
-                          <XCircle className="w-4 h-4" /> Cancel Booking
-                        </button>
-                      )}
+                      {booking.status === 'confirmed' && (() => {
+                        const now = new Date();
+                        const checkIn = booking.checkIn ? new Date(booking.checkIn) : null;
+                        const checkOut = booking.checkOut ? new Date(booking.checkOut) : null;
+                        
+                        if (!checkIn) return null;
+                        
+                        // Hide if past check-out
+                        if (checkOut && now > checkOut) return null;
+                        
+                        // Hide if within 6 hours of check-in OR past check-in
+                        const hoursToCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
+                        if (hoursToCheckIn < 6) return null;
+
+                        return (
+                          <button 
+                            onClick={() => { setSelectedBooking(booking); setShowCancellationModal(true); }}
+                            className="flex-1 min-w-[140px] py-4 bg-white hover:bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2 shadow-lg shadow-red-500/5"
+                          >
+                            <XCircle className="w-4 h-4" /> Cancel Booking
+                          </button>
+                        );
+                      })()}
 
                       <button 
                         onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
@@ -1290,30 +1333,34 @@ function MyBookingsTab() {
     setLoading(true);
     try {
       const amount = booking.totalAmount || booking.estimatedCost || 0;
-      const receivedAmount = (booking.financials?.receivedAmount) || (amount * 0.75); // Assume 75% was owner's share
       
-      // Determine if eligible for refund (e.g., more than 24h before check-in)
       const now = new Date();
-      const checkInDate = booking.checkIn;
-      const hoursUntilCheckIn = checkInDate ? (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60) : 48;
-      const isEligibleForRefund = hoursUntilCheckIn >= 24;
+      const checkInDate = new Date(booking.checkIn);
+      const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      
+      let refundPercentage = 0;
+      if (hoursUntilCheckIn >= 24) {
+        refundPercentage = 75;
+      } else if (hoursUntilCheckIn >= 6) {
+        refundPercentage = 50;
+      }
+
+      const refundAmount = (amount * refundPercentage) / 100;
 
       // Update booking status
       await bookingService.updateBookingStatus(booking.id, 'cancelled', {
         cancellationReason: reason,
         cancelledBy: 'visitor',
         cancelledAt: serverTimestamp(),
-        refundStatus: isEligibleForRefund ? 'full' : 'none'
+        refundPercentage,
+        refundAmount,
+        cancellationTime: serverTimestamp()
       });
 
-      if (isEligibleForRefund) {
-        // Full refund to visitor, deduct from owner
-        await walletService.processRefund(booking.visitorId, booking.ownerId, amount, receivedAmount, booking.id);
-        showToast("Booking cancelled. Refund initiated to your wallet.", "success");
+      if (refundAmount > 0) {
+        showToast(`Booking cancelled. ₹${refundAmount.toLocaleString()} (${refundPercentage}%) refund initiated to your wallet.`, "success");
       } else {
-        // No refund to visitor, transfer owner's share to admin per user request
-        await walletService.processAdminTransfer(booking.ownerId, receivedAmount, booking.id);
-        showToast("Booking cancelled. Non-refundable per policy. Funds moved to platform.", "info");
+        showToast("Booking cancelled. Non-refundable per policy.", "info");
       }
 
       // Send emails
@@ -1383,20 +1430,50 @@ function MyBookingsTab() {
               <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
                 <h4 className="font-bold text-[#1A1A2E] mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-amber-600" />
-                  Cancellation Policies
+                  Cancellation & Refund Policy
                 </h4>
+                <div className="space-y-4 mb-6">
+                  {(() => {
+                    const now = new Date();
+                    const checkInDate = new Date(booking.checkIn);
+                    const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+                    
+                    let refundPercent = 0;
+                    if (hoursUntilCheckIn >= 24) refundPercent = 75;
+                    else if (hoursUntilCheckIn >= 6) refundPercent = 50;
+                    
+                    const amount = booking.totalAmount || booking.estimatedCost || 0;
+                    const refundAmount = (amount * refundPercent) / 100;
+
+                    return (
+                      <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-bold text-slate-500 uppercase">Refund Percentage</span>
+                          <span className="text-lg font-black text-[#1E1B4B]">{refundPercent}%</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-500 uppercase">Expected Refund</span>
+                          <span className="text-lg font-black text-emerald-600">₹{refundAmount.toLocaleString()}</span>
+                        </div>
+                        <p className="mt-2 text-[10px] text-slate-400 italic">
+                          Calculated based on {hoursUntilCheckIn.toFixed(1)} hours remaining until check-in.
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
                 <ul className="space-y-3 text-sm text-gray-600">
                   <li className="flex gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
-                    Full refund if cancelled within 24 hours of booking.
+                    More than 24 hours before check-in: 75% refund.
                   </li>
                   <li className="flex gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
-                    50% refund if cancelled at least 7 days before check-in.
+                    Between 24 hours and 6 hours before check-in: 50% refund.
                   </li>
                   <li className="flex gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
-                    No refund if cancelled within 48 hours of check-in.
+                    Within 6 hours of check-in: No refund.
                   </li>
                 </ul>
               </div>
@@ -1436,37 +1513,105 @@ function PaymentsTab() {
   const { user } = useAuth();
   const [bookings, setBookings] = useState<(Booking & { property?: any })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wallet, setWallet] = useState<any>(null);
+  const [refunds, setRefunds] = useState<any[]>([]);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawType, setWithdrawType] = useState<'upi' | 'bank'>('upi');
+  const [withdrawalLoading, setWithdrawalLoading] = useState(false);
+  const [bankDetails, setBankDetails] = useState({
+    accountNumber: '',
+    bankName: '',
+    ifsc: '',
+    upiId: ''
+  });
+
+  const fetchData = async () => {
+    if (!user) return;
+    try {
+      // Fetch Bookings
+      const userBookings = await bookingService.getBookingsByVisitor(user.uid);
+      const bookingsWithProperties = await Promise.all(
+        userBookings.map(async (booking) => {
+          const property = await propertyService.getPropertyById(booking.propertyId);
+          return { ...booking, property };
+        })
+      );
+      bookingsWithProperties.sort((a, b) => {
+        if (!a.checkIn || !b.checkIn) return 0;
+        return b.checkIn.getTime() - a.checkIn.getTime();
+      });
+      setBookings(bookingsWithProperties);
+
+      // Fetch Wallet
+      const userWallet = await walletService.getWallet(user.uid);
+      setWallet(userWallet);
+
+      // Fetch Refund Transactions
+      const txns = await walletService.getTransactions(user.uid);
+      const refundTxns = txns.filter(t => t.type === 'credit' && t.reason === 'refund');
+      
+      const enhancedRefunds = await Promise.all(refundTxns.map(async (t) => {
+        if (t.bookingId) {
+          const b = await bookingService.getBookingById(t.bookingId);
+          if (b) {
+            const p = await propertyService.getPropertyById(b.propertyId);
+            return { ...t, propertyName: p?.title || 'Unknown Property' };
+          }
+        }
+        return { ...t, propertyName: 'Booking Refund' };
+      }));
+      setRefunds(enhancedRefunds);
+
+    } catch (error) {
+      console.error("Error fetching payment data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchBookings = async () => {
-      if (!user) return;
-      try {
-        const userBookings = await bookingService.getBookingsByVisitor(user.uid);
-        
-        // Fetch property details for each booking
-        const bookingsWithProperties = await Promise.all(
-          userBookings.map(async (booking) => {
-            const property = await propertyService.getPropertyById(booking.propertyId);
-            return { ...booking, property };
-          })
-        );
-        
-        // Sort by checkIn date descending
-        bookingsWithProperties.sort((a, b) => {
-          if (!a.checkIn || !b.checkIn) return 0;
-          return b.checkIn.getTime() - a.checkIn.getTime();
-        });
-
-        setBookings(bookingsWithProperties);
-      } catch (error) {
-        console.error("Error fetching bookings:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBookings();
+    fetchData();
   }, [user]);
+
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || isNaN(Number(withdrawAmount)) || Number(withdrawAmount) <= 0) {
+      showToast("Please enter a valid amount", "error");
+      return;
+    }
+    
+    if (Number(withdrawAmount) > (wallet?.availableBalance || 0)) {
+      showToast("Insufficient balance", "error");
+      return;
+    }
+
+    if (withdrawType === 'upi' && !bankDetails.upiId) {
+      showToast("Please enter UPI ID", "error");
+      return;
+    }
+
+    if (withdrawType === 'bank' && (!bankDetails.accountNumber || !bankDetails.bankName || !bankDetails.ifsc)) {
+      showToast("Please enter complete bank details", "error");
+      return;
+    }
+
+    setWithdrawalLoading(true);
+    try {
+      const details = withdrawType === 'upi' 
+        ? { accountNumber: bankDetails.upiId, bankName: 'UPI Transfer', ifsc: 'UPI', branchName: 'Online', accountHolderName: user?.displayName || 'Visitor' } 
+        : { ...bankDetails, branchName: 'Pending', accountHolderName: user?.displayName || 'Visitor' };
+
+      await walletService.requestWithdrawal(user!.uid, Number(withdrawAmount), details);
+      showToast("Withdrawal request submitted. Amount will be credited in 3-4 working days.", "success");
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      fetchData();
+    } catch (error: any) {
+      showToast(error.message || "Withdrawal failed", "error");
+    } finally {
+      setWithdrawalLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -1477,50 +1622,255 @@ function PaymentsTab() {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      {bookings.length === 0 ? (
-        <div className="text-center py-12">
-          <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No payments yet</h3>
-          <p className="text-gray-500">Your payment history will appear here once you make a booking.</p>
+    <div className="space-y-6">
+      {/* Wallet Balance Card */}
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
+            <WalletIcon className="w-7 h-7 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500 mb-1">Wallet Balance (Refunds collected)</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-black text-emerald-600">₹{(wallet?.availableBalance || 0).toLocaleString()}</span>
+              {wallet?.pendingBalance > 0 && (
+                <span className="text-sm text-gray-400 font-medium ml-2">
+                  (₹{wallet.pendingBalance.toLocaleString()} pending)
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Description</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Invoice</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((booking) => (
-                <tr key={booking.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-4 px-4 text-sm text-[#1A1A2E] font-medium">
-                    {booking.createdAt ? format(booking.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
-                  </td>
-                  <td className="py-4 px-4 text-sm text-gray-600">Booking: {booking.property?.title || 'Unknown Property'}</td>
-                  <td className="py-4 px-4 text-sm text-gray-400">#{booking.id?.substring(0, 8).toUpperCase()}</td>
-                  <td className="py-4 px-4">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-md ${
-                      booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
-                      booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
-                      booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
-                      'text-gray-600 bg-gray-50'
-                    }`}>
-                      {booking.status === 'confirmed' ? 'Paid' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{(booking.totalAmount || booking.estimatedCost || 0).toLocaleString()}</td>
+        <button 
+          onClick={() => setShowWithdrawModal(true)}
+          disabled={(wallet?.availableBalance || 0) <= 0}
+          className="px-6 py-3 bg-[#1A1A2E] text-white rounded-xl font-bold hover:bg-[#2A2A4E] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
+        >
+          <ArrowUpRight className="w-4 h-4" />
+          Withdraw to Bank
+        </button>
+      </div>
+
+      {/* Refund History Section */}
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 mb-6">
+          <RefreshCw className="w-5 h-5 text-emerald-500" />
+          <h3 className="text-lg font-bold text-[#1A1A2E]">Refund History</h3>
+        </div>
+        
+        {refunds.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">No refunds yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Property</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Amount</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {refunds.map((refund) => (
+                  <tr key={refund.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                    <td className="py-4 px-4 text-sm text-gray-500 font-medium">
+                      {refund.createdAt ? format(refund.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-[#1A1A2E] font-medium">{refund.propertyName}</td>
+                    <td className="py-4 px-4 text-sm font-bold text-emerald-600">+₹{refund.amount.toLocaleString()}</td>
+                    <td className="py-4 px-4 text-right">
+                      <span className="text-[10px] font-bold px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md uppercase tracking-wider">
+                        Credited
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Payment History Table */}
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 mb-6">
+          <History className="w-5 h-5 text-[#F59E0B]" />
+          <h3 className="text-lg font-bold text-[#1A1A2E]">Payment History</h3>
         </div>
-      )}
+
+        {bookings.length === 0 ? (
+          <div className="text-center py-12">
+            <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">No payments yet</h3>
+            <p className="text-gray-500">Your payment history will appear here once you make a booking.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Description</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Invoice</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((booking) => (
+                  <tr key={booking.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                    <td className="py-4 px-4 text-sm text-[#1A1A2E] font-medium">
+                      {booking.createdAt ? format(booking.createdAt.toDate(), 'MMM dd, yyyy') : 'Unknown'}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-gray-600">Booking: {booking.property?.title || 'Unknown Property'}</td>
+                    <td className="py-4 px-4 text-sm text-gray-400">#{booking.id?.substring(0, 8).toUpperCase()}</td>
+                    <td className="py-4 px-4">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-md ${
+                        booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
+                        booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
+                        booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
+                        'text-gray-600 bg-gray-50'
+                      }`}>
+                        {booking.status === 'confirmed' ? 'Paid' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{(booking.totalAmount || booking.estimatedCost || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Withdrawal Modal */}
+      <AnimatePresence>
+        {showWithdrawModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !withdrawalLoading && setShowWithdrawModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full relative z-10"
+            >
+              <h2 className="text-2xl font-black text-[#1A1A2E] mb-2">Withdraw Funds</h2>
+              <p className="text-gray-500 mb-6 font-medium">Collect your refunds into your bank account or UPI.</p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Amount to Withdraw</label>
+                  <div className="relative">
+                    <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input 
+                      type="number"
+                      placeholder="Enter amount"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-50 rounded-2xl focus:border-[#F59E0B] focus:bg-white outline-none transition-all font-bold text-lg"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">Available: ₹{wallet?.availableBalance.toLocaleString()}</p>
+                </div>
+
+                <div className="flex gap-2 p-1 bg-gray-50 rounded-xl">
+                  <button 
+                    onClick={() => setWithdrawType('upi')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${withdrawType === 'upi' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-400'}`}
+                  >
+                    UPI ID
+                  </button>
+                  <button 
+                    onClick={() => setWithdrawType('bank')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${withdrawType === 'bank' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'}`}
+                  >
+                    Bank Account
+                  </button>
+                </div>
+
+                {withdrawType === 'upi' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">UPI ID</label>
+                    <input 
+                      type="text"
+                      placeholder="username@bank"
+                      value={bankDetails.upiId}
+                      onChange={(e) => setBankDetails({...bankDetails, upiId: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-50 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none transition-all font-medium"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Account Number</label>
+                      <input 
+                        type="text"
+                        placeholder="Enter account number"
+                        value={bankDetails.accountNumber}
+                        onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-50 rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Bank Name</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. HDFC Bank"
+                        value={bankDetails.bankName}
+                        onChange={(e) => setBankDetails({...bankDetails, bankName: e.target.value})}
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-50 rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">IFSC Code</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. HDFC0001234"
+                        value={bankDetails.ifsc}
+                        onChange={(e) => setBankDetails({...bankDetails, ifsc: e.target.value})}
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-50 rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-medium uppercase"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 flex flex-col gap-3">
+                <button 
+                  onClick={handleWithdraw}
+                  disabled={withdrawalLoading}
+                  className="w-full py-4 bg-[#1A1A2E] text-white rounded-2xl font-bold hover:bg-[#2A2A4E] shadow-xl shadow-blue-900/20 transition-all flex items-center justify-center gap-2"
+                >
+                  {withdrawalLoading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      Confirm Withdrawal
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={() => setShowWithdrawModal(false)}
+                  disabled={withdrawalLoading}
+                  className="w-full py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-2xl transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1610,6 +1960,17 @@ function FavouritesTab() {
   }, [activeSubTab, allProperties, isOwner]);
 
   const [showHideModal, setShowHideModal] = useState(false);
+
+  useEffect(() => {
+    if (showBookingsModal || showReviewsModal || showRejectionModal || showHideModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showBookingsModal, showReviewsModal, showRejectionModal, showHideModal]);
   const [selectedPropertyToHide, setSelectedPropertyToHide] = useState<any>(null);
   const [hideOption, setHideOption] = useState<'today' | 'manual' | 'range'>('manual');
   const [unavailabilityFrom, setUnavailabilityFrom] = useState('');
@@ -1748,23 +2109,14 @@ function FavouritesTab() {
     setIsProcessingRejection(true);
     try {
       const bookingId = rejectionBooking.id;
-      
-      // 1. Update booking status and reason
-      await bookingService.updateBookingStatus(bookingId, 'cancelled', rejectionReason);
-      
-      // 2. Process Refund (Instantly transfer from owner to visitor)
-      // We need to calculate the amount to refund. 
-      // Usually it's the full amount the visitor paid, and we debit the owner's wallet for what they received.
       const amount = rejectionBooking.totalAmount || rejectionBooking.estimatedCost || 0;
-      const ownerReceived = rejectionBooking.receivedAmount || (amount * 0.75); // Fallback to 75% if not set
       
-      await walletService.processRefund(
-        rejectionBooking.visitorId, 
-        rejectionBooking.ownerId, 
-        amount, 
-        ownerReceived, 
-        bookingId
-      );
+      // 1. Update booking status and reason (Triggers wallet internally)
+      await bookingService.updateBookingStatus(bookingId, 'cancelled', {
+        rejectionReason,
+        cancelledBy: 'owner',
+        refundPercentage: 100
+      });
 
       // 3. Notify Visitor
       const visitor = await userService.getUserProfile(rejectionBooking.visitorId);
@@ -1910,7 +2262,7 @@ function FavouritesTab() {
           </p>
           {!isOwner && (
             <button 
-              onClick={() => navigate('/listings')}
+              onClick={() => navigate('/stays')}
               className="mt-8 px-8 py-3 bg-[#1A1A2E] text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm"
             >
               Explore Properties
@@ -2195,7 +2547,7 @@ function FavouritesTab() {
       {/* Bookings Modal */}
       <AnimatePresence>
         {showBookingsModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="modal-overlay p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2207,7 +2559,7 @@ function FavouritesTab() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative z-10 border border-slate-100 max-h-[80vh] overflow-y-auto"
+              className="modal-content bg-white rounded-3xl p-8 max-w-2xl w-full border border-slate-100"
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-extrabold text-[#1E1B4B]">Bookings for {selectedPropertyTitle}</h3>
@@ -2296,7 +2648,7 @@ function FavouritesTab() {
 
       <AnimatePresence>
         {showRejectionModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="modal-overlay p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2308,7 +2660,7 @@ function FavouritesTab() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100"
+              className="modal-content bg-white rounded-3xl p-8 max-w-md w-full border border-slate-100"
             >
               <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-2 text-center">Reject Booking</h3>
               <p className="text-sm text-gray-500 mb-6 text-center">Please provide a reason for rejecting this booking. The visitor will be notified and their payment will be refunded.</p>
@@ -2359,6 +2711,17 @@ function WalletTab() {
   const [loading, setLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showBankDetailsModal, setShowBankDetailsModal] = useState(false);
+
+  useEffect(() => {
+    if (showWithdrawModal || showBankDetailsModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showWithdrawModal, showBankDetailsModal]);
   const [withdrawStep, setWithdrawStep] = useState(1);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [bankDetails, setBankDetails] = useState({ accountHolderName: '', accountNumber: '', ifsc: '', branchName: '', bankName: '' });
@@ -2437,11 +2800,11 @@ function WalletTab() {
       return;
     }
     if (todaysWithdrawalCount >= 2) {
-      showToast("An error occurred", "error");
+      showToast("Daily limit reached: Maximum 2 withdrawals per day.", "error");
       return;
     }
     if (todaysWithdrawalAmount + amount > 10000) {
-      showToast("An error occurred", "error");
+      showToast(`Daily limit reached: Maximum ₹10,000 per day. Remaining limit: ₹${10000 - todaysWithdrawalAmount}`, "error");
       return;
     }
     if (!bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.bankName) {
@@ -2594,7 +2957,7 @@ function WalletTab() {
       {/* Withdraw Modal */}
       <AnimatePresence>
         {showBankDetailsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-overlay p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2606,7 +2969,7 @@ function WalletTab() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100"
+              className="modal-content bg-white rounded-3xl p-8 max-w-md w-full border border-slate-100"
             >
               <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-6">Bank Details</h3>
               
@@ -2684,7 +3047,7 @@ function WalletTab() {
 
       <AnimatePresence>
         {showWithdrawModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-overlay p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2696,7 +3059,7 @@ function WalletTab() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100"
+              className="modal-content bg-white rounded-3xl p-8 max-w-md w-full border border-slate-100"
             >
               {withdrawStep === 1 ? (
                 <>
@@ -2932,15 +3295,17 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
         const allBookings = await bookingService.getBookingsByOwner(user.uid);
         const completedBookings = allBookings.filter(b => b.status === 'completed');
         
-        // Fetch reviews for owner's properties
-        const reviewsSnapshot = await getDocs(query(collection(db, 'reviews'), where('propertyOwnerId', '==', user.uid)));
-        const reviews = reviewsSnapshot.docs.map(doc => doc.data());
-        
-        const totalRatings = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
-        const averageRating = reviews.length > 0 ? (totalRatings / reviews.length).toFixed(1) : 0;
+        // Calculate aggregate ratings from property documents directly
+        const totalReviewsCount = properties.reduce((sum, p: any) => sum + (p.totalReviews || p.reviewCount || 0), 0);
+        const weightedSum = properties.reduce((sum, p: any) => sum + ((p.averageRating || p.rating || 0) * (p.totalReviews || p.reviewCount || 0)), 0);
+        const aggregateAverageRating = totalReviewsCount > 0 ? (weightedSum / totalReviewsCount).toFixed(1) : 0;
 
         const pendingPayments = txns
           .filter(t => t.type === 'debit' && t.status === 'pending')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const totalEarnings = txns
+          .filter(t => t.type === 'credit' && t.reason === 'booking_earning')
           .reduce((sum, t) => sum + t.amount, 0);
 
         setStats({
@@ -2949,12 +3314,12 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
           pendingListings: properties.filter(p => p.status === 'Pending').length,
           walletBalance: wallet?.availableBalance || 0,
           pendingPayments,
-          totalRevenue: wallet?.availableBalance || 0, // Simplified
-          averageRating,
+          totalRevenue: totalEarnings,
+          averageRating: aggregateAverageRating,
           totalVisitors: completedBookings.length,
           occupancyRate: properties.length > 0 ? Math.round((completedBookings.length / (properties.length * 30)) * 100) : 0, // Mock occupancy over 30 days
           rejections: properties.filter(p => p.status === 'Rejected').length,
-          reviewCount: reviews.length
+          reviewCount: totalReviewsCount
         });
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
@@ -3225,6 +3590,7 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
       await reviewService.addReview({
         propertyId: booking.propertyId,
         visitorId: booking.visitorId,
+        bookingId: booking.id,
         visitorName: profile?.displayName || 'Anonymous',
         visitorAvatar: profile?.photoURL || getAvatarUrl(profile?.displayName || 'Anonymous'),
         text,

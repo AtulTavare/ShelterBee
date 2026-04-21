@@ -1,6 +1,7 @@
 import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { emailService } from '../../services/emailService';
@@ -43,6 +44,17 @@ export const AdminPendingApprovals = () => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (selectedProperty || showRejectModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedProperty, showRejectModal]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -162,11 +174,11 @@ export const AdminPendingApprovals = () => {
       {/* Property Details Modal */}
       {selectedProperty && !showRejectModal && (
         <div 
-          className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[100px] bg-slate-900/50 backdrop-blur-sm overflow-y-auto"
+          className="modal-overlay p-4 pt-[80px]"
           onClick={() => setSelectedProperty(null)}
         >
           <div 
-            className="bg-white rounded-2xl w-full max-w-3xl max-h-[calc(100vh-140px)] flex flex-col shadow-xl my-auto"
+            className="modal-content bg-white rounded-2xl w-full max-w-3xl flex flex-col shadow-xl my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
@@ -302,11 +314,11 @@ export const AdminPendingApprovals = () => {
       {/* Reject Reason Modal */}
       {showRejectModal && (
         <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          className="modal-overlay p-4"
           onClick={() => setShowRejectModal(false)}
         >
           <div 
-            className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-xl"
+            className="modal-content bg-white rounded-2xl w-full max-w-md flex flex-col shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-200 shrink-0">

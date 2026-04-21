@@ -71,7 +71,7 @@ function AppContent() {
               <Route path="/host-auth" element={<HostAuth />} />
               <Route path="/property/:id" element={<PropertyDetail />} />
               <Route path="/list-property" element={<ListProperty />} />
-              <Route path="/listings" element={<Listings />} />
+              <Route path="/stays" element={<Listings />} />
               <Route path="/support" element={<Support />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/book/:propertyId" element={<BookingPage />} />

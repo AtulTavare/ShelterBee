@@ -19,8 +19,10 @@ export interface Property {
   updatedAt?: any;
   availableFrom?: string;
   isAvailable?: boolean;
-  rating?: number;
-  reviewCount?: number;
+  averageRating?: number;
+  totalReviews?: number;
+  rating?: number; // Keep for backward compatibility if needed, but not required
+  reviewCount?: number; // Keep for backward compatibility if needed
   aadhaarFront?: string;
   aadhaarBack?: string;
   propertyProof?: string;
@@ -51,30 +53,48 @@ export const propertyService = {
     return docRef.id;
   },
 
-  async getApprovedProperties() {
+  async getApprovedProperties(filters?: { type?: string; guests?: number; areas?: string[] }) {
     try {
-      const q = query(collection(db, 'properties'), where('status', '==', 'Approved'));
+      let q = query(collection(db, 'properties'), where('status', '==', 'Approved'));
+      
+      if (filters?.type && filters.type !== 'Any' && filters.type !== 'Any Type') {
+        q = query(q, where('type', '==', filters.type));
+      }
+      
+      if (filters?.guests && filters.guests > 1) {
+        q = query(q, where('guests', '>=', filters.guests));
+      }
+
       const querySnapshot = await getDocs(q);
       const now = new Date();
       
-      return querySnapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          let createdAt = null;
-          if (data.createdAt) {
-            if (typeof data.createdAt.toDate === 'function') {
-              createdAt = data.createdAt.toDate();
-            } else if (typeof data.createdAt === 'string' || typeof data.createdAt === 'number') {
-              createdAt = new Date(data.createdAt);
-            }
+      let results = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        let createdAt = null;
+        if (data.createdAt) {
+          if (typeof data.createdAt.toDate === 'function') {
+            createdAt = data.createdAt.toDate();
+          } else if (typeof data.createdAt === 'string' || typeof data.createdAt === 'number') {
+            createdAt = new Date(data.createdAt);
           }
-          return {
-            id: doc.id,
-            ...data,
-            createdAt,
-          };
-        })
-        .filter(prop => this.isPropertyAvailable(prop as Property, now)) as Property[];
+        }
+        return {
+          id: doc.id,
+          ...data,
+          createdAt,
+        };
+      }) as Property[];
+
+      // Client-side filtering for areas (contains search text, case insensitive)
+      if (filters?.areas && filters.areas.length > 0) {
+        results = results.filter(p => 
+          filters.areas?.some(area => 
+            p.area?.toLowerCase().includes(area.toLowerCase())
+          )
+        );
+      }
+
+      return results.filter(prop => this.isPropertyAvailable(prop as Property, now)) as Property[];
     } catch (error) {
       console.error("Error fetching approved properties:", error);
       throw error;

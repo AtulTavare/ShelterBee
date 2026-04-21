@@ -239,7 +239,7 @@ const AboutUs = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <a 
-                  href="/listings" 
+                  href="/stays" 
                   className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-[#1E1B4B] font-bold rounded-2xl transition-all shadow-lg shadow-amber-500/20"
                 >
                   Explore Stays

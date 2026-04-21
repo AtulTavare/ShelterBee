@@ -183,14 +183,12 @@ export default function BookingPage() {
         totalAmount,
         status: 'confirmed',
         guests,
-        govIdAcknowledged
+        govIdAcknowledged,
+        propertyTitle: property.title
       }, {
         platformCommission,
         receivedAmount
       });
-
-      // Process payment to owner's wallet
-      await walletService.processBookingPayment(property.ownerId, receivedAmount, bookingId);
 
       // Send Emails
       try {

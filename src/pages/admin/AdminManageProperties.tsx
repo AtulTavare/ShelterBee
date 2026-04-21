@@ -1,5 +1,6 @@
 import { showToast } from '../../utils/toast';
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService, Property } from '../../services/propertyService';
 import { emailService } from '../../services/emailService';
 import { userService } from '../../services/userService';
@@ -42,6 +43,17 @@ export const AdminManageProperties = () => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (selectedProperty || showDeleteModal || showRejectModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedProperty, showDeleteModal, showRejectModal]);
 
   const filteredProperties = properties.filter(p => {
     if (activeTab === 'all') return true;
@@ -187,8 +199,8 @@ export const AdminManageProperties = () => {
 
       {/* Property Details Modal */}
       {selectedProperty && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="modal-overlay p-4">
+          <div className="modal-content bg-white rounded-3xl max-w-2xl w-full">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur-sm z-10">
               <h2 className="text-xl font-bold text-slate-900">Property Details</h2>
               <button 
@@ -349,8 +361,8 @@ export const AdminManageProperties = () => {
       )}
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+        <div className="modal-overlay p-4">
+          <div className="modal-content bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
             <h2 className="text-xl font-bold text-slate-900 mb-4">Confirm Deletion</h2>
             <p className="text-slate-600 mb-6">Are you sure you want to delete this property? This action cannot be undone.</p>
             <div className="flex gap-3 justify-end">
@@ -374,11 +386,11 @@ export const AdminManageProperties = () => {
       {/* Reject Reason Modal */}
       {showRejectModal && (
         <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          className="modal-overlay p-4"
           onClick={() => setShowRejectModal(false)}
         >
           <div 
-            className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-xl"
+            className="modal-content bg-white rounded-2xl w-full max-w-md flex flex-col shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-200 shrink-0">

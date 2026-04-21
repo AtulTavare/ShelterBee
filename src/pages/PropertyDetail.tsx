@@ -582,17 +582,12 @@ export default function PropertyDetail() {
                   )}
 
                   <ul className="space-y-3 mb-5">
+                    {/* No longer showing Schedule instant site visit */}
                     <li className="flex items-center gap-2 text-xs font-semibold text-white/90">
                       <div className="w-5 h-5 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">
                         <span className="material-symbols-outlined text-[#F59E0B] text-[12px] font-bold">check</span>
                       </div>
                       Direct Phone & WhatsApp
-                    </li>
-                    <li className="flex items-center gap-2 text-xs font-semibold text-white/90">
-                      <div className="w-5 h-5 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-[#F59E0B] text-[12px] font-bold">check</span>
-                      </div>
-                      Schedule instant site visit
                     </li>
                     <li className="flex items-center gap-2 text-xs font-semibold text-white/90">
                       <div className="w-5 h-5 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">

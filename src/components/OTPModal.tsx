@@ -154,12 +154,12 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="modal-overlay p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden relative"
+          className="modal-content bg-white rounded-[2rem] shadow-2xl w-full max-w-md"
         >
           <button
             onClick={onClose}

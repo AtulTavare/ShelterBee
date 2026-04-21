@@ -47,7 +47,7 @@ export default function Navbar() {
 
   const navLinks = [
     { name: 'Home', path: '/', icon: Home },
-    { name: 'Stays', path: '/listings', icon: Map },
+    { name: 'Stays', path: '/stays', icon: Map },
     { name: 'Support', path: '/support', icon: LifeBuoy },
     { name: 'About Us', path: '/about-us', icon: Info },
   ];
@@ -219,12 +219,12 @@ export default function Navbar() {
       </nav>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-[1000] flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-[9999] flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
         <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
           <Home size={20} />
           <span className="text-[10px] font-bold">Home</span>
         </Link>
-        <Link to="/listings" className={`flex flex-col items-center gap-1 ${location.pathname === '/listings' ? 'text-primary' : 'text-gray-400'}`}>
+        <Link to="/stays" className={`flex flex-col items-center gap-1 ${location.pathname === '/stays' ? 'text-primary' : 'text-gray-400'}`}>
           <Map size={20} />
           <span className="text-[10px] font-bold">Stays</span>
         </Link>
@@ -251,7 +251,7 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Menu Drawer */}
-      <div className={`fixed inset-0 bg-white z-[1001] transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-y-0' : 'translate-y-full'}`}>
+      <div className={`fixed inset-0 bg-white z-[9998] transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="flex flex-col h-full bg-[#F8F9FA]">
           <div className="p-4 flex items-center justify-between bg-white border-b border-gray-100">
             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">

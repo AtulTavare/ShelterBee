@@ -22,7 +22,7 @@ interface FilterBarProps {
   onClearAll: () => void;
 }
 
-const allTypes = ['Full Flat', 'PG', 'Room', 'Hostel'];
+const allTypes = ['Room', 'PG', 'Hostel', 'Full Flat', 'Full Property'];
 const allAmenities = [
   { name: 'Wi-Fi', icon: Wifi },
   { name: 'Gym', icon: Dumbbell },
@@ -52,6 +52,17 @@ export default function FilterBar({
 }: FilterBarProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (isCalendarOpen || isMobileFilterOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isCalendarOpen, isMobileFilterOpen]);
 
   const toggleType = (type: string) => {
     setSelectedTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
@@ -112,7 +123,7 @@ export default function FilterBar({
 
           <AnimatePresence>
             {isCalendarOpen && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div className="modal-overlay p-4">
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -124,7 +135,7 @@ export default function FilterBar({
                   initial={{ opacity: 0, scale: 0.95, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                  className="relative bg-white rounded-3xl shadow-2xl p-6 z-10 max-w-md w-full"
+                  className="modal-content bg-white rounded-3xl shadow-2xl p-6 max-w-md w-full"
                 >
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-gray-800">Select Dates</h3>
@@ -284,7 +295,7 @@ export default function FilterBar({
       {/* Mobile Filter Modal */}
       <AnimatePresence>
         {isMobileFilterOpen && (
-          <div className="fixed inset-0 z-[100] flex items-end justify-center">
+          <div className="modal-overlay flex items-end justify-center">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -297,7 +308,7 @@ export default function FilterBar({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative bg-white w-full max-h-[90vh] rounded-t-[2.5rem] shadow-2xl z-10 flex flex-col overflow-hidden"
+              className="modal-content bg-white w-full max-h-[calc(100vh-80px)] rounded-t-[2.5rem] shadow-2xl flex flex-col overflow-hidden"
             >
               {/* Header */}
               <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between shrink-0">

@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { walletService } from './walletService';
 
 export interface GuestDetail {
   name: string;
@@ -28,6 +29,7 @@ export interface Booking {
   guests: GuestDetail[];
   govIdAcknowledged: boolean;
   visitTime?: string;
+  propertyTitle?: string;
   createdAt: any;
   updatedAt: any;
   // These are for UI convenience when loaded by owner/admin
@@ -60,6 +62,23 @@ export const bookingService = {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      // Trigger wallet flow if confirmed on creation
+      if (bookingData.status === 'confirmed') {
+        try {
+          await walletService.processBookingWallet(
+            docRef.id,
+            bookingData.totalAmount,
+            bookingData.ownerId,
+            bookingData.visitorId,
+            bookingData.propertyTitle || 'Property Stay'
+          );
+        } catch (walletError) {
+          console.error("Wallet processing failed during booking creation:", walletError);
+          // We don't throw here to avoid failing the booking if only wallet fails, 
+          // though ideally it should be atomic. But processBookingWallet has internal transaction.
+        }
+      }
 
       return docRef.id;
     } catch (error) {
@@ -145,14 +164,58 @@ export const bookingService = {
     }
   },
 
+  async getBookingById(bookingId: string) {
+    try {
+      const docRef = doc(db, 'bookings', bookingId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return {
+          id: docSnap.id,
+          ...docSnap.data(),
+          checkIn: docSnap.data().checkIn?.toDate() || null,
+          checkOut: docSnap.data().checkOut?.toDate() || null,
+        } as Booking;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching booking:", error);
+      return null;
+    }
+  },
+
   async updateBookingStatus(bookingId: string, status: Booking['status'], extraData?: any) {
     try {
       const bookingRef = doc(db, 'bookings', bookingId);
+      
+      // Get existing booking for wallet logic
+      const booking = await this.getBookingById(bookingId);
+      if (!booking) throw new Error("Booking not found");
+
       await updateDoc(bookingRef, {
         status,
         ...extraData,
         updatedAt: serverTimestamp()
       });
+
+      // Wallet triggers
+      if (status === 'confirmed' && booking.status !== 'confirmed') {
+        const totalAmount = extraData?.totalAmount || booking.totalAmount || booking.estimatedCost || 0;
+        await walletService.processBookingWallet(
+          bookingId,
+          totalAmount,
+          booking.ownerId,
+          booking.visitorId,
+          booking.propertyTitle || 'Property Stay'
+        );
+      } else if ((status === 'cancelled' || status === 'rejected') && booking.status !== status) {
+        // cancellation or rejection logic usually passed via extraData
+        const refundPercent = extraData?.refundPercentage ?? 100; // Default to 100 for rejections if not provided
+        await walletService.processCancellationWallet(
+          bookingId,
+          { ...booking, ...extraData },
+          refundPercent
+        );
+      }
     } catch (error) {
       console.error("Error updating booking status:", error);
       throw error;

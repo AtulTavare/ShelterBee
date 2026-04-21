@@ -138,3 +138,28 @@ body {
 .group:hover .bento-img {
   transform: scale(1.04);
 }
+
+/* Global Modal and Navbar Layering Rules */
+.modal-overlay {
+  z-index: 9000;
+  position: fixed;
+  inset: 0;
+  top: 80px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  z-index: 9001;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Ensure all nav elements respect the top-most z-index */
+navbar, nav {
+  z-index: 9999 !important;
+}

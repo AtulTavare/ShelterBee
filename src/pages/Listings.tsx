@@ -28,7 +28,7 @@ export default function Listings() {
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const favorites = profile?.favorites || [];
+  const favorites = useMemo(() => profile?.favorites || [], [profile?.favorites]);
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -49,10 +49,12 @@ export default function Listings() {
     const type = params.get('type');
     const occ = params.get('occupancy');
     const search = params.get('search');
+    const areas = params.get('areas');
 
     if (type && type !== 'Any Type') setSelectedTypes([type]);
     if (occ && occ !== 'Any') setOccupancy(Number(occ));
     if (search) setSearchTerm(search);
+    if (areas) setSelectedAreas(areas.split(','));
   }, [location.search]);
 
   const maxPropertyPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.pricePerDay || 0), 50000) : 50000, [properties]);
@@ -111,7 +113,7 @@ export default function Listings() {
   }, [topProperties.length]);
 
   const allAmenities = ['Wi-Fi', 'Gym', 'Pool', 'Parking', 'AC', 'Security', 'Meals Included', 'Laundry'];
-  const allTypes = ['Full Flat', 'PG', 'Room', 'Hostel'];
+  const allTypes = ['Room', 'PG', 'Hostel', 'Full Flat', 'Full Property'];
   const allAreas = useMemo(() => Array.from(new Set(properties.map(p => p.area).filter(Boolean))), [properties]);
 
   const toggleSelection = (item: string, list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -121,10 +123,13 @@ export default function Listings() {
   useEffect(() => {
     let filtered = properties.filter(p => {
       if (showFavoritesOnly && !favorites.includes(p.id)) return false;
-      if (searchTerm && !p.title.toLowerCase().includes(searchTerm.toLowerCase()) && !p.area.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      if (searchTerm && !p.title?.toLowerCase().includes(searchTerm.toLowerCase()) && !p.area?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (priceRange < maxPropertyPrice && (p.pricePerDay || 0) > priceRange) return false;
       if (selectedTypes.length > 0 && !selectedTypes.includes(p.type)) return false;
-      if (selectedAreas.length > 0 && !selectedAreas.includes(p.area)) return false;
+      if (selectedAreas.length > 0) {
+        const matchesArea = selectedAreas.some(area => p.area?.toLowerCase().includes(area.toLowerCase()));
+        if (!matchesArea) return false;
+      }
       if (occupancy !== 'Any' && (p.guests || 0) < occupancy) return false;
       if (selectedAmenities.length > 0) {
         const hasAllAmenities = selectedAmenities.every(a => p.amenities && p.amenities.includes(a));

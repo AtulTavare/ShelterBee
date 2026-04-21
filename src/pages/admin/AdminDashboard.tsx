@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { propertyService } from '../../services/propertyService';
 import { userService } from '../../services/userService';
@@ -187,6 +188,17 @@ export const AdminDashboard = () => {
     fetchStats();
   }, [timeframe]);
 
+  useEffect(() => {
+    if (selectedAnalytic) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedAnalytic]);
+
   const stats = [
     { label: 'Total Listings', value: dashboardStats.loading ? '...' : dashboardStats.totalListings.toString(), icon: Building2, color: 'text-blue-600', bg: 'bg-blue-100' },
     { label: 'Pending Approvals', value: dashboardStats.loading ? '...' : dashboardStats.pendingApprovals.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-100' },
@@ -363,51 +375,59 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Analytic Detail Modal */}
-      {selectedAnalytic && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
-          onClick={() => setSelectedAnalytic(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-              <h2 className="text-lg font-bold tracking-tight text-slate-900">{selectedAnalytic.title} Details</h2>
-              <button 
-                onClick={() => setSelectedAnalytic(null)} 
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto bg-slate-50/50">
-              {analyticDetails[selectedAnalytic.key] && analyticDetails[selectedAnalytic.key].length > 0 ? (
-                <div className="space-y-3">
-                  {analyticDetails[selectedAnalytic.key].map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:border-blue-200 transition-colors">
-                      {Object.entries(item).filter(([k]) => k !== 'id').map(([k, v]) => (
-                        <div key={k} className="w-full sm:flex-1 min-w-0">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{k}</div>
-                          <div className="font-semibold text-slate-800 text-sm truncate">{v as React.ReactNode}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                    <Hourglass className="w-6 h-6 text-slate-400" />
+      <AnimatePresence>
+        {selectedAnalytic && (
+          <div className="modal-overlay p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+              onClick={() => setSelectedAnalytic(null)} 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 30 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 30 }} 
+              className="modal-content bg-white rounded-[2rem] w-full max-w-2xl flex flex-col shadow-2xl"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">{selectedAnalytic.title} Details</h2>
+                <button 
+                  onClick={() => setSelectedAnalytic(null)} 
+                  className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 bg-slate-50/50">
+                {analyticDetails[selectedAnalytic.key] && analyticDetails[selectedAnalytic.key].length > 0 ? (
+                  <div className="space-y-3">
+                    {analyticDetails[selectedAnalytic.key].map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:border-blue-200 transition-all group">
+                        {Object.entries(item).filter(([k]) => k !== 'id').map(([k, v]) => (
+                          <div key={k} className="w-full sm:flex-1 min-w-0">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 group-hover:text-blue-500 transition-colors">{k}</div>
+                            <div className="font-bold text-slate-800 text-sm truncate">{v as React.ReactNode}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-1">No data found</h3>
-                  <p className="text-sm text-slate-500 max-w-sm">There is currently no detailed data available for this metric.</p>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-4 shadow-sm">
+                      <Hourglass className="w-8 h-8 text-slate-300 animate-pulse" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">No data found</h3>
+                    <p className="text-sm text-slate-500 max-w-xs leading-relaxed">There is currently no detailed data available for this metric.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };

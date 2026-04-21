@@ -33,6 +33,17 @@ export default function Home() {
     fetchProperties();
   }, []);
 
+  useEffect(() => {
+    if (isAreaPopupOpen || isTypeDropdownOpen || isOccupancyDropdownOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isAreaPopupOpen, isTypeDropdownOpen, isOccupancyDropdownOpen]);
+
   const availableAreas = useMemo(() => {
     const areas = properties.map(p => p.area).filter(Boolean);
     return Array.from(new Set(areas));
@@ -56,7 +67,7 @@ export default function Home() {
     }
   };
 
-  const propertyTypes = ['Any Type', 'Flat', 'PG', 'Room', 'Hostel'];
+  const propertyTypes = ['Any Type', 'Room', 'PG', 'Hostel', 'Full Flat', 'Full Property'];
 
   // Helper to get 4 properties (duplicate if needed for UI demonstration)
   const getFourProperties = () => {
@@ -106,7 +117,7 @@ export default function Home() {
     if (selectedAreas.length > 0) params.set('areas', selectedAreas.join(','));
     if (filterType !== 'Any Type') params.set('type', filterType);
     if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
-    navigate(`/listings?${params.toString()}`);
+    navigate(`/stays?${params.toString()}`);
   };
 
   return (
@@ -211,7 +222,7 @@ export default function Home() {
         {/* Multi-select Area Popup */}
         <AnimatePresence>
           {isAreaPopupOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 p-4">
+            <div className="modal-overlay p-4">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -223,7 +234,7 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.9, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden z-10 flex flex-col max-h-[80vh]"
+                className="modal-content relative bg-white rounded-[32px] w-full max-w-md flex flex-col"
               >
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                   <div>
@@ -290,7 +301,7 @@ export default function Home() {
         {/* Property Type Popup Modal */}
         <AnimatePresence>
           {isTypeDropdownOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 p-4">
+            <div className="modal-overlay p-4">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -302,7 +313,7 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.9, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
+                className="modal-content relative bg-white rounded-[32px] w-full max-w-sm flex flex-col"
               >
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                   <div>
@@ -349,7 +360,7 @@ export default function Home() {
         {/* Occupancy Popup Modal */}
         <AnimatePresence>
           {isOccupancyDropdownOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 p-4">
+            <div className="modal-overlay p-4">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -361,7 +372,7 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.9, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden z-10 flex flex-col"
+                className="modal-content relative bg-white rounded-[32px] w-full max-w-sm flex flex-col"
               >
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                   <div>
@@ -413,7 +424,7 @@ export default function Home() {
             <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Trending Properties</h2>
             <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Most viewed properties this week.</p>
           </div>
-          <Link to="/listings" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+          <Link to="/stays" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
             View All <Search className="w-4 h-4" />
           </Link>
         </div>
@@ -437,7 +448,7 @@ export default function Home() {
             <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">New Listings</h2>
             <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Fresh properties added recently.</p>
           </div>
-          <Link to="/listings" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+          <Link to="/stays" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
             View All <Search className="w-4 h-4" />
           </Link>
         </div>
@@ -495,7 +506,7 @@ export default function Home() {
             <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Most Affordable</h2>
             <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Great stays that fit your budget.</p>
           </div>
-          <Link to="/listings" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+          <Link to="/stays" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
             View All <Search className="w-4 h-4" />
           </Link>
         </div>

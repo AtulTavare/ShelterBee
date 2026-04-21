@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, setDoc, updateDoc, addDoc, query, where, getDocs, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, addDoc, query, where, getDocs, orderBy, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { emailService } from './emailService';
 import { emailTemplates } from './emailTemplates';
@@ -25,8 +25,14 @@ export interface WalletTransaction {
   userId: string;
   bookingId?: string;
   type: 'credit' | 'debit';
-  reason: 'booking_earning' | 'refund' | 'withdrawal' | 'manual_credit' | 'cancellation_deduction';
+  reason: 'booking_payment' | 'booking_earning' | 'refund' | 'withdrawal' | 'manual_credit' | 'cancellation_deduction' | 'admin_commission';
   amount: number;
+  description: string;
+  propertyTitle?: string;
+  platformCommission?: number;
+  bookingAmount?: number;
+  receivedAmount?: number;
+  balanceAfter?: number;
   status: 'pending' | 'available' | 'completed' | 'rejected';
   createdAt: any;
   settledAt?: any;
@@ -47,9 +53,17 @@ export interface WithdrawalRequest {
   rejectionReason?: string;
   requestedAt: any;
   processedAt?: any;
+  transactionId?: string;
 }
 
 export const walletService = {
+  async getAdminId(): Promise<string> {
+    const q = query(collection(db, 'users'), where('role', '==', 'admin'));
+    const snap = await getDocs(q);
+    if (snap.empty) return 'platform_admin';
+    return snap.docs[0].id;
+  },
+
   async getWallet(userId: string): Promise<Wallet> {
     const walletRef = doc(db, 'wallets', userId);
     const walletSnap = await getDoc(walletRef);
@@ -88,18 +102,10 @@ export const walletService = {
     });
   },
 
-  async getAllPendingSettlements(): Promise<WalletTransaction[]> {
-    const q = query(collection(db, 'walletTransactions'), where('status', '==', 'pending'));
+  async getWithdrawalRequests(userId?: string): Promise<WithdrawalRequest[]> {
+    const coll = collection(db, 'withdrawalRequests');
+    const q = userId ? query(coll, where('userId', '==', userId)) : query(coll);
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WalletTransaction)).sort((a, b) => {
-      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-      return timeB - timeA;
-    });
-  },
-
-  async getAllWithdrawalRequests(): Promise<WithdrawalRequest[]> {
-    const snapshot = await getDocs(collection(db, 'withdrawalRequests'));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawalRequest)).sort((a, b) => {
       const timeA = a.requestedAt?.toMillis ? a.requestedAt.toMillis() : 0;
       const timeB = b.requestedAt?.toMillis ? b.requestedAt.toMillis() : 0;
@@ -107,192 +113,207 @@ export const walletService = {
     });
   },
 
-  async processBookingPayment(ownerId: string, amount: number, bookingId: string) {
+  async getWalletBalance(userId: string): Promise<number> {
+    const wallet = await this.getWallet(userId);
+    return wallet.availableBalance;
+  },
+
+  async getWalletTransactions(userId: string): Promise<WalletTransaction[]> {
+    return this.getTransactions(userId);
+  },
+
+  async processBookingWallet(bookingId: string, bookingAmount: number, ownerId: string, visitorId: string, propertyTitle: string) {
+    const adminId = await this.getAdminId();
+    const platformCommission = bookingAmount * 0.25;
+    const ownerShare = bookingAmount * 0.75;
+
     await runTransaction(db, async (transaction) => {
+      // 1. Credit owner (75%)
       const ownerWalletRef = doc(db, 'wallets', ownerId);
       const ownerWalletSnap = await transaction.get(ownerWalletRef);
-      
-      let availableBalance = amount;
+      let ownerBal = ownerShare;
       if (ownerWalletSnap.exists()) {
-        availableBalance += ownerWalletSnap.data().availableBalance || 0;
-        transaction.update(ownerWalletRef, {
-          availableBalance,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        transaction.set(ownerWalletRef, {
-          pendingBalance: 0,
-          availableBalance,
-          totalWithdrawn: 0,
-          bankAccount: null,
-          updatedAt: serverTimestamp()
-        });
+        ownerBal += ownerWalletSnap.data().availableBalance || 0;
       }
+      transaction.set(ownerWalletRef, {
+        userId: ownerId,
+        availableBalance: ownerBal,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
 
-      const txnRef = doc(collection(db, 'walletTransactions'));
-      transaction.set(txnRef, {
+      // 2. Credit admin (25%)
+      const adminWalletRef = doc(db, 'wallets', adminId);
+      const adminWalletSnap = await transaction.get(adminWalletRef);
+      let adminBal = platformCommission;
+      if (adminWalletSnap.exists()) {
+        adminBal += adminWalletSnap.data().availableBalance || 0;
+      }
+      transaction.set(adminWalletRef, {
+        userId: adminId,
+        availableBalance: adminBal,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // Create Transactions
+      const txnsRef = collection(db, 'walletTransactions');
+      
+      // Owner Credit
+      transaction.set(doc(txnsRef), {
         userId: ownerId,
         bookingId,
         type: 'credit',
         reason: 'booking_earning',
-        amount,
+        amount: ownerShare,
+        description: `Booking received - ${propertyTitle}`,
+        propertyTitle,
+        bookingAmount,
+        platformCommission,
+        receivedAmount: ownerShare,
         status: 'completed',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        balanceAfter: ownerBal
+      });
+
+      // Admin Credit
+      transaction.set(doc(txnsRef), {
+        userId: adminId,
+        bookingId,
+        type: 'credit',
+        reason: 'admin_commission',
+        amount: platformCommission,
+        description: `Platform commission - ${propertyTitle}`,
+        propertyTitle,
+        status: 'completed',
+        createdAt: serverTimestamp(),
+        balanceAfter: adminBal
       });
     });
   },
 
-  async processRefund(visitorId: string, ownerId: string, visitorAmount: number, ownerAmount: number, bookingId: string) {
-    if (visitorAmount <= 0 && ownerAmount <= 0) return;
+  async processCancellationWallet(bookingId: string, booking: any, refundPercent: number) {
+    const adminId = await this.getAdminId();
+    const totalAmount = booking.totalAmount || booking.estimatedCost || 0;
+    const refundAmount = totalAmount * (refundPercent / 100);
+    const adminShare = totalAmount - refundAmount;
+    const propertyTitle = booking.propertyTitle || 'Property';
 
     await runTransaction(db, async (transaction) => {
-      // 1. Credit visitor wallet (pending)
-      if (visitorAmount > 0) {
-        const visitorWalletRef = doc(db, 'wallets', visitorId);
-        const visitorWalletSnap = await transaction.get(visitorWalletRef);
-        
-        let visitorPending = visitorAmount;
-        if (visitorWalletSnap.exists()) {
-          visitorPending += visitorWalletSnap.data().pendingBalance || 0;
-          transaction.update(visitorWalletRef, {
-            pendingBalance: visitorPending,
-            updatedAt: serverTimestamp()
-          });
-        } else {
-          transaction.set(visitorWalletRef, {
-            pendingBalance: visitorPending,
-            availableBalance: 0,
-            totalWithdrawn: 0,
-            bankAccount: null,
-            updatedAt: serverTimestamp()
-          });
-        }
+      // 1. Deduct 100% from owner (debit always)
+      const ownerWalletRef = doc(db, 'wallets', booking.ownerId);
+      const ownerWalletSnap = await transaction.get(ownerWalletRef);
+      let ownerBal = -totalAmount;
+      if (ownerWalletSnap.exists()) {
+        ownerBal += ownerWalletSnap.data().availableBalance || 0;
+      }
+      transaction.set(ownerWalletRef, {
+        userId: booking.ownerId,
+        availableBalance: ownerBal,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
 
-        const visitorTxnRef = doc(collection(db, 'walletTransactions'));
-        transaction.set(visitorTxnRef, {
-          userId: visitorId,
+      // 2. Refund to visitor (if refundPercent > 0)
+      let visitorBal = 0;
+      if (refundAmount > 0) {
+        const visitorWalletRef = doc(db, 'wallets', booking.visitorId);
+        const visitorWalletSnap = await transaction.get(visitorWalletRef);
+        visitorBal = refundAmount;
+        if (visitorWalletSnap.exists()) {
+          visitorBal += visitorWalletSnap.data().availableBalance || 0;
+        }
+        transaction.set(visitorWalletRef, {
+          userId: booking.visitorId,
+          availableBalance: visitorBal,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      // 3. Remaining to admin
+      const adminWalletRef = doc(db, 'wallets', adminId);
+      const adminWalletSnap = await transaction.get(adminWalletRef);
+      let adminBal = adminShare;
+      if (adminWalletSnap.exists()) {
+        adminBal += adminWalletSnap.data().availableBalance || 0;
+      }
+      transaction.set(adminWalletRef, {
+        userId: adminId,
+        availableBalance: adminBal,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      const txnsRef = collection(db, 'walletTransactions');
+
+      // Owner Transaction
+      transaction.set(doc(txnsRef), {
+        userId: booking.ownerId,
+        bookingId,
+        type: 'debit',
+        reason: 'cancellation_deduction',
+        amount: totalAmount,
+        description: `Booking cancelled - ${propertyTitle}`,
+        status: 'completed',
+        createdAt: serverTimestamp(),
+        balanceAfter: ownerBal
+      });
+
+      // Visitor Transaction (if refund > 0)
+      if (refundAmount > 0) {
+        transaction.set(doc(txnsRef), {
+          userId: booking.visitorId,
           bookingId,
           type: 'credit',
           reason: 'refund',
-          amount: visitorAmount,
-          status: 'pending',
-          createdAt: serverTimestamp()
-        });
-      }
-
-      // 2. Debit owner wallet
-      if (ownerAmount > 0) {
-        const ownerWalletRef = doc(db, 'wallets', ownerId);
-        const ownerWalletSnap = await transaction.get(ownerWalletRef);
-        
-        if (ownerWalletSnap.exists()) {
-          const ownerData = ownerWalletSnap.data();
-          let newPending = ownerData.pendingBalance || 0;
-          let newAvailable = ownerData.availableBalance || 0;
-
-          if (newPending >= ownerAmount) {
-            newPending -= ownerAmount;
-          } else {
-            const remaining = ownerAmount - newPending;
-            newPending = 0;
-            newAvailable -= remaining;
-          }
-
-          transaction.update(ownerWalletRef, {
-            pendingBalance: newPending,
-            availableBalance: newAvailable,
-            updatedAt: serverTimestamp()
-          });
-
-          const ownerTxnRef = doc(collection(db, 'walletTransactions'));
-          transaction.set(ownerTxnRef, {
-            userId: ownerId,
-            bookingId,
-            type: 'debit',
-            reason: 'cancellation_deduction',
-            amount: ownerAmount,
-            status: 'completed',
-            createdAt: serverTimestamp()
-          });
-        }
-      }
-    });
-  },
-
-  async processAdminTransfer(ownerId: string, amount: number, bookingId: string) {
-    if (amount <= 0) return;
-
-    await runTransaction(db, async (transaction) => {
-      // 1. Debit owner wallet
-      const ownerWalletRef = doc(db, 'wallets', ownerId);
-      const ownerWalletSnap = await transaction.get(ownerWalletRef);
-      
-      if (ownerWalletSnap.exists()) {
-        const ownerData = ownerWalletSnap.data();
-        let newPending = ownerData.pendingBalance || 0;
-        let newAvailable = ownerData.availableBalance || 0;
-
-        if (newPending >= amount) {
-          newPending -= amount;
-        } else {
-          const remaining = amount - newPending;
-          newPending = 0;
-          newAvailable -= remaining;
-        }
-
-        transaction.update(ownerWalletRef, {
-          pendingBalance: newPending,
-          availableBalance: newAvailable,
-          updatedAt: serverTimestamp()
-        });
-
-        const ownerTxnRef = doc(collection(db, 'walletTransactions'));
-        transaction.set(ownerTxnRef, {
-          userId: ownerId,
-          bookingId,
-          type: 'debit',
-          reason: 'cancellation_deduction',
-          amount,
+          amount: refundAmount,
+          description: `Refund received - ${propertyTitle} (${refundPercent}% refund)`,
           status: 'completed',
-          createdAt: serverTimestamp()
+          createdAt: serverTimestamp(),
+          balanceAfter: visitorBal
         });
       }
 
-      // 2. Credit admin wallet
-      const adminWalletRef = doc(db, 'wallets', 'platform_admin');
-      const adminWalletSnap = await transaction.get(adminWalletRef);
-      
-      let adminAvailable = amount;
-      if (adminWalletSnap.exists()) {
-        adminAvailable += adminWalletSnap.data().availableBalance || 0;
-        transaction.update(adminWalletRef, {
-          availableBalance: adminAvailable,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        transaction.set(adminWalletRef, {
-          pendingBalance: 0,
-          availableBalance: adminAvailable,
-          totalWithdrawn: 0,
-          bankAccount: null,
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      const adminTxnRef = doc(collection(db, 'walletTransactions'));
-      transaction.set(adminTxnRef, {
-        userId: 'platform_admin',
+      // Admin Transaction
+      transaction.set(doc(txnsRef), {
+        userId: adminId,
         bookingId,
         type: 'credit',
-        reason: 'booking_earning',
-        amount,
+        reason: 'admin_commission',
+        amount: adminShare,
+        description: `Cancelled booking commission - ${propertyTitle}`,
         status: 'completed',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        balanceAfter: adminBal
       });
+    });
+
+    // Update booking document
+    const bookingRef = doc(db, 'bookings', bookingId);
+    await updateDoc(bookingRef, {
+      status: 'cancelled',
+      cancellationTime: serverTimestamp(),
+      refundPercentage: refundPercent,
+      refundAmount: refundAmount,
+      updatedAt: serverTimestamp()
     });
   },
 
   async requestWithdrawal(userId: string, amount: number, bankAccount: any) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const requests = await this.getWithdrawalRequests(userId);
+    const todaysWithdrawals = requests.filter(r => 
+      r.requestedAt && 
+      r.requestedAt.toDate() >= today
+    );
+
+    if (todaysWithdrawals.length >= 2) {
+      throw new Error("Withdrawal limit reached. Max 2 per day.");
+    }
+
+    const totalToday = todaysWithdrawals.filter(r => r.status !== 'rejected').reduce((sum, r) => sum + r.amount, 0);
+    if (totalToday + amount > 10000) {
+      throw new Error(`Daily limit reached: Maximum ₹10,000 per day. Remaining limit: ₹${10000 - totalToday}`);
+    }
+
     await runTransaction(db, async (transaction) => {
       const walletRef = doc(db, 'wallets', userId);
       const walletSnap = await transaction.get(walletRef);
@@ -304,7 +325,7 @@ export const walletService = {
         throw new Error("Insufficient available balance");
       }
 
-      // Deduct from available balance immediately to lock funds
+      // Deduct from available balance immediately
       transaction.update(walletRef, {
         availableBalance: data.availableBalance - amount,
         updatedAt: serverTimestamp()
@@ -316,6 +337,7 @@ export const walletService = {
         type: 'debit',
         reason: 'withdrawal',
         amount,
+        description: `Withdrawal to - ${bankAccount.bankName} (Ac: ...${bankAccount.accountNumber.slice(-4)})`,
         status: 'pending',
         createdAt: serverTimestamp()
       });
@@ -331,19 +353,14 @@ export const walletService = {
       });
     });
 
-    // Send email notification after transaction completes
+    // Send email notification
     try {
       const user = await userService.getUserProfile(userId);
       if (user && user.email) {
-        const template = emailTemplates.getPaymentNotification(
-          user.displayName || 'User',
-          amount,
-          'Withdrawal Request'
-        );
         await emailService.sendEmail({
           to: user.email,
           subject: `Withdrawal Request Received: ₹${amount}`,
-          html: template.html
+          html: `<h1>Withdrawal Request</h1><p>Your request for ₹${amount} is under processing. It will be credited within 3-4 working days.</p>`
         });
       }
     } catch (error) {
@@ -351,36 +368,23 @@ export const walletService = {
     }
   },
 
-  async markSettlementComplete(transactionId: string) {
-    await runTransaction(db, async (transaction) => {
-      const txnRef = doc(db, 'walletTransactions', transactionId);
-      const txnSnap = await transaction.get(txnRef);
-      
-      if (!txnSnap.exists()) throw new Error("Transaction not found");
-      
-      const txnData = txnSnap.data();
-      if (txnData.status !== 'pending') throw new Error("Transaction is not pending");
-
-      const walletRef = doc(db, 'wallets', txnData.userId);
-      const walletSnap = await transaction.get(walletRef);
-      
-      if (walletSnap.exists()) {
-        const walletData = walletSnap.data();
-        transaction.update(walletRef, {
-          pendingBalance: Math.max(0, (walletData.pendingBalance || 0) - txnData.amount),
-          availableBalance: (walletData.availableBalance || 0) + txnData.amount,
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      transaction.update(txnRef, {
-        status: 'completed', // Changed from 'available' to 'completed' to match other statuses
-        settledAt: serverTimestamp()
-      });
-    });
+  async getAllWithdrawalRequests() {
+    const q = query(collection(db, 'withdrawalRequests'), orderBy('requestedAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as WithdrawalRequest[];
   },
 
-  async processWithdrawalRequest(requestId: string, action: 'completed' | 'rejected', rejectionReason?: string) {
+  async getAllPendingSettlements() {
+    const q = query(collection(db, 'walletTransactions'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as WalletTransaction[];
+  },
+
+  async markSettlementComplete(transactionId: string) {
+    await updateDoc(doc(db, 'walletTransactions', transactionId), { status: 'completed' });
+  },
+
+  async processWithdrawal(requestId: string, action: 'completed' | 'rejected', rejectionReason?: string) {
     await runTransaction(db, async (transaction) => {
       const reqRef = doc(db, 'withdrawalRequests', requestId);
       const reqSnap = await transaction.get(reqRef);
@@ -435,27 +439,18 @@ export const walletService = {
       });
     });
 
-    // Send email notification after transaction completes
+    // Send email notification
     try {
-      const reqRef = doc(db, 'withdrawalRequests', requestId);
-      const reqSnap = await getDoc(reqRef);
-      if (reqSnap.exists()) {
-        const reqData = reqSnap.data();
-        const user = await userService.getUserProfile(reqData.userId);
-        if (user && user.email) {
-          const statusText = action === 'completed' ? 'Processed' : 'Rejected';
-          const template = emailTemplates.getPaymentNotification(
-            user.displayName || 'User',
-            reqData.amount,
-            `Withdrawal ${statusText}${action === 'rejected' ? ` (Reason: ${rejectionReason})` : ''}`
-          );
-          
-          await emailService.sendEmail({
-            to: user.email,
-            subject: `Withdrawal Request ${statusText}: ₹${reqData.amount}`,
-            html: template.html
-          });
-        }
+      const reqSnap = await getDoc(doc(db, 'withdrawalRequests', requestId));
+      const reqData = reqSnap.data();
+      const user = await userService.getUserProfile(reqData!.userId);
+      if (user && user.email) {
+        const statusText = action === 'completed' ? 'Processed' : 'Rejected';
+        await emailService.sendEmail({
+          to: user.email,
+          subject: `Withdrawal Request ${statusText}: ₹${reqData!.amount}`,
+          html: `<h1>Withdrawal Request ${statusText}</h1><p>Your withdrawal of ₹${reqData!.amount} has been ${statusText.toLowerCase()}.${action === 'rejected' ? ` Reason: ${rejectionReason}` : ''}</p>`
+        });
       }
     } catch (error) {
       console.error("Failed to send withdrawal processed email:", error);

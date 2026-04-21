@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { walletService, WalletTransaction, WithdrawalRequest } from '../../services/walletService';
 import { userService } from '../../services/userService';
 import { format } from 'date-fns';
@@ -22,9 +23,22 @@ export const AdminWallet = () => {
     totalPendingWithdrawals: 0,
   });
 
+  const [confirmAction, setConfirmAction] = useState<{type: 'settle' | 'withdraw', id: string, action?: 'completed' | 'rejected'} | null>(null);
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (confirmAction) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [confirmAction]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,7 +63,6 @@ export const AdminWallet = () => {
     }
   };
 
-  const [confirmAction, setConfirmAction] = useState<{type: 'settle' | 'withdraw', id: string, action?: 'completed' | 'rejected'} | null>(null);
   const [toastMessage, setToastMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const showToast = (type: 'success' | 'error', text: string) => {
@@ -71,7 +84,7 @@ export const AdminWallet = () => {
   const handleWithdrawal = async (requestId: string, action: 'completed' | 'rejected') => {
     try {
       const request = withdrawalRequests.find(r => r.id === requestId);
-      await walletService.processWithdrawalRequest(requestId, action);
+      await walletService.processWithdrawal(requestId, action);
       
       if (action === 'completed' && request) {
         try {
@@ -422,32 +435,51 @@ export const AdminWallet = () => {
       )}
 
       {/* Confirmation Modal */}
-      {confirmAction && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Confirm Action</h3>
-            <p className="text-slate-600 mb-6">
-              {confirmAction.type === 'settle' 
-                ? "Are you sure you want to mark this settlement as complete? This will move funds to the user's available balance."
-                : `Are you sure you want to mark this withdrawal as ${confirmAction.action}?`}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmAction(null)}
-                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmAndExecute}
-                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Confirm
-              </button>
-            </div>
+      <AnimatePresence>
+        {confirmAction && (
+          <div className="modal-overlay p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+              onClick={() => setConfirmAction(null)} 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="modal-content bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative"
+            >
+              <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-6">
+                <IndianRupee className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Confirm Action</h3>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                {confirmAction.type === 'settle' 
+                  ? "Are you sure you want to mark this settlement as complete? This will move funds to the user's available balance."
+                  : `Are you sure you want to mark this withdrawal as ${confirmAction.action}?`}
+              </p>
+              <div className="flex gap-3 mt-8">
+                <button
+                  onClick={() => setConfirmAction(null)}
+                  className="flex-1 px-6 py-3 text-slate-600 font-bold bg-slate-100 hover:bg-slate-200 rounded-xl transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmAndExecute}
+                  className={`flex-1 px-6 py-3 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 ${
+                    confirmAction.action === 'rejected' ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                  }`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };

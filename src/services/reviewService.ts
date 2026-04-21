@@ -5,6 +5,7 @@ export interface Review {
   id: string;
   propertyId: string;
   visitorId: string;
+  bookingId: string;
   visitorName: string;
   visitorAvatar: string;
   text: string;
@@ -37,23 +38,24 @@ export const reviewService = {
       createdAt: serverTimestamp(),
     });
 
-    // Update property rating and review count
+    // Update property rating and review count by fetching all reviews
     try {
+      const q = query(collection(db, 'reviews'), where('propertyId', '==', reviewData.propertyId));
+      const snapshot = await getDocs(q);
+      const reviews = snapshot.docs.map(doc => doc.data());
+      
+      const totalReviews = reviews.length;
+      const sumRatings = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+      const averageRating = totalReviews > 0 ? Number((sumRatings / totalReviews).toFixed(1)) : 0;
+      
       const propertyRef = doc(db, 'properties', reviewData.propertyId);
-      const propertySnap = await getDoc(propertyRef);
-      if (propertySnap.exists()) {
-        const propertyData = propertySnap.data();
-        const currentRating = propertyData.rating || 0;
-        const currentReviewCount = propertyData.reviewCount || 0;
-        
-        const newReviewCount = currentReviewCount + 1;
-        const newRating = Number(((currentRating * currentReviewCount + reviewData.rating) / newReviewCount).toFixed(1));
-        
-        await updateDoc(propertyRef, {
-          rating: newRating,
-          reviewCount: newReviewCount
-        });
-      }
+      await updateDoc(propertyRef, {
+        averageRating: averageRating,
+        totalReviews: totalReviews,
+        // Also update legacy fields for compatibility
+        rating: averageRating,
+        reviewCount: totalReviews
+      });
     } catch (error) {
       console.error("Error updating property rating:", error);
     }

@@ -11,7 +11,7 @@ const COMPULSORY_AMENITIES = ['24/7 Water Supply', '24/7 Electricity Supply', 'C
 const AMENITIES_LIST = ['WiFi', 'AC', 'TV', 'Geyser', 'Washing Machine', 'Fridge', 'Kitchen Access', 'Power Backup', 'Lift', 'Parking', 'Gym', 'Swimming Pool', 'Housekeeping', 'Meals Provided', 'RO Water', 'Balcony', 'Attached Bathroom', 'Study Table', 'Cupboard'];
 const SECURITY_FEATURES = ['CCTV Surveillance', 'Security Guard', 'Biometric Entry', 'Fire Extinguisher', 'Emergency Exit', 'First Aid Kit'];
 
-import { propertyService } from '../services/propertyService';
+import { propertyService, Property } from '../services/propertyService';
 import { storage } from '../firebase';
 import { serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -40,16 +40,29 @@ export default function ListProperty() {
   });
   const [showVerificationPopup, setShowVerificationPopup] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
+  const [showResubmitConfirm, setShowResubmitConfirm] = useState(false);
   
   useEffect(() => {
     if (!loading) {
+      const isAdmin = profile?.role === 'admin' || user?.email === 'tavareatul7192@gmail.com';
       if (!user) {
         navigate('/auth?mode=login', { state: { returnTo: '/list-property' } });
-      } else if (profile?.role === 'visitor') {
+      } else if (profile?.role === 'visitor' && !isAdmin) {
         navigate('/');
       }
     }
   }, [user, profile, loading, navigate]);
+
+  useEffect(() => {
+    if (showVerificationPopup || showOTPModal || isSubmitting || showResubmitConfirm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showVerificationPopup, showOTPModal, isSubmitting, showResubmitConfirm]);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -80,7 +93,7 @@ export default function ListProperty() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAdminEdit, setIsAdminEdit] = useState(false);
   const [propertyId, setPropertyId] = useState<string | null>(null);
-  const [showResubmitConfirm, setShowResubmitConfirm] = useState(false);
+  const [existingProperty, setExistingProperty] = useState<Property | null>(null);
   const [resubmitAgreed, setResubmitAgreed] = useState(false);
 
   useEffect(() => {
@@ -104,6 +117,7 @@ export default function ListProperty() {
   const fetchPropertyData = async (id: string) => {
     const property = await propertyService.getPropertyById(id);
     if (property) {
+      setExistingProperty(property);
       setFormData({
         title: property.title,
         type: property.type,
@@ -365,7 +379,7 @@ export default function ListProperty() {
       }
 
       const propertyData = {
-        ownerId: user.uid,
+        ownerId: (isEditMode && existingProperty?.ownerId) ? existingProperty.ownerId : user.uid,
         title: formData.title || 'Untitled Property',
         type: formData.type || 'Room',
         area: formData.area || 'Unknown Area',
@@ -1055,7 +1069,7 @@ export default function ListProperty() {
       {/* Verification Popup */}
       <AnimatePresence>
         {showVerificationPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-overlay p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1067,7 +1081,7 @@ export default function ListProperty() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100"
+              className="modal-content bg-white rounded-3xl p-10 max-w-md w-full border border-slate-100"
             >
               <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <span className="material-symbols-outlined text-4xl">mark_email_unread</span>
@@ -1127,7 +1141,7 @@ export default function ListProperty() {
       />
       <AnimatePresence>
         {isSubmitting && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden">
+          <div className="modal-overlay overflow-hidden">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1138,7 +1152,7 @@ export default function ListProperty() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="relative z-10 flex flex-col items-center"
+              className="modal-content flex flex-col items-center"
             >
               <div className="w-64 h-64">
                 <DotLottiePlayer
@@ -1155,9 +1169,6 @@ export default function ListProperty() {
                 uploading images please wait ...
               </motion.p>
             </motion.div>
-            <style>{`
-              body { overflow: hidden !important; }
-            `}</style>
           </div>
         )}
       </AnimatePresence>
