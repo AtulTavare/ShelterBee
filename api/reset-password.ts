@@ -1,19 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 function initAdmin() {
   try {
-    if (admin.apps.length > 0) return;
+    if (getApps().length > 0) return;
     
-    const serviceAccount = JSON.parse(
-      process.env.FIREBASE_SERVICE_ACCOUNT_JSON!
-    );
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     
-    // Fix double-escaped newlines in private key
+    if (!raw) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON env variable is not set');
+    }
+    
+    const serviceAccount = JSON.parse(raw);
     serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
     
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+    initializeApp({
+      credential: cert(serviceAccount)
     });
     
   } catch (error) {
@@ -23,17 +26,22 @@ function initAdmin() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-  initAdmin();
-  const auth = admin.auth();
+  try {
+    initAdmin();
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Server configuration error: ' + error.message });
+  }
 
+  const auth = getAuth();
   const { action, email, newPassword, uid } = req.body;
 
   try {
     if (action === 'check-user') {
       if (!email) return res.status(400).json({ error: 'Email is required' });
-      // Check if user exists in Firebase Auth
       const user = await auth.getUserByEmail(email);
       return res.status(200).json({ 
         exists: true, 
@@ -43,8 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'update-password') {
-      if (!uid || !newPassword) return res.status(400).json({ error: 'UID and new password are required' });
-      // Update password after OTP verified
+      if (!uid || !newPassword) {
+        return res.status(400).json({ error: 'UID and new password are required' });
+      }
       await auth.updateUser(uid, { password: newPassword });
       return res.status(200).json({ success: true });
     }
