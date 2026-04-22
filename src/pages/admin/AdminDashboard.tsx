@@ -60,8 +60,8 @@ export const AdminDashboard = () => {
           .filter(b => b.status === 'confirmed' || b.status === 'completed')
           .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
-        const pendingPayments = bookings.filter(b => b.status === 'pending').length;
-        const pendingRefunds = bookings.filter(b => b.status === 'cancelled').length; // Assuming cancelled bookings need refunds
+        const pendingPayments = bookings.filter(b => b.status === 'pending_owner').length;
+        const pendingRefunds = bookings.filter(b => b.status === 'cancelled' || b.status === 'rejected_by_owner').length;
 
         const now = new Date();
         const todayBookings = bookings.filter(b => {

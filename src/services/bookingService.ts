@@ -24,8 +24,12 @@ export interface Booking {
   checkOut: Date | null;
   nights: number;
   totalAmount: number;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' | 'completed';
+  status: 'pending_owner' | 'confirmed' | 'cancelled' | 'rejected_by_owner' | 'completed';
   rejectionReason?: string;
+  rejectedAt?: any;
+  acceptedAt?: any;
+  refundPercentage?: number;
+  refundAmount?: number;
   guests: GuestDetail[];
   govIdAcknowledged: boolean;
   visitTime?: string;
@@ -50,6 +54,7 @@ export const bookingService = {
     try {
       const docRef = await addDoc(collection(db, 'bookings'), {
         ...bookingData,
+        status: 'pending_owner', // Initial status set to pending_owner
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -63,26 +68,63 @@ export const bookingService = {
         updatedAt: serverTimestamp()
       });
 
-      // Trigger wallet flow if confirmed on creation
-      if (bookingData.status === 'confirmed') {
-        try {
-          await walletService.processBookingWallet(
-            docRef.id,
-            bookingData.totalAmount,
-            bookingData.ownerId,
-            bookingData.visitorId,
-            bookingData.propertyTitle || 'Property Stay'
-          );
-        } catch (walletError) {
-          console.error("Wallet processing failed during booking creation:", walletError);
-          // We don't throw here to avoid failing the booking if only wallet fails, 
-          // though ideally it should be atomic. But processBookingWallet has internal transaction.
-        }
-      }
-
       return docRef.id;
     } catch (error) {
       console.error("Error creating booking:", error);
+      throw error;
+    }
+  },
+
+  async acceptBooking(bookingId: string, booking: Booking) {
+    try {
+      const bookingRef = doc(db, 'bookings', bookingId);
+      await updateDoc(bookingRef, {
+        status: 'confirmed',
+        acceptedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Credit wallets
+      await walletService.processBookingWallet(
+        bookingId,
+        booking.totalAmount,
+        booking.ownerId,
+        booking.visitorId,
+        booking.propertyTitle || 'Property'
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Error accepting booking:", error);
+      throw error;
+    }
+  },
+
+  async rejectBooking(bookingId: string, booking: Booking) {
+    try {
+      const refundAmount = booking.totalAmount * 0.95;
+      const bookingRef = doc(db, 'bookings', bookingId);
+      await updateDoc(bookingRef, {
+        status: 'rejected_by_owner',
+        rejectedAt: serverTimestamp(),
+        rejectionReason: 'Owner rejected booking',
+        refundPercentage: 95,
+        refundAmount: refundAmount,
+        updatedAt: serverTimestamp()
+      });
+
+      // Process visitor refund (95%) and admin (5%)
+      await walletService.processOwnerRejectionWallet(
+        bookingId,
+        booking.totalAmount,
+        booking.ownerId,
+        booking.visitorId,
+        booking.propertyTitle || 'Property'
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Error rejecting booking:", error);
       throw error;
     }
   },
@@ -207,7 +249,7 @@ export const bookingService = {
           booking.visitorId,
           booking.propertyTitle || 'Property Stay'
         );
-      } else if ((status === 'cancelled' || status === 'rejected') && booking.status !== status) {
+      } else if ((status as string === 'cancelled' || status as string === 'rejected_by_owner') && booking.status !== status) {
         // cancellation or rejection logic usually passed via extraData
         const refundPercent = extraData?.refundPercentage ?? 100; // Default to 100 for rejections if not provided
         await walletService.processCancellationWallet(

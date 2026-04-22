@@ -335,38 +335,31 @@ function NewBookingsTab() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [visitTime, setVisitTime] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'new' | 'confirmed' | 'cancelled' | 'past'>('new');
+  const [activeSubTab, setActiveSubTab] = useState<'new' | 'confirmed' | 'cancelled' | 'rejected' | 'past'>('new');
 
-  useEffect(() => {
-    if (showRejectModal || showConfirmModal || !!selectedBooking) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
+  const handleAccept = async (booking: any) => {
+    if (processing) return;
+    setProcessing(true);
+    try {
+      await bookingService.acceptBooking(booking.id, booking);
+      showToast("Booking accepted and visitor notified", "success");
+      fetchBookings();
+    } catch (error: any) {
+      console.error("Error accepting booking:", error);
+      showToast(error.message || "Failed to accept booking", "error");
+    } finally {
+      setProcessing(false);
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showRejectModal, showConfirmModal, selectedBooking]);
+  };
 
   const handleReject = async () => {
-    // ... same as before
     if (!rejectionReason.trim() || !selectedBooking) {
       showToast("Please provide a rejection reason", "error");
       return;
     }
     setProcessing(true);
     try {
-      const financials = await bookingService.getBookingFinancials(selectedBooking.id);
-      if (!financials) {
-        throw new Error("Financial records not found for this booking.");
-      }
-
-      await bookingService.updateBookingStatus(selectedBooking.id, 'rejected', {
-        rejectionReason,
-        rejectedBy: 'owner',
-        rejectedAt: serverTimestamp(),
-        refundPercentage: 100 // Rejection always 100% refund in this logic
-      });
+      await bookingService.rejectBooking(selectedBooking.id, selectedBooking);
 
       const template = emailTemplates.getBookingRejection(
         selectedBooking.visitorName,
@@ -460,11 +453,13 @@ function NewBookingsTab() {
     const now = new Date();
     let filtered = [];
     if (activeSubTab === 'new') {
-      filtered = allBookings.filter(b => b.status === 'pending');
+      filtered = allBookings.filter(b => b.status === 'pending_owner');
     } else if (activeSubTab === 'confirmed') {
-      filtered = allBookings.filter(b => b.status === 'confirmed' && (!b.checkOut || b.checkOut >= now));
+      filtered = allBookings.filter(b => b.status === 'confirmed');
     } else if (activeSubTab === 'cancelled') {
-      filtered = allBookings.filter(b => b.status === 'cancelled' || b.status === 'rejected');
+      filtered = allBookings.filter(b => b.status === 'cancelled');
+    } else if (activeSubTab === 'rejected') {
+      filtered = allBookings.filter(b => b.status === 'rejected_by_owner');
     } else if (activeSubTab === 'past') {
       filtered = allBookings.filter(b => b.status === 'completed' || (b.checkOut && b.checkOut < now));
     }
@@ -493,6 +488,7 @@ function NewBookingsTab() {
           {[
             { id: 'new', label: 'New' },
             { id: 'confirmed', label: 'Confirmed' },
+            { id: 'rejected', label: 'Rejected' },
             { id: 'cancelled', label: 'Cancelled' },
             { id: 'past', label: 'Past' }
           ].map(tab => (
@@ -533,8 +529,10 @@ function NewBookingsTab() {
                     <div className="min-w-0">
                       <h3 className="font-bold text-[#1A1A2E] text-xs leading-tight truncate">{booking.visitorName}</h3>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === 'pending' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest truncate">{booking.status}</p>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === 'pending_owner' ? 'bg-amber-400 animate-pulse' : booking.status === 'confirmed' ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
+                        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest truncate">
+                          {booking.status === 'pending_owner' ? 'Pending' : booking.status}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -566,10 +564,22 @@ function NewBookingsTab() {
               </div>
 
               <div className="flex gap-2">
-                {booking.status === 'pending' ? (
+                {booking.status === 'pending_owner' ? (
                   <>
-                    <button onClick={() => { setSelectedBooking(booking); setShowRejectModal(true); }} className="flex-1 h-10 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2"><XCircle className="w-3.5 h-3.5" /> Reject</button>
-                    <button onClick={() => { setSelectedBooking(booking); setShowConfirmModal(true); }} className="flex-[1.5] h-10 bg-[#1A1A2E] hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2"><CheckCircle2 className="w-3.5 h-3.5" /> Accept</button>
+                    <button 
+                      onClick={() => { setSelectedBooking(booking); setShowRejectModal(true); }} 
+                      disabled={processing}
+                      className="flex-1 h-10 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Reject
+                    </button>
+                    <button 
+                      onClick={() => handleAccept(booking)} 
+                      disabled={processing}
+                      className="flex-[1.5] h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {processing ? 'Processing...' : 'Accept Booking'}
+                    </button>
                   </>
                 ) : (
                   <button onClick={() => setSelectedBooking(booking)} className="w-full h-10 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2">Details</button>
@@ -944,11 +954,11 @@ function PersonalInfoTab({ user, profile, isEditing, setIsEditing, setShowOTPMod
                   </div>
                   <span className={`text-xs font-bold px-2 py-1 rounded-md ${
                     booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
-                    booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
+                    booking.status === 'pending_owner' ? 'text-amber-600 bg-amber-50' :
                     booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
                     'text-gray-600 bg-gray-50'
                   }`}>
-                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                    {booking.status === 'pending_owner' ? 'Pending' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                   </span>
                 </div>
               ))
@@ -1133,13 +1143,14 @@ function MyBookingsTab() {
                     />
                     <div className="absolute top-6 left-6">
                       <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-2xl backdrop-blur-xl border border-white/20 ${
-                        booking.status === 'confirmed' ? 'bg-emerald-500/90 text-white' :
-                        booking.status === 'pending' ? 'bg-amber-500/90 text-white' :
-                        booking.status === 'rejected' ? 'bg-rose-500/90 text-white' :
+                        booking.status === 'confirmed' || booking.status === 'pending_owner' ? 'bg-emerald-500/90 text-white' :
+                        booking.status === 'rejected_by_owner' ? 'bg-rose-500/90 text-white' :
                         booking.status === 'cancelled' ? 'bg-gray-500/90 text-white' :
                         'bg-slate-500/90 text-white'
                       }`}>
-                        {booking.status}
+                        {booking.status === 'pending_owner' ? 'Confirmed' : 
+                         booking.status === 'rejected_by_owner' ? 'Cancelled' : 
+                         booking.status}
                       </span>
                     </div>
                   </div>
@@ -1157,6 +1168,19 @@ function MyBookingsTab() {
                         <div className="text-right">
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
                           <p className="text-2xl font-black text-[#1A1A2E]">₹{(booking.totalAmount || (booking as any).estimatedCost || 0).toLocaleString()}</p>
+                          
+                          {booking.status === 'pending_owner' && (
+                            <div className="mt-2 bg-amber-50 text-amber-600 px-3 py-1 rounded-lg border border-amber-100 text-[9px] font-bold text-center">
+                              Awaiting final confirmation from property owner.
+                            </div>
+                          )}
+
+                          {booking.status === 'rejected_by_owner' && (
+                            <div className="mt-2 bg-red-50 text-red-600 px-3 py-1 rounded-lg border border-red-100 text-[9px] font-bold text-center">
+                              Booking rejected by owner. 95% refund credited to wallet.
+                            </div>
+                          )}
+
                           {booking.visitTime && (
                             <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100 text-[10px] font-black uppercase tracking-widest">
                               <Clock className="w-3 h-3" /> Visit: {booking.visitTime}
@@ -1334,28 +1358,28 @@ function MyBookingsTab() {
     try {
       const amount = booking.totalAmount || booking.estimatedCost || 0;
       
-      const now = new Date();
-      const checkInDate = new Date(booking.checkIn);
-      const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-      
       let refundPercentage = 0;
-      if (hoursUntilCheckIn >= 24) {
-        refundPercentage = 75;
-      } else if (hoursUntilCheckIn >= 6) {
-        refundPercentage = 50;
+      let refundAmount = 0;
+
+      // New Logic: If pending_owner, 100% refund. If confirmed, calc based on time.
+      if (booking.status === 'pending_owner') {
+        refundPercentage = 100;
+        refundAmount = amount;
+      } else {
+        const now = new Date();
+        const checkInDate = new Date(booking.checkIn);
+        const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursUntilCheckIn >= 24) {
+          refundPercentage = 75;
+        } else if (hoursUntilCheckIn >= 6) {
+          refundPercentage = 50;
+        }
+        refundAmount = (amount * refundPercentage) / 100;
       }
 
-      const refundAmount = (amount * refundPercentage) / 100;
-
-      // Update booking status
-      await bookingService.updateBookingStatus(booking.id, 'cancelled', {
-        cancellationReason: reason,
-        cancelledBy: 'visitor',
-        cancelledAt: serverTimestamp(),
-        refundPercentage,
-        refundAmount,
-        cancellationTime: serverTimestamp()
-      });
+      // Process wallet via service
+      await walletService.processCancellationWallet(booking.id, booking, refundPercentage);
 
       if (refundAmount > 0) {
         showToast(`Booking cancelled. ₹${refundAmount.toLocaleString()} (${refundPercentage}%) refund initiated to your wallet.`, "success");
@@ -1737,11 +1761,13 @@ function PaymentsTab() {
                     <td className="py-4 px-4">
                       <span className={`text-xs font-bold px-2 py-1 rounded-md ${
                         booking.status === 'confirmed' ? 'text-emerald-600 bg-emerald-50' :
-                        booking.status === 'pending' ? 'text-amber-600 bg-amber-50' :
+                        booking.status === 'pending_owner' ? 'text-amber-600 bg-amber-50' :
                         booking.status === 'cancelled' ? 'text-red-600 bg-red-50' :
                         'text-gray-600 bg-gray-50'
                       }`}>
-                        {booking.status === 'confirmed' ? 'Paid' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        {booking.status === 'confirmed' ? 'Paid' : 
+                         booking.status === 'pending_owner' ? 'Pending' : 
+                         booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">₹{(booking.totalAmount || booking.estimatedCost || 0).toLocaleString()}</td>

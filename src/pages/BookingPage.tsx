@@ -77,7 +77,7 @@ export default function BookingPage() {
           const bookings = await bookingService.getBookingsByProperty(propertyId);
           const dates: Date[] = [];
           bookings.forEach(booking => {
-            if (booking.status === 'confirmed' || booking.status === 'pending') {
+            if (booking.status === 'confirmed' || booking.status === 'pending_owner') {
               let current = new Date(booking.checkIn);
               const end = new Date(booking.checkOut);
               while (current <= end) {

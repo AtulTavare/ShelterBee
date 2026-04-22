@@ -44,7 +44,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
+    // ---------------------------------------------------------------
+    // 1. GLOBAL HELPERS & SAFETY NET
+    // ---------------------------------------------------------------
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function isAdmin() { 
@@ -53,73 +55,107 @@ service cloud.firestore {
         request.auth.token.email == 'tavareatul7192@gmail.com'
       );
     }
-    function isAuthenticated() { return request.auth != null; }
-    function isValidId(id) { return id is string && id.size() <= 128; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
+    function verifiedUser() { return isSignedIn() && request.auth.token.email_verified == true; }
 
-    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // ---------------------------------------------------------------
+    // 2. USERS
+    // ---------------------------------------------------------------
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId) && incoming().role == 'visitor' && incoming().email == request.auth.token.email;
-      allow update: if isOwner(userId) && incoming().role == existing().role; // Users can't change their own role
+      allow update: if isOwner(userId) && incoming().role == existing().role && incoming().email == existing().email;
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------
+    // 3. PROPERTIES
+    // ---------------------------------------------------------------
     match /properties/{propertyId} {
-      allow read: if (resource.data.status == 'Approved' && isAuthenticated()) || (isAuthenticated() && resource.data.ownerId == request.auth.uid) || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid && request.resource.data.status == 'Pending';
-      allow update: if isAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      allow read: if (resource.data.status == 'Approved') || (isSignedIn() && resource.data.ownerId == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn() && incoming().ownerId == request.auth.uid && incoming().status == 'Pending';
+      allow update: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid && incoming().status == existing().status);
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // 4. BOOKINGS (MISSION CRITICAL)
+    // ---------------------------------------------------------------
+    function isValidBooking(data) {
+      return data.propertyId is string &&
+             data.visitorId == request.auth.uid &&
+             data.ownerId is string &&
+             data.totalAmount is number &&
+             data.status in ['pending_owner', 'confirmed', 'cancelled', 'rejected_by_owner', 'completed'];
     }
 
     match /bookings/{bookingId} {
-      allow read: if isAuthenticated() && 
-        (resource.data.visitorId == request.auth.uid || 
-         resource.data.ownerId == request.auth.uid || 
-         isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.visitorId == request.auth.uid;
-      allow update: if isAdmin() || (isAuthenticated() && 
-        (resource.data.visitorId == request.auth.uid || 
-         resource.data.ownerId == request.auth.uid));
+      allow read: if isSignedIn() && (resource.data.visitorId == request.auth.uid || resource.data.ownerId == request.auth.uid || isAdmin());
+      
+      allow create: if verifiedUser() && isValidBooking(incoming()) && incoming().status == 'pending_owner';
+      
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        // Action: Owner Accept
+        (isOwner(resource.data.ownerId) && 
+         existing().status == 'pending_owner' && 
+         incoming().status == 'confirmed' &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedAt', 'updatedAt'])) ||
+        // Action: Owner Reject
+        (isOwner(resource.data.ownerId) && 
+         existing().status == 'pending_owner' && 
+         incoming().status == 'rejected_by_owner' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectedAt', 'rejectionReason', 'refundPercentage', 'refundAmount', 'updatedAt'])) ||
+        // Action: Visitor Cancel
+        (isOwner(resource.data.visitorId) && 
+         (existing().status == 'pending_owner' || existing().status == 'confirmed') &&
+         incoming().status == 'cancelled' &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      
       allow delete: if isAdmin();
     }
 
-    match /reviews/{reviewId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.visitorId;
-      allow update: if isAdmin() || (isAuthenticated() && 
-        get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerId == request.auth.uid && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reply']));
-      allow delete: if isAdmin();
-    }
-
+    // ---------------------------------------------------------------
+    // 5. WALLETS (ATOMICITY GUARANTEED BY ADMIN/SERVER SERVICE)
+    // ---------------------------------------------------------------
     match /wallets/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Wallets are and should only be updated by server-side transactions or admins
+      allow write: if isAdmin();
     }
 
     match /walletTransactions/{transactionId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
     }
 
     match /withdrawalRequests/{requestId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if verifiedUser() && incoming().userId == request.auth.uid && incoming().status == 'pending';
       allow update, delete: if isAdmin();
     }
 
     match /bookingFinancials/{bookingId} {
-      allow read: if isSignedIn() && (isOwner(resource.data.visitorId) || isOwner(resource.data.ownerId) || isAdmin());
-      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.visitorId == request.auth.uid || resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if verifiedUser() && incoming().visitorId == request.auth.uid;
       allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // 6. REVIEWS
+    // ---------------------------------------------------------------
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if verifiedUser() && incoming().visitorId == request.auth.uid;
+      allow update: if (verifiedUser() && incoming().visitorId == request.auth.uid) || isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
