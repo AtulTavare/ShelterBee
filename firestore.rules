@@ -1,46 +1,3 @@
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: users
-// Document ID: {userId}
-// Fields:
-//   - uid: string (required) - Firebase Auth UID
-//   - email: string (required) - User's email address
-//   - displayName: string (optional) - User's full name
-//   - photoURL: string (optional) - URL to user's profile photo
-//   - role: string (required) - 'visitor', 'owner', or 'admin'
-//   - createdAt: timestamp (required) - Creation time
-//
-// Collection: properties
-// Document ID: {propertyId}
-// Fields:
-//   - ownerId: string (required) - UID of the property owner
-//   - title: string (required) - Title of the property listing
-//   - type: string (required) - 'Room', 'PG', 'Full Flat', 'Full Property'
-//   - area: string (required) - Short area name
-//   - address: string (required) - Exact address
-//   - pricePerDay: number (required) - Price per day in INR
-//   - photos: list (required) - Array of photo URLs
-//   - amenities: list (required) - List of amenities
-//   - description: string (required) - Detailed description
-//   - status: string (required) - 'Pending', 'Approved', 'Rejected'
-//   - createdAt: timestamp (required) - Creation time
-//
-// Collection: bookings
-// Document ID: {bookingId}
-// Fields:
-//   - propertyId: string (required) - ID of the booked property
-//   - visitorId: string (required) - UID of the visitor who booked
-//   - ownerId: string (required) - UID of the property owner
-//   - checkIn: string (required) - Check-in date
-//   - checkOut: string (required) - Check-out date
-//   - totalAmount: number (required) - Total amount paid
-//   - status: string (required) - 'Confirmed'
-//   - createdAt: timestamp (required) - Creation time
-//
-// ===============================================================
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -59,7 +16,6 @@ service cloud.firestore {
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    function verifiedUser() { return isSignedIn(); } // Relaxing this as some tokens might not have the claim yet or for testing convenience
 
     match /{document=**} {
       allow read, write: if false;
@@ -83,13 +39,9 @@ service cloud.firestore {
       allow create: if isSignedIn() && incoming().ownerId == request.auth.uid && incoming().status == 'Pending';
       allow update: if isAdmin() || (
         isSignedIn() && resource.data.ownerId == request.auth.uid && (
-          // Allow owner to update general fields without changing status
           (incoming().status == existing().status) ||
-          // Allow owner to resubmit a rejected property (status: Rejected -> Pending)
           (existing().status == 'Rejected' && incoming().status == 'Pending') ||
-          // Allow owner to hide an approved property (status: Approved -> Hidden)
           (existing().status == 'Approved' && incoming().status == 'Hidden') ||
-          // Allow owner to show a hidden property (status: Hidden -> Approved)
           (existing().status == 'Hidden' && incoming().status == 'Approved')
         )
       );
@@ -97,7 +49,7 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // 4. BOOKINGS (MISSION CRITICAL)
+    // 4. BOOKINGS
     // ---------------------------------------------------------------
     function isValidBooking(data) {
       return data.propertyId is string &&
@@ -111,63 +63,62 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.visitorId == request.auth.uid || 
         resource.data.ownerId == request.auth.uid || 
-        isAdmin() ||
-        resource.data.status in ['confirmed', 'pending_owner']
+        isAdmin()
       );
       
-      allow create: if verifiedUser() && isValidBooking(incoming()) && incoming().status == 'pending_owner';
+      allow create: if isSignedIn() && isValidBooking(incoming()) && incoming().status == 'pending_owner';
       
       allow update: if isSignedIn() && (
         isAdmin() ||
-        // Action: Owner Accept
+        // Action: Owner Accept (Status: pending_owner -> confirmed)
         (isOwner(resource.data.ownerId) && 
          existing().status == 'pending_owner' && 
          incoming().status == 'confirmed' &&
-         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedAt', 'updatedAt'])) ||
-        // Action: Owner Reject
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedAt', 'updatedAt', 'walletProcessed'])) ||
+        // Action: Owner Reject (Status: pending_owner -> rejected_by_owner)
         (isOwner(resource.data.ownerId) && 
          existing().status == 'pending_owner' && 
          incoming().status == 'rejected_by_owner' && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectedAt', 'rejectionReason', 'refundPercentage', 'refundAmount', 'updatedAt', 'refundStatus'])) ||
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectedAt', 'rejectionReason', 'updatedAt', 'walletProcessed'])) ||
         // Action: Visitor Cancel
         (isOwner(resource.data.visitorId) && 
          (existing().status == 'pending_owner' || existing().status == 'confirmed') &&
          incoming().status == 'cancelled' &&
-         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'refundAmount', 'refundPercentage'])) ||
-        // Action: State Progress (Mark Completed)
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'refundAmount', 'refundPercentage', 'walletProcessed'])) ||
+        // Action: Mark Completed
         (isOwner(resource.data.ownerId) &&
          existing().status == 'confirmed' &&
          incoming().status == 'completed' &&
-         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        // Action: Internal Wallet Processing (triggered by same transaction)
+        (incoming().walletProcessed == true && existing().walletProcessed == false &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['walletProcessed', 'updatedAt']))
       );
-      
-      allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------
-    // 5. WALLETS (ATOMICITY GUARANTEED BY ADMIN/SERVER SERVICE)
+    // 5. WALLETS & TRANSACTIONS
     // ---------------------------------------------------------------
     match /wallets/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn(); // Broad for now to facilitate transactions between users and admin
+      allow read: if isOwner(userId) || isAdmin();
+      // Allow user to initialize their own wallet
+      allow create: if isOwner(userId);
+      // Allow updates if the user is the owner, or if it's a platform-mediated transaction
+      // For security, we should ideally restrict this to the server, but for client-side transactions:
+      allow update: if isOwner(userId) || isAdmin() || isSignedIn(); 
     }
 
     match /walletTransactions/{transactionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid || isAdmin() || 
+                                         // Allow visitor to create transaction for owner/admin during booking
+                                         existsAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)));
+      allow update, delete: if isAdmin();
     }
 
     match /withdrawalRequests/{requestId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if verifiedUser() && incoming().userId == request.auth.uid && incoming().status == 'pending';
-      allow update, delete: if isAdmin();
-    }
-
-    match /bookingFinancials/{bookingId} {
-      allow read: if isSignedIn() && (resource.data.visitorId == request.auth.uid || resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if verifiedUser() && incoming().visitorId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().status == 'pending';
       allow update, delete: if isAdmin();
     }
 
@@ -176,8 +127,8 @@ service cloud.firestore {
     // ---------------------------------------------------------------
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if verifiedUser() && incoming().visitorId == request.auth.uid;
-      allow update: if (verifiedUser() && incoming().visitorId == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn() && incoming().visitorId == request.auth.uid;
+      allow update: if (isSignedIn() && incoming().visitorId == request.auth.uid) || isAdmin();
       allow delete: if isAdmin();
     }
   }

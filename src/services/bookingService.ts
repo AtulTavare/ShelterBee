@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc, limit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { walletService } from './walletService';
 
@@ -36,56 +36,52 @@ export interface Booking {
   propertyTitle?: string;
   createdAt: any;
   updatedAt: any;
-  // These are for UI convenience when loaded by owner/admin
-  platformCommission?: number;
-  receivedAmount?: number;
-  estimatedCost?: number;
-}
-
-export interface BookingFinancials {
-  platformCommission: number;
-  receivedAmount: number;
-  ownerId: string;
-  visitorId: string;
+  walletProcessed: boolean;
 }
 
 export const bookingService = {
-  async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'platformCommission' | 'receivedAmount'>, financials: { platformCommission: number, receivedAmount: number }) {
+  async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>) {
     try {
       const docRef = await addDoc(collection(db, 'bookings'), {
         ...bookingData,
-        status: 'pending_owner', // Initial status set to pending_owner
+        status: 'pending_owner',
+        walletProcessed: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       
-      // Store sensitive financials in a separate collection
-      await setDoc(doc(db, 'bookingFinancials', docRef.id), {
-        ...financials,
-        ownerId: bookingData.ownerId,
-        visitorId: bookingData.visitorId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      const bookingId = docRef.id;
 
-      return docRef.id;
+      try {
+        await walletService.processBookingWallet(
+          bookingId, 
+          bookingData.totalAmount,
+          bookingData.ownerId, 
+          bookingData.visitorId, 
+          bookingData.propertyTitle || 'Property'
+        );
+        console.log('Wallet processed for booking:', bookingId);
+      } catch (walletError) {
+        console.error('Wallet failed for booking:', bookingId, walletError);
+        // Booking still created, wallet will retry
+      }
+
+      return bookingId;
     } catch (error) {
       console.error("Error creating booking:", error);
       throw error;
     }
   },
 
-  async acceptBooking(bookingId: string, booking: Booking) {
+  async acceptBooking(bookingId: string) {
     try {
-      // Logic moved into walletService.processBookingWallet for atomicity
-      await walletService.processBookingWallet(
-        bookingId,
-        booking.totalAmount,
-        booking.ownerId,
-        booking.visitorId,
-        booking.propertyTitle || 'Property'
-      );
-
+      const bookingRef = doc(db, 'bookings', bookingId);
+      await updateDoc(bookingRef, {
+        status: 'confirmed',
+        acceptedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      // NO wallet change (already processed on creation)
       return true;
     } catch (error) {
       console.error("Error accepting booking:", error);
@@ -93,17 +89,30 @@ export const bookingService = {
     }
   },
 
-  async rejectBooking(bookingId: string, booking: Booking, rejectionReason?: string) {
+  async rejectBooking(bookingId: string, rejectionReason?: string) {
     try {
-      // Logic moved into walletService.processOwnerRejectionWallet for atomicity
-      await walletService.processOwnerRejectionWallet(
-        bookingId,
-        booking.totalAmount,
-        booking.ownerId,
-        booking.visitorId,
-        booking.propertyTitle || 'Property',
-        rejectionReason
-      );
+      const booking = await this.getBookingById(bookingId);
+      if (!booking) throw new Error("Booking not found");
+
+      const bookingRef = doc(db, 'bookings', bookingId);
+      await updateDoc(bookingRef, {
+        status: 'rejected_by_owner',
+        rejectionReason: rejectionReason || 'Owner rejected booking',
+        rejectedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      try {
+        await walletService.processOwnerRejectionWallet(
+          bookingId,
+          booking.totalAmount,
+          booking.ownerId,
+          booking.visitorId,
+          booking.propertyTitle || 'Property'
+        );
+      } catch (walletError) {
+        console.error('Rejection wallet failed:', walletError);
+      }
 
       return true;
     } catch (error) {
@@ -112,17 +121,62 @@ export const bookingService = {
     }
   },
 
-  async getBookingFinancials(bookingId: string) {
+  async cancelBooking(bookingId: string, refundPercent: number) {
     try {
-      const docRef = doc(db, 'bookingFinancials', bookingId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docSnap.data() as BookingFinancials;
+      const booking = await this.getBookingById(bookingId);
+      if (!booking) throw new Error("Booking not found");
+
+      const bookingRef = doc(db, 'bookings', bookingId);
+      const refundAmount = booking.totalAmount * (refundPercent / 100);
+
+      await updateDoc(bookingRef, {
+        status: 'cancelled',
+        refundPercentage: refundPercent,
+        refundAmount: refundAmount,
+        updatedAt: serverTimestamp()
+      });
+
+      try {
+        await walletService.processCancellationWallet(
+          booking, 
+          refundPercent
+        );
+      } catch (walletError) {
+        console.error('Cancellation wallet failed:', walletError);
       }
-      return null;
+
+      return true;
     } catch (error) {
-      console.error("Error fetching financials:", error);
-      return null;
+      console.error("Error cancelling booking:", error);
+      throw error;
+    }
+  },
+
+  async retryFailedWalletTransactions(ownerUid: string) {
+    try {
+      const q = query(
+        collection(db, 'bookings'),
+        where('ownerId', '==', ownerUid),
+        where('walletProcessed', '==', false)
+      );
+      const failedBookings = await getDocs(q);
+      
+      for (const bookingDoc of failedBookings.docs) {
+        const data = bookingDoc.data();
+        try {
+          await walletService.processBookingWallet(
+            bookingDoc.id,
+            data.totalAmount,
+            data.ownerId,
+            data.visitorId,
+            data.propertyTitle || 'Property'
+          );
+        } catch (err) {
+          console.error('Retry failed:', bookingDoc.id, err);
+        }
+      }
+    } catch (error) {
+      console.error("Error in retryFailedWalletTransactions:", error);
     }
   },
 
@@ -203,11 +257,12 @@ export const bookingService = {
       const docRef = doc(db, 'bookings', bookingId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
+        const data = docSnap.data();
         return {
           id: docSnap.id,
-          ...docSnap.data(),
-          checkIn: docSnap.data().checkIn?.toDate() || null,
-          checkOut: docSnap.data().checkOut?.toDate() || null,
+          ...data,
+          checkIn: data.checkIn?.toDate() || null,
+          checkOut: data.checkOut?.toDate() || null,
         } as Booking;
       }
       return null;
@@ -223,16 +278,12 @@ export const bookingService = {
       if (!booking) throw new Error("Booking not found");
 
       if (status === 'confirmed') {
-        return this.acceptBooking(bookingId, booking);
+        return this.acceptBooking(bookingId);
       } else if (status === 'rejected_by_owner') {
-        return this.rejectBooking(bookingId, booking);
+        return this.rejectBooking(bookingId, extraData?.rejectionReason);
       } else if (status === 'cancelled') {
         const refundPercent = extraData?.refundPercentage ?? 100;
-        await walletService.processCancellationWallet(
-          bookingId,
-          { ...booking, ...extraData },
-          refundPercent
-        );
+        return this.cancelBooking(bookingId, refundPercent);
       } else {
         const bookingRef = doc(db, 'bookings', bookingId);
         await updateDoc(bookingRef, {

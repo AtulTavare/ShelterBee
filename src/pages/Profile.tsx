@@ -113,11 +113,36 @@ export default function Profile() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const isOwner = profile?.role === 'owner';
+  const isAdminUser = profile?.role === 'admin';
   const [activeTab, setActiveTab] = useState<Tab>('personal');
   const [isEditing, setIsEditing] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [rejectedProperties, setRejectedProperties] = useState<any[]>([]);
+
+  // Realtime Wallet State
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletTransactions, setWalletTransactions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    console.log('Setting up wallet subscriptions for:', user.uid);
+    const unsubBalance = walletService.subscribeToWalletBalance(
+      user.uid,
+      (balance) => setWalletBalance(balance)
+    );
+    
+    const unsubTransactions = walletService.subscribeToWalletTransactions(
+      user.uid,
+      (transactions) => setWalletTransactions(transactions)
+    );
+    
+    return () => {
+      unsubBalance();
+      unsubTransactions();
+    };
+  }, [user?.uid]);
 
   useEffect(() => {
     if (showOTPModal) {
@@ -284,9 +309,9 @@ export default function Profile() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <OwnerDashboardTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setActiveTab={setActiveTab} setShowOTPModal={setShowOTPModal} />}
+              {activeTab === 'dashboard' && <OwnerDashboardTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setActiveTab={setActiveTab} setShowOTPModal={setShowOTPModal} walletBalance={walletBalance} />}
               {activeTab === 'personal' && <PersonalInfoTab user={user} profile={profile} isEditing={isEditing} setIsEditing={setIsEditing} setShowOTPModal={setShowOTPModal} />}
-              {activeTab === 'wallet' && <WalletTab />}
+              {activeTab === 'wallet' && <WalletTab walletBalance={walletBalance} walletTransactions={walletTransactions} />}
               {activeTab === 'history' && <MyBookingsTab />}
               {activeTab === 'payments' && <PaymentsTab />}
               {activeTab === 'favourites' && <FavouritesTab />}
@@ -359,7 +384,7 @@ function NewBookingsTab() {
     }
     setProcessing(true);
     try {
-      await bookingService.rejectBooking(selectedBooking.id, selectedBooking);
+      await bookingService.rejectBooking(selectedBooking.id, rejectionReason);
 
       const template = emailTemplates.getBookingRejection(
         selectedBooking.visitorName,
@@ -1010,6 +1035,16 @@ function MyBookingsTab() {
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
+  const getVisitorStatusDisplay = (status: string, checkOut: Date | null) => {
+    const now = new Date();
+    if (status === 'completed' || (checkOut && now > checkOut)) return { label: 'Completed', note: '', color: 'bg-slate-500/90' };
+    if (status === 'pending_owner') return { label: 'Confirmed', note: 'Awaiting property owner confirmation', color: 'bg-emerald-500/90' };
+    if (status === 'confirmed') return { label: 'Confirmed', note: '', color: 'bg-emerald-500/90' };
+    if (status === 'rejected_by_owner') return { label: 'Cancelled', note: 'Cancelled by property owner. 95% refund credited to your wallet.', color: 'bg-rose-500/90' };
+    if (status === 'cancelled') return { label: 'Cancelled by you', note: '', color: 'bg-gray-500/90' };
+    return { label: status.replace('_', ' '), note: '', color: 'bg-slate-500/90' };
+  };
+
   useEffect(() => {
     if (showReviewModal || showReportModal || showCancellationModal || !!selectedBooking) {
       document.body.style.overflow = 'hidden';
@@ -1141,17 +1176,22 @@ function MyBookingsTab() {
                       className="w-full h-full object-cover" 
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute top-6 left-6">
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-2xl backdrop-blur-xl border border-white/20 ${
-                        booking.status === 'confirmed' || booking.status === 'pending_owner' ? 'bg-emerald-500/90 text-white' :
-                        booking.status === 'rejected_by_owner' ? 'bg-rose-500/90 text-white' :
-                        booking.status === 'cancelled' ? 'bg-gray-500/90 text-white' :
-                        'bg-slate-500/90 text-white'
-                      }`}>
-                        {booking.status === 'pending_owner' ? 'Confirmed' : 
-                         booking.status === 'rejected_by_owner' ? 'Cancelled' : 
-                         booking.status}
-                      </span>
+                    <div className="absolute top-6 left-6 flex flex-col gap-2 items-start">
+                      {(() => {
+                        const display = getVisitorStatusDisplay(booking.status, booking.checkOut);
+                        return (
+                          <>
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-2xl backdrop-blur-xl border border-white/20 ${display.color}`}>
+                              {display.label}
+                            </span>
+                            {display.note && (
+                              <p className="text-[10px] font-bold text-white bg-black/50 px-2 py-1 rounded-lg backdrop-blur-md max-w-[200px]">
+                                {display.note}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1379,7 +1419,7 @@ function MyBookingsTab() {
       }
 
       // Process wallet via service
-      await walletService.processCancellationWallet(booking.id, booking, refundPercentage);
+      await walletService.processCancellationWallet(booking, refundPercentage);
 
       if (refundAmount > 0) {
         showToast(`Booking cancelled. ₹${refundAmount.toLocaleString()} (${refundPercentage}%) refund initiated to your wallet.`, "success");
@@ -2733,13 +2773,20 @@ function FavouritesTab() {
   );
 }
 
-function WalletTab() {
-  const { user } = useAuth();
+function WalletTab({ walletBalance, walletTransactions }: { walletBalance: number, walletTransactions: any[] }) {
+  const { user, profile } = useAuth();
+  const isOwner = profile?.role === 'owner';
+  const isAdmin = profile?.role === 'admin';
+  const isVisitor = profile?.role === 'visitor';
   const [wallet, setWallet] = useState<any>(null);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showBankDetailsModal, setShowBankDetailsModal] = useState(false);
+
+  useEffect(() => {
+    if (user?.uid) {
+      walletService.getWallet(user.uid).then(setWallet);
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     if (showWithdrawModal || showBankDetailsModal) {
@@ -2751,31 +2798,17 @@ function WalletTab() {
       document.body.style.overflow = 'unset';
     };
   }, [showWithdrawModal, showBankDetailsModal]);
+
   const [withdrawStep, setWithdrawStep] = useState(1);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [bankDetails, setBankDetails] = useState({ accountHolderName: '', accountNumber: '', ifsc: '', branchName: '', bankName: '' });
   const [cooldown, setCooldown] = useState(0);
 
-  const fetchWalletData = async () => {
-    if (!user) return;
-    try {
-      const walletData = await walletService.getWallet(user.uid);
-      setWallet(walletData);
-      const txns = await walletService.getTransactions(user.uid);
-      setTransactions(txns);
-      if (walletData.bankAccount) {
-        setBankDetails(walletData.bankAccount);
-      }
-    } catch (error) {
-      console.error("Error fetching wallet data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchWalletData();
-  }, [user]);
+    if (wallet?.bankAccount) {
+      setBankDetails(wallet.bankAccount);
+    }
+  }, [wallet]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -2785,22 +2818,9 @@ function WalletTab() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  const pendingWithdrawalsAmount = transactions
+  const pendingWithdrawalsAmount = walletTransactions
     .filter(t => t.type === 'debit' && t.status === 'pending')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const todaysWithdrawals = transactions.filter(t => 
-    t.type === 'debit' && 
-    t.reason === 'withdrawal' && 
-    t.createdAt && 
-    t.createdAt.toDate() >= today
-  );
-  
-  const todaysWithdrawalCount = todaysWithdrawals.length;
-  const todaysWithdrawalAmount = todaysWithdrawals.reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
 
   const handleSaveBankDetails = async () => {
     if (!bankDetails.accountHolderName || !bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.branchName || !bankDetails.bankName) {
@@ -2809,9 +2829,10 @@ function WalletTab() {
     }
     try {
       await walletService.updateBankAccount(user!.uid, { ...bankDetails, verified: true });
-      fetchWalletData();
       setShowBankDetailsModal(false);
       showToast("Bank details updated successfully", "success");
+      const updatedWallet = await walletService.getWallet(user!.uid);
+      setWallet(updatedWallet);
     } catch (error) {
       console.error("Error saving bank details:", error);
       showToast("Failed to update bank details", "error");
@@ -2824,16 +2845,8 @@ function WalletTab() {
       showToast("Please enter a valid amount", "error");
       return;
     }
-    if (amount > (wallet?.availableBalance || 0)) {
+    if (amount > walletBalance) {
       showToast("Insufficient balance", "error");
-      return;
-    }
-    if (todaysWithdrawalCount >= 2) {
-      showToast("Daily limit reached: Maximum 2 withdrawals per day.", "error");
-      return;
-    }
-    if (todaysWithdrawalAmount + amount > 10000) {
-      showToast(`Daily limit reached: Maximum ₹10,000 per day. Remaining limit: ₹${10000 - todaysWithdrawalAmount}`, "error");
       return;
     }
     if (!bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.bankName) {
@@ -2849,25 +2862,16 @@ function WalletTab() {
     const amount = parseFloat(withdrawAmount);
     try {
       await walletService.requestWithdrawal(user!.uid, amount, bankDetails);
-      showToast("Withdrawal request submitted successfully", "success");
+      showToast(`₹${amount} will be credited to your bank in 3-4 working days.`, "success");
       setShowWithdrawModal(false);
       setWithdrawStep(1);
       setWithdrawAmount('');
       setCooldown(10);
-      fetchWalletData();
     } catch (error: any) {
       console.error("Error requesting withdrawal:", error);
       showToast(error.message || "Failed to request withdrawal", "error");
     }
   };
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F59E0B]"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -2879,10 +2883,10 @@ function WalletTab() {
               <WalletIcon className="w-5 h-5" />
               <span className="font-medium">Available Balance</span>
             </div>
-            <h2 className="text-4xl font-extrabold mb-6">₹{(wallet?.availableBalance || 0).toLocaleString()}</h2>
+            <h2 className="text-4xl font-extrabold mb-6">₹{walletBalance.toLocaleString()}</h2>
             <button 
               onClick={() => { setShowWithdrawModal(true); setWithdrawStep(1); }}
-              disabled={(wallet?.availableBalance || 0) <= 0 || cooldown > 0}
+              disabled={walletBalance <= 0 || cooldown > 0}
               className="bg-white text-[#1E1B4B] px-6 py-2.5 rounded-xl font-bold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cooldown > 0 ? `Wait ${cooldown}s` : 'Withdraw to Bank'}
@@ -2943,40 +2947,84 @@ function WalletTab() {
 
       <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
         <h3 className="text-xl font-bold text-[#1A1A2E] mb-6">Transaction History</h3>
-        {transactions.length === 0 ? (
+        {walletTransactions.length === 0 ? (
           <div className="text-center py-12">
             <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No transactions yet.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {transactions.map((txn) => (
-              <div key={txn.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-2xl">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    txn.type === 'credit' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
-                  }`}>
-                    {txn.type === 'credit' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+            {walletTransactions
+              .filter(txn => {
+                if (isVisitor) return txn.type === 'credit' && (txn.refundPercentage || txn.paymentPartnerCharge);
+                return true;
+              })
+              .map((txn) => (
+              <div key={txn.id} className="p-4 border border-gray-100 rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      txn.type === 'credit' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                    }`}>
+                      {txn.type === 'credit' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[#1A1A2E]">{txn.description}</p>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+                        {txn.createdAt ? format(txn.createdAt.toDate(), 'MMM dd, yyyy • HH:mm') : 'Recently'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-[#1A1A2E] capitalize">{txn.reason.replace('_', ' ')}</p>
-                    <p className="text-xs text-gray-500">
-                      {txn.createdAt ? format(txn.createdAt.toDate(), 'MMM dd, yyyy HH:mm') : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`font-bold ${txn.type === 'credit' ? 'text-emerald-600' : 'text-[#1A1A2E]'}`}>
+                  <p className={`font-black text-lg ${txn.type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
                     {txn.type === 'credit' ? '+' : '-'}₹{(txn.amount || 0).toLocaleString()}
                   </p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                    txn.status === 'completed' || txn.status === 'available' ? 'bg-emerald-50 text-emerald-600' :
-                    txn.status === 'pending' ? 'bg-amber-50 text-amber-600' :
-                    'bg-red-50 text-red-600'
-                  }`}>
-                    {txn.status}
-                  </span>
                 </div>
+
+                {/* Detailed Breakdown for Owner/Admin */}
+                {(isOwner || isAdmin) && txn.bookingAmount > 0 && (
+                  <div className="mt-4 pt-4 border-t border-dashed border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Booking</p>
+                      <p className="text-xs font-bold text-slate-600">₹{txn.bookingAmount.toLocaleString()}</p>
+                    </div>
+                    {txn.platformCommission > 0 && (
+                      <div>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Commission (25%)</p>
+                        <p className="text-xs font-bold text-red-400">-₹{txn.platformCommission.toLocaleString()}</p>
+                      </div>
+                    )}
+                    {txn.receivedAmount > 0 && (
+                      <div>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Received (75%)</p>
+                        <p className="text-xs font-bold text-emerald-600">₹{txn.receivedAmount.toLocaleString()}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Result Balance</p>
+                      <p className="text-xs font-bold text-slate-900">₹{txn.balanceAfter?.toLocaleString()}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Breakdown for Visitor */}
+                {isVisitor && txn.refundPercentage > 0 && (
+                  <div className="mt-4 pt-4 border-t border-dashed border-slate-100 flex flex-col gap-2">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-slate-400 uppercase">Original Amount</span>
+                      <span className="font-bold text-slate-600">₹{txn.bookingAmount?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-slate-400 uppercase">Refund Percentage</span>
+                      <span className="font-bold text-emerald-600">{txn.refundPercentage}%</span>
+                    </div>
+                    {txn.paymentPartnerCharge > 0 && (
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-slate-400 uppercase">Payment Partner Charge (5%)</span>
+                        <span className="font-bold text-red-400">-₹{txn.paymentPartnerCharge.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -3301,7 +3349,7 @@ function PropertyApprovalsTab() {
   );
 }
 
-function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTab, setShowOTPModal }: { user: any, profile: any, isEditing: boolean, setIsEditing: (v: boolean) => void, setActiveTab: (tab: Tab) => void, setShowOTPModal: (v: boolean) => void }) {
+function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTab, setShowOTPModal, walletBalance }: { user: any, profile: any, isEditing: boolean, setIsEditing: (v: boolean) => void, setActiveTab: (tab: Tab) => void, setShowOTPModal: (v: boolean) => void, walletBalance: number }) {
   const { updateProfileData } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -3316,10 +3364,12 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
     const fetchStats = async () => {
       if (!user) return;
       try {
-        const [properties, wallet, txns, allBookings] = await Promise.all([
+        // Trigger retry for failed wallet transactions
+        bookingService.retryFailedWalletTransactions(user.uid);
+
+        const [properties, txns, allBookings] = await Promise.all([
           propertyService.getPropertiesByOwner(user.uid),
-          walletService.getWallet(user.uid),
-          walletService.getTransactions(user.uid),
+          walletService.getWalletTransactions(user.uid),
           bookingService.getBookingsByOwner(user.uid)
         ]);
         
@@ -3330,20 +3380,15 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
         const weightedSum = properties.reduce((sum, p: any) => sum + ((p.averageRating || p.rating || 0) * (p.totalReviews || p.reviewCount || 0)), 0);
         const aggregateAverageRating = totalReviewsCount > 0 ? Number((weightedSum / totalReviewsCount).toFixed(1)) : 0;
 
-        const pendingPayments = txns
-          .filter(t => t.type === 'debit' && t.status === 'pending')
-          .reduce((sum, t) => sum + t.amount, 0);
-
         const totalEarnings = txns
-          .filter(t => t.type === 'credit' && t.reason === 'booking_earning')
+          .filter(t => t.type === 'credit' && t.bookingAmount > 0)
           .reduce((sum, t) => sum + t.amount, 0);
 
         setStats({
           totalListings: properties.length,
           availableListings: properties.filter(p => p.status === 'Approved' && p.isAvailable !== false).length,
           pendingListings: properties.filter(p => p.status === 'Pending').length,
-          walletBalance: wallet?.availableBalance || 0,
-          pendingPayments,
+          walletBalance: walletBalance,
           totalRevenue: totalEarnings,
           averageRating: aggregateAverageRating,
           totalVisitors: completedBookings.length,
@@ -3359,7 +3404,7 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
     };
 
     fetchStats();
-  }, [user]);
+  }, [user, walletBalance]);
 
   const handleSave = async () => {
     setIsSaving(true);
