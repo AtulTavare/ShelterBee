@@ -437,7 +437,7 @@ export const AdminWallet = () => {
       {/* Confirmation Modal */}
       <AnimatePresence>
         {confirmAction && (
-          <div className="modal-overlay p-4">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
@@ -449,7 +449,7 @@ export const AdminWallet = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="modal-content bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative"
+              className="modal-content bg-white rounded-3xl max-w-md p-8 shadow-2xl relative"
             >
               <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-6">
                 <IndianRupee className="w-8 h-8 text-blue-600" />

@@ -978,8 +978,8 @@ export default function ListProperty() {
                       checked={formData.termsAccepted}
                       onChange={(e) => setFormData({...formData, termsAccepted: e.target.checked})}
                     />
-                    <span className="text-sm font-medium text-on-surface">
-                      I agree to all terms & conditions, payment policies, and confirm that the information provided is accurate.
+                    <span className="text-sm font-medium text-on-surface leading-normal">
+                      I confirm that all property details, photographs, and documents submitted are accurate, genuine and up to date. I am the legal owner or authorized representative of this property. I understand that false or misleading information may result in permanent rejection or account suspension. I agree to ShelterBee's Terms of Use, Host/Channel Partner Agreement, Property Listing Guidelines, and Payment & Commission Agreement (25% platform commission on each booking).
                     </span>
                   </label>
                 </motion.div>
@@ -1020,9 +1020,9 @@ export default function ListProperty() {
       {/* Resubmit Confirmation Modal */}
       <AnimatePresence>
         {showResubmitConfirm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResubmitConfirm(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="modal-content bg-white rounded-3xl p-8 max-w-md shadow-2xl relative z-10 text-center border border-slate-100">
               <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="material-symbols-outlined text-3xl">verified_user</span>
               </div>
@@ -1038,8 +1038,8 @@ export default function ListProperty() {
                   checked={resubmitAgreed}
                   onChange={(e) => setResubmitAgreed(e.target.checked)}
                 />
-                <span className="text-xs font-medium text-on-surface">
-                  I agree that the information provided is accurate and I understand it will be reviewed by admin.
+                <span className="text-xs font-medium text-on-surface leading-normal">
+                  I confirm all updated property details and documents are accurate and genuine. I understand ShelterBee admin will review the resubmission and may request further changes. False information may result in permanent delisting. I accept ShelterBee's Property Listing Guidelines.
                 </span>
               </label>
 
@@ -1069,7 +1069,7 @@ export default function ListProperty() {
       {/* Verification Popup */}
       <AnimatePresence>
         {showVerificationPopup && (
-          <div className="modal-overlay p-4">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1081,7 +1081,7 @@ export default function ListProperty() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="modal-content bg-white rounded-3xl p-10 max-w-md w-full border border-slate-100"
+              className="modal-content bg-white rounded-3xl p-10 max-w-md border border-slate-100"
             >
               <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <span className="material-symbols-outlined text-4xl">mark_email_unread</span>
@@ -1141,7 +1141,7 @@ export default function ListProperty() {
       />
       <AnimatePresence>
         {isSubmitting && (
-          <div className="modal-overlay overflow-hidden">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

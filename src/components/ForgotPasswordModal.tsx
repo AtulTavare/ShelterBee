@@ -260,12 +260,12 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
 
   return (
     <AnimatePresence>
-      <div className="modal-overlay p-4">
+      <div className="modal-overlay">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="modal-content bg-white rounded-[2rem] shadow-2xl w-full max-w-md relative overflow-hidden"
+          className="modal-content bg-white rounded-[2rem] shadow-2xl max-w-md relative"
         >
           <button
             onClick={onClose}

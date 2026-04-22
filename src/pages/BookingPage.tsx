@@ -30,7 +30,7 @@ import {
 export default function BookingPage() {
   const { propertyId } = useParams();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   
   const [property, setProperty] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -57,11 +57,20 @@ export default function BookingPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
-    if (!propertyId) return;
-    const fetchPropertyData = async () => {
+    if (authLoading || !propertyId) return;
+
+    const fetchPropertyData = async (retryCounter = 1) => {
       try {
         const prop = await propertyService.getPropertyById(propertyId);
         if (prop) {
+          // Check for approved status or if user is owner/admin
+          const isOwner = user && prop.ownerId === user.uid;
+          const isAdmin = profile?.role === 'admin';
+          
+          if (prop.status !== 'Approved' && !isOwner && !isAdmin) {
+            throw new Error("This property is currently not available for booking.");
+          }
+
           setProperty(prop);
           
           // Fetch bookings to disable dates
@@ -82,22 +91,33 @@ export default function BookingPage() {
           showToast("Property not found", "error");
           navigate('/');
         }
-      } catch (error) {
-        console.error("Error fetching property data:", error);
-        showToast("Failed to load property", "error");
+      } catch (error: any) {
+        console.error('Property load error:', error);
+        if (retryCounter > 0) {
+          // Retry once after 1 second
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchPropertyData(retryCounter - 1);
+        }
+        showToast(error.message || "Failed to load property", "error");
+        navigate('/');
       } finally {
         setLoading(false);
       }
     };
-    fetchPropertyData();
-  }, [propertyId, navigate]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    fetchPropertyData();
+  }, [propertyId, navigate, authLoading, user, profile]);
+
+  if (loading || authLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!property) return null;
 
-  const nights = dateRange.from && dateRange.to ? differenceInDays(dateRange.to, dateRange.from) : 0;
+  const diffDays = dateRange.from && dateRange.to ? differenceInDays(dateRange.to, dateRange.from) : 0;
+  const nights = (dateRange.from && !dateRange.to) ? "--" : diffDays;
+  const isMinNightsError = dateRange.from && dateRange.to && diffDays < 2;
+  const effectiveNights = diffDays >= 2 ? diffDays : 2;
+  
   const totalGuests = guests.length;
-  const totalAmount = nights * property.pricePerDay * totalGuests;
+  const totalAmount = effectiveNights * property.pricePerDay * totalGuests;
   const platformCommission = totalAmount * 0.25;
   const receivedAmount = totalAmount - platformCommission;
 
@@ -179,7 +199,7 @@ export default function BookingPage() {
         isWhatsapp: true,
         checkIn: dateRange.from || null,
         checkOut: dateRange.to || null,
-        nights,
+        nights: effectiveNights,
         totalAmount,
         status: 'confirmed',
         guests,
@@ -219,7 +239,7 @@ export default function BookingPage() {
             guests[0].contactNo || 'Not provided',
             dateRange.from!,
             dateRange.to!,
-            nights,
+            effectiveNights,
             totalGuests,
             bookingId,
             totalAmount,
@@ -331,7 +351,7 @@ export default function BookingPage() {
                     <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Select your dates</h2>
                   </div>
                   
-                  <div className="flex justify-center bg-slate-50/50 rounded-2xl sm:rounded-3xl p-2 sm:p-6 border border-slate-100 overflow-x-auto">
+                  <div className="flex justify-center bg-slate-50/50 rounded-2xl sm:rounded-3xl p-2 sm:p-6 border border-slate-100 overflow-x-auto relative">
                     <DayPicker
                       mode="range"
                       selected={dateRange}
@@ -354,11 +374,17 @@ export default function BookingPage() {
                         '--rdp-background-color': '#EEF2FF',
                       } as React.CSSProperties}
                     />
+                    
+                    {isMinNightsError && (
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 shadow-sm animate-pulse">
+                        Minimum booking is 2 nights
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-8 sm:mt-10 flex justify-end">
                     <button
-                      disabled={!dateRange.from || !dateRange.to}
+                      disabled={!dateRange.from || !dateRange.to || isMinNightsError}
                       onClick={() => setStep(2)}
                       className="w-full sm:w-auto px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-200"
                     >
@@ -527,6 +553,33 @@ export default function BookingPage() {
                         </div>
                       </div>
 
+                      <div className="bg-slate-50 rounded-[2rem] p-6 sm:p-8 space-y-4 sm:space-y-6 border border-slate-100">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-full bg-[#1E1B4B]/5 flex items-center justify-center">
+                            <Info className="w-5 h-5 text-[#1E1B4B]" />
+                          </div>
+                          <h3 className="text-lg sm:text-xl font-black text-[#1E1B4B]">Cancellation Policy</h3>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Before 24h</p>
+                            <p className="text-sm font-black text-green-600">75% Refund</p>
+                          </div>
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">24h - 6h</p>
+                            <p className="text-sm font-black text-amber-600">50% Refund</p>
+                          </div>
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Within 6h</p>
+                            <p className="text-sm font-black text-red-600">No Refund</p>
+                          </div>
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">After Check-in</p>
+                            <p className="text-sm font-black text-red-600">No Refund</p>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-4">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Payment App</p>
                         <div className="grid grid-cols-3 gap-2 sm:gap-4">
@@ -625,10 +678,12 @@ export default function BookingPage() {
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                           Cancellation Policy
                         </h3>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
-                          Free cancellation for 24 hours. After that, the platform fee is non-refundable. 
-                          Refunds for the stay amount are subject to the owner's policy and check-in status.
-                        </p>
+                        <div className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium space-y-2">
+                          <p>• More than 24h: 75% Refund</p>
+                          <p>• 24h to 6h: 50% Refund</p>
+                          <p>• Within 6h / After check-in: No Refund</p>
+                          <p className="mt-2 pt-2 border-t border-slate-100 text-[10px] italic">Refunds processed in 5-10 business days.</p>
+                        </div>
                       </div>
 
                       <div className="p-6 sm:p-8 bg-slate-50/50 rounded-2xl sm:rounded-3xl border border-slate-100">
@@ -636,10 +691,11 @@ export default function BookingPage() {
                           <Info className="w-4 h-4 text-indigo-500" />
                           Terms & Conditions
                         </h3>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
-                          By clicking "Confirm Booking", you agree to follow the house rules and maintain the property. 
-                          Any damage caused will be the responsibility of the primary guest.
-                        </p>
+                        <div className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium space-y-2">
+                          <p>1. Acceptance: By booking, you agree to follow house rules.</p>
+                          <p>2. Services: ShelterBee is a technology platform connecting guests with host-managed properties.</p>
+                          <p>3. Liability: ShelterBee is not liable for issues arising from host negligence or property conditions.</p>
+                        </div>
                       </div>
 
                       <div className="space-y-4 pt-4">
@@ -662,8 +718,8 @@ export default function BookingPage() {
                             onChange={(e) => setTermsAccepted(e.target.checked)}
                             className="w-5 h-5 sm:w-6 sm:h-6 mt-0.5 rounded-lg border-slate-300 text-[#1E1B4B] focus:ring-[#1E1B4B]"
                           />
-                          <span className="text-xs sm:text-sm text-slate-500 font-bold">
-                            I agree to the Terms & Conditions and Privacy Policy.
+                          <span className="text-xs sm:text-sm text-slate-500 font-bold leading-snug">
+                            I agree that 25% platform commission applies to this booking. Payment via UPI/QR is final and non-reversible. Cancellation refunds are: 75% if cancelled more than 24hrs before check-in, 50% if cancelled between 24-6hrs before check-in, and 0% if cancelled within 6hrs of check-in or after check-in time. Refunds are credited to ShelterBee wallet within 5-10 business days. By proceeding I accept ShelterBee's Terms of Use and Payment & Commission Policy.
                           </span>
                         </label>
                       </div>
@@ -725,7 +781,7 @@ export default function BookingPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nights</span>
-                    <span className="text-[#1A1A2E] font-black">{nights || 0}</span>
+                    <span className="text-[#1A1A2E] font-black">{nights}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Guests</span>

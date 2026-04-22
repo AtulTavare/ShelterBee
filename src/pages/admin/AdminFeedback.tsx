@@ -65,7 +65,7 @@ export const AdminFeedback = () => {
       {/* Detail Modal */}
       <AnimatePresence>
         {selectedItem && (
-          <div className="modal-overlay p-4">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 

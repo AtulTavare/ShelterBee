@@ -5,6 +5,7 @@ import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
 import FilterBar from '../components/FilterBar';
 import { useAuth } from '../contexts/AuthContext';
+import { showFavoriteToast } from '../utils/toast';
 
 const getAmenityIcon = (amenity: string) => {
   const lower = amenity.toLowerCase();
@@ -95,6 +96,9 @@ export default function Listings() {
     
     try {
       await updateProfileData({ favorites: newFavorites });
+      if (!favorites.includes(id)) {
+        showFavoriteToast(navigate);
+      }
     } catch (error) {
       console.error("Error updating favorites:", error);
     }

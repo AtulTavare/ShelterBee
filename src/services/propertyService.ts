@@ -124,7 +124,7 @@ export const propertyService = {
       return null;
     } catch (error) {
       console.error("Error fetching property by id:", error);
-      return null;
+      throw error;
     }
   },
 

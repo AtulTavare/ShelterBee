@@ -35,6 +35,48 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' | 
   }, 3000);
 };
 
+export const showFavoriteToast = (navigate: (path: string) => void) => {
+  let toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.className = 'fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none';
+    document.body.appendChild(toastContainer);
+  }
+
+  const toastEl = document.createElement('div');
+  toastEl.className = 'px-5 py-3 rounded-2xl shadow-2xl text-sm font-bold bg-[#1A1A2E] text-white transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto flex items-center gap-3 border border-white/10';
+  
+  const content = document.createElement('div');
+  content.innerHTML = 'Added to Favourites ❤️ <span class="ml-2 text-yellow-400 hover:text-yellow-300 cursor-pointer underline transition-colors">View Favourites →</span>';
+  
+  const link = content.querySelector('span');
+  if (link) {
+    link.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate('/profile?tab=favorites');
+    };
+  }
+
+  toastEl.appendChild(content);
+  toastContainer.appendChild(toastEl);
+  
+  // Animate in
+  requestAnimationFrame(() => {
+    toastEl.style.opacity = '1';
+    toastEl.style.transform = 'translateY(0)';
+  });
+  
+  setTimeout(() => {
+    toastEl.style.opacity = '0';
+    toastEl.style.transform = 'translateY(4px)';
+    setTimeout(() => {
+      toastEl.remove();
+    }, 300);
+  }, 3000);
+};
+
 export const showConfirm = (message: string, onConfirm: () => void | Promise<void>) => {
   const overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 transition-opacity duration-200';

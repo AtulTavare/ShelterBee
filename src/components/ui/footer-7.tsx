@@ -71,7 +71,7 @@ export const Footer7 = ({
     title: "Shelterbee",
   },
   sections = defaultSections,
-  description = "A platform where you find a perfect stay which is as good as like your another home",
+  description = "ShelterBee is a technology platform connecting guests with host-managed properties. We find you the perfect stay which is as good as like your another home.",
   socialLinks = defaultSocialLinks,
   copyright = `© ${new Date().getFullYear()} Shelterbee. All rights reserved.`,
   legalLinks = defaultLegalLinks,

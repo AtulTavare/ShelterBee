@@ -174,11 +174,11 @@ export const AdminPendingApprovals = () => {
       {/* Property Details Modal */}
       {selectedProperty && !showRejectModal && (
         <div 
-          className="modal-overlay p-4 pt-[80px]"
+          className="modal-overlay"
           onClick={() => setSelectedProperty(null)}
         >
           <div 
-            className="modal-content bg-white rounded-2xl w-full max-w-3xl flex flex-col shadow-xl my-auto"
+            className="modal-content bg-white rounded-2xl max-w-3xl flex flex-col shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
@@ -314,11 +314,11 @@ export const AdminPendingApprovals = () => {
       {/* Reject Reason Modal */}
       {showRejectModal && (
         <div 
-          className="modal-overlay p-4"
+          className="modal-overlay"
           onClick={() => setShowRejectModal(false)}
         >
           <div 
-            className="modal-content bg-white rounded-2xl w-full max-w-md flex flex-col shadow-xl"
+            className="modal-content bg-white rounded-2xl max-w-md flex flex-col shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-200 shrink-0">

@@ -583,9 +583,9 @@ function NewBookingsTab() {
       {/* Booking Detail Modal */}
       <AnimatePresence>
         {selectedBooking && !showRejectModal && !showConfirmModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedBooking(null)} />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="modal-content bg-white rounded-3xl p-8 max-w-lg shadow-2xl relative z-10 border border-slate-100">
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h3 className="text-2xl font-black text-[#1A1A2E] tracking-tight">Booking Details</h3>
@@ -673,9 +673,9 @@ function NewBookingsTab() {
       {/* Reject Modal */}
       <AnimatePresence>
         {showRejectModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRejectModal(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-[120]">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="modal-content bg-white rounded-3xl p-8 max-w-md shadow-2xl relative z-[120]">
               <h3 className="text-xl font-bold text-[#1A1A2E] mb-4">Reject Booking</h3>
               <p className="text-sm text-gray-500 mb-6">Please provide a reason for rejecting this booking. This will be shared with the visitor.</p>
               <textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Reason for rejection..." className="w-full h-32 p-4 rounded-2xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-red-500/50 outline-none transition-all text-gray-800 resize-none mb-6" />
@@ -691,9 +691,9 @@ function NewBookingsTab() {
       {/* Confirm Modal */}
       <AnimatePresence>
         {showConfirmModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-[120]">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="modal-content bg-white rounded-3xl p-8 max-w-md shadow-2xl relative z-[120]">
               <h3 className="text-xl font-bold text-[#1A1A2E] mb-4">Confirm Booking</h3>
               <p className="text-sm text-gray-500 mb-6">Schedule a property visit for the visitor. Please select a date and time.</p>
               <div className="space-y-4 mb-6">
@@ -1389,11 +1389,11 @@ function MyBookingsTab() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="modal-overlay">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+        className="modal-content bg-white rounded-3xl max-w-lg overflow-hidden shadow-2xl"
       >
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <h3 className="text-xl font-bold text-[#1A1A2E]">Cancel Booking</h3>
@@ -1446,19 +1446,26 @@ function MyBookingsTab() {
                     const refundAmount = (amount * refundPercent) / 100;
 
                     return (
-                      <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-xs font-bold text-slate-500 uppercase">Refund Percentage</span>
-                          <span className="text-lg font-black text-[#1E1B4B]">{refundPercent}%</span>
+                      <>
+                        <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase">Refund Percentage</span>
+                            <span className="text-lg font-black text-[#1E1B4B]">{refundPercent}%</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-slate-500 uppercase">Expected Refund</span>
+                            <span className="text-lg font-black text-emerald-600">₹{refundAmount.toLocaleString()}</span>
+                          </div>
+                          <p className="mt-2 text-[10px] text-slate-400 italic">
+                            Calculated based on {hoursUntilCheckIn.toFixed(1)} hours remaining until check-in.
+                          </p>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-slate-500 uppercase">Expected Refund</span>
-                          <span className="text-lg font-black text-emerald-600">₹{refundAmount.toLocaleString()}</span>
+                        <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 mt-4">
+                          <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                            Note: Refund will be credited to your ShelterBee wallet within 5-10 business days. Platform service charges may be retained. Once cancelled, this booking cannot be restored. By confirming you accept ShelterBee's Cancellation and Refund Policy.
+                          </p>
                         </div>
-                        <p className="mt-2 text-[10px] text-slate-400 italic">
-                          Calculated based on {hoursUntilCheckIn.toFixed(1)} hours remaining until check-in.
-                        </p>
-                      </div>
+                      </>
                     );
                   })()}
                 </div>
@@ -1483,7 +1490,7 @@ function MyBookingsTab() {
                   {agreed && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                   <input type="checkbox" className="hidden" checked={agreed} onChange={() => setAgreed(!agreed)} />
                 </div>
-                <span className="text-sm text-gray-600 leading-relaxed">I have read and agree to the cancellation policies of ShelterBee.</span>
+                <span className="text-sm text-gray-600 leading-relaxed">I have read and agree to ShelterBee's Terms of Use, Privacy Policy, and applicable platform policies.</span>
               </label>
 
               <div className="flex gap-3">
@@ -1749,7 +1756,7 @@ function PaymentsTab() {
       {/* Withdrawal Modal */}
       <AnimatePresence>
         {showWithdrawModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1761,7 +1768,7 @@ function PaymentsTab() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full relative z-10"
+              className="modal-content bg-white rounded-3xl shadow-2xl p-8 max-w-md border border-slate-100"
             >
               <h2 className="text-2xl font-black text-[#1A1A2E] mb-2">Withdraw Funds</h2>
               <p className="text-gray-500 mb-6 font-medium">Collect your refunds into your bank account or UPI.</p>
@@ -2408,9 +2415,9 @@ function FavouritesTab() {
       {/* Hide Property Modal */}
       <AnimatePresence>
         {showHideModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowHideModal(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="modal-content bg-white rounded-3xl p-8 max-w-md shadow-2xl relative z-10 border border-slate-100">
               <h3 className="text-2xl font-bold text-[#1E1B4B] mb-6 text-center">Hide Property</h3>
               
               <div className="space-y-4 mb-8">
@@ -2473,7 +2480,7 @@ function FavouritesTab() {
       </AnimatePresence>
       <AnimatePresence>
         {showReviewsModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2485,7 +2492,7 @@ function FavouritesTab() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative z-10 border border-slate-100 max-h-[80vh] overflow-y-auto"
+              className="modal-content bg-white rounded-3xl p-8 max-w-2xl border border-slate-100"
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-extrabold text-[#1E1B4B]">Reviews for {selectedPropertyTitle}</h3>
@@ -3155,7 +3162,7 @@ function SecurityTab() {
             <ShieldCheck className="w-5 h-5 text-[#F59E0B]" /> Terms & Conditions
           </h3>
           <p className="text-sm text-gray-600 leading-relaxed">
-            By using Shelterbee, you agree to our terms of service. All bookings are subject to host approval and availability. Users must provide accurate identification when requested. Shelterbee reserves the right to suspend accounts that violate our community guidelines.
+            By using ShelterBee, you agree to ShelterBee's Terms of Use, Privacy Policy, and applicable platform policies. All bookings are subject to host approval and availability. Users must provide accurate identification when requested. ShelterBee reserves the right to suspend accounts that violate our community guidelines.
           </p>
         </section>
 
@@ -3636,9 +3643,9 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="modal-overlay text-left">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100 max-h-[90vh] overflow-y-auto">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="modal-content bg-white rounded-3xl p-8 max-w-md shadow-2xl relative z-10 border border-slate-100">
         <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-6">Rate your stay</h3>
         
         <div className="space-y-6 mb-8">
@@ -3758,9 +3765,9 @@ function ReportModal({ isOpen, onClose, booking }: { isOpen: boolean, onClose: (
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="modal-overlay text-left">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="modal-content bg-white rounded-3xl p-8 max-w-md shadow-2xl relative z-10 border border-slate-100">
         <h3 className="text-2xl font-extrabold text-[#1E1B4B] mb-6">Report Property</h3>
         
         <div className="space-y-4 mb-8">

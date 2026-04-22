@@ -5,6 +5,7 @@ import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
 import { ChevronDown, ChevronUp, MapPin, Search, X, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { showToast, showFavoriteToast } from '../utils/toast';
 
 export default function Home() {
   const { user, profile, updateProfileData } = useAuth();
@@ -62,6 +63,9 @@ export default function Home() {
     
     try {
       await updateProfileData({ favorites: newFavorites });
+      if (!favorites.includes(id)) {
+        showFavoriteToast(navigate);
+      }
     } catch (error) {
       console.error("Error updating favorites:", error);
     }
@@ -105,7 +109,14 @@ export default function Home() {
 
   const faqs = [
     { q: "How do I book a stay?", a: "Search → select dates → click “Book Now” → complete payment" },
-    { q: "Can I cancel my booking?", a: "Yes, based on stay’s cancellation policy and refund depends on timing." },
+    { q: "Can I cancel my booking?", a: `Cancellation & Refund Policy:
+- More than 24 hours before check-in: 75% refund
+- Between 24 hours and 6 hours before check-in: 50% refund  
+- Within 6 hours of check-in or after check-in: No refund
+- No-show: Non-refundable
+- Host cancellation: Full refund eligible
+- Refunds processed in 5-10 business days
+- Platform charges may be retained on cancellation` },
     { q: "When will I get full stays details?", a: "After booking confirmation. Location, contact information, name of owner shared before check-in." },
     { q: "How do I list my property?", a: "Click “Become host” → fill details → submit for approval" },
     { q: "When will my property go live?", a: "After admin verification. Usually within 24–48 hours." },
@@ -152,7 +163,7 @@ export default function Home() {
         {/* YouTube Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden z-0 bg-black">
           <iframe
-            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&iv_load_policy=3&start=0&end=70"
+            src="https://www.youtube.com/embed/IZpTNq-mfNE?autoplay=1&loop=1&mute=1&controls=0&rel=0&playlist=IZpTNq-mfNE&modestbranding=1&playsinline=1&iv_load_policy=3&start=0&end=300"
             className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[100vh] min-w-[177.77vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             allow="autoplay; encrypted-media"
             allowFullScreen
@@ -211,7 +222,7 @@ export default function Home() {
             {/* Search Button */}
             <button 
               onClick={handleSearch}
-              className="w-full md:w-12 h-12 rounded-2xl md:rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 flex-shrink-0 shadow-md gap-2 md:gap-0"
+              className="w-full md:w-12 h-12 rounded-2xl md:rounded-full bg-[#F59E0B] text-[#1A1A2E] flex items-center justify-center hover:bg-[#F59E0B]/90 transition-transform active:scale-95 flex-shrink-0 shadow-md gap-2 md:gap-0"
             >
               <span className="md:hidden font-bold text-sm">Search Stays</span>
               <Search className="w-5 h-5" />

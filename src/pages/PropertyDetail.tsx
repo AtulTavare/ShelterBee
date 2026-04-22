@@ -98,16 +98,22 @@ export default function PropertyDetail() {
   useEffect(() => {
     if (loading || !id) return;
 
-    const fetchProperty = async () => {
+    const fetchProperty = async (retryCounter = 1) => {
       try {
         const prop = await propertyService.getPropertyById(id);
         if (prop) {
           setProperty(prop);
         } else {
+          showToast("Property not found", "error");
           navigate('/');
         }
-      } catch (error) {
-        console.error("Error fetching property:", error);
+      } catch (error: any) {
+        console.error('Property load error:', error);
+        if (retryCounter > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchProperty(retryCounter - 1);
+        }
+        showToast(error.message || "Failed to load property details", "error");
         navigate('/');
       }
     };
@@ -239,7 +245,6 @@ export default function PropertyDetail() {
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 <span className="px-3 py-1 rounded-full bg-[#FFF7ED] text-[#F59E0B] text-[9px] font-extrabold uppercase tracking-widest border border-[#F59E0B]/20">Premium Verified</span>
-                <span className="px-3 py-1 rounded-full bg-slate-100 text-[#1E1B4B] text-[9px] font-extrabold uppercase tracking-widest border border-slate-200">Managed by Shelterbee</span>
               </div>
               <div className="space-y-1.5">
                 <h1 className="text-2xl md:text-4xl font-extrabold text-[#1E1B4B] tracking-tight">{property.title}</h1>
@@ -659,7 +664,14 @@ export default function PropertyDetail() {
                     },
                     {
                       q: "Can I cancel my booking?",
-                      a: "Yes, based on stay’s cancellation policy and refund depends on timing."
+                      a: `Cancellation & Refund Policy:
+- More than 24 hours before check-in: 75% refund  
+- Between 24 hours and 6 hours before check-in: 50% refund
+- Within 6 hours of check-in or after check-in: No refund
+- No-show: Non-refundable
+- Host cancellation: Full refund eligible
+- Refunds processed in 5-10 business days
+- Platform charges may be retained on cancellation`
                     },
                     {
                       q: "When will I get full stays details?",
@@ -700,7 +712,7 @@ export default function PropertyDetail() {
       {/* Verification Popup */}
       <AnimatePresence>
         {showVerificationPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-overlay">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -712,7 +724,7 @@ export default function PropertyDetail() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl relative z-10 text-center border border-slate-100"
+              className="modal-content bg-white rounded-3xl p-10 max-w-md shadow-2xl relative z-10 text-center border border-slate-100"
             >
               <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <span className="material-symbols-outlined text-4xl">mark_email_unread</span>

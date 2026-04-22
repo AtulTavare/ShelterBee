@@ -577,7 +577,7 @@ export default function Auth() {
 
                   {mode === 'register' && (
                     <p className="text-[10px] text-center text-gray-400 mt-4">
-                      By proceeding, you agree to Shelterbee's <a href="#" className="underline">Commercial Partner Terms</a> & <a href="#" className="underline">Privacy Shield</a>.
+                      By proceeding, you agree to ShelterBee's Terms of Use, Privacy Policy, and applicable platform policies.
                     </p>
                   )}
 
@@ -610,15 +610,22 @@ export default function Auth() {
                     className="h-[300px] overflow-y-auto bg-[#F8F9FA] rounded-xl p-6 text-sm text-gray-600 space-y-6 border border-gray-100"
                   >
                     <div>
-                      <h3 className="font-bold text-gray-900 mb-2">1. Terms & Conditions</h3>
-                      <p className="mb-2">Welcome to Shelterbee. By accessing our platform, you agree to be bound by these Terms and Conditions. Our platform serves as a marketplace connecting property owners with seekers.</p>
-                      <p>Property owners are responsible for the accuracy of their listings. Shelterbee reserves the right to remove any listing that violates our community guidelines.</p>
+                      <h3 className="font-bold text-gray-900 mb-2">1. Terms of Use</h3>
+                      <p className="mb-2">1. Acceptance of Terms: By accessing and using ShelterBee, you agree to comply with and be bound by these Terms of Use.</p>
+                      <p className="mb-2">2. Services: ShelterBee acts as a technology platform connecting guests with host-managed properties. We do not own or manage properties directly.</p>
+                      <p className="mb-2">3. User Accounts: You are responsible for maintaining the confidentiality of your account credentials.</p>
+                      <p className="mb-2">4. Booking and Payments: Bookings are confirmed only after payment is processed. All transactions are secure.</p>
+                      <p className="mb-2">5. Limitation of Liability: ShelterBee is not liable for issues arising from host negligence or property conditions.</p>
+                      <p className="mb-2">6. Modifications: We reserve the right to update these terms at any time.</p>
                     </div>
                     
                     <div>
                       <h3 className="font-bold text-gray-900 mb-2">2. Privacy Policy</h3>
-                      <p className="mb-2">We collect personal information such as name, email, phone number, and date of birth to provide and improve our services.</p>
-                      <p>Your data is encrypted and stored securely. We do not sell your personal information to third parties.</p>
+                      <p className="mb-2">1. Data Collection: We collect personal information (name, contact, payment) to facilitate bookings and improve our services.</p>
+                      <p className="mb-2">2. Data Usage: Your data is used for booking confirmations, customer support, and platform improvements.</p>
+                      <p className="mb-2">3. Security: We use industry-standard security measures to protect your personal data.</p>
+                      <p className="mb-2">4. Third Parties: Data may be shared with hosts and payment partners to complete bookings.</p>
+                      <p className="mb-2">5. User Rights: You have the right to access and update your personal information through your profile.</p>
                     </div>
 
                     <div className="pt-10 pb-4 text-center text-gray-400 italic text-xs">
@@ -635,7 +642,7 @@ export default function Auth() {
                       className="w-5 h-5 rounded border-gray-300 text-amber-500 focus:ring-amber-500"
                     />
                     <label htmlFor="terms" className="text-sm text-gray-600 font-medium">
-                      I have read and accept all the Terms & Conditions and Privacy Policy.
+                      I have read and accept ShelterBee's Terms of Use, Privacy Policy, and applicable platform policies.
                     </label>
                   </div>
 
