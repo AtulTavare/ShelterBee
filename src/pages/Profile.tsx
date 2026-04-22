@@ -366,7 +366,7 @@ function NewBookingsTab() {
     if (processing) return;
     setProcessing(true);
     try {
-      await bookingService.acceptBooking(booking.id, booking);
+      await bookingService.acceptBooking(booking.id);
       showToast("Booking accepted and visitor notified", "success");
       fetchBookings();
     } catch (error: any) {
@@ -2185,7 +2185,7 @@ function FavouritesTab() {
       const amount = rejectionBooking.totalAmount || rejectionBooking.estimatedCost || 0;
       
       // 1. Update booking status and reason (Atomic transaction inside walletService)
-      await bookingService.rejectBooking(bookingId, rejectionBooking, rejectionReason);
+      await bookingService.rejectBooking(bookingId, rejectionReason);
 
       // 3. Notify Visitor
       const visitor = await userService.getUserProfile(rejectionBooking.visitorId);

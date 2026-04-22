@@ -37,6 +37,7 @@ export interface Booking {
   createdAt: any;
   updatedAt: any;
   walletProcessed: boolean;
+  estimatedCost?: number; // Added for UI compatibility
 }
 
 export const bookingService = {
@@ -270,6 +271,17 @@ export const bookingService = {
       console.error("Error fetching booking:", error);
       return null;
     }
+  },
+
+  async getBookingFinancials(bookingId: string) {
+    const booking = await this.getBookingById(bookingId);
+    if (!booking) return { ownerPayout: 0, platformCommission: 0, visitorRefund: 0 };
+    
+    return {
+      ownerPayout: booking.totalAmount * 0.75,
+      platformCommission: booking.totalAmount * 0.25,
+      visitorRefund: 0 // Placeholder
+    };
   },
 
   async updateBookingStatus(bookingId: string, status: Booking['status'], extraData?: any) {

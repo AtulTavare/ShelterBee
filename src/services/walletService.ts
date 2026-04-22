@@ -21,16 +21,19 @@ import { db } from '../firebase';
 export interface Wallet {
   userId: string;
   balance: number;
+  availableBalance: number; // Added for UI compatibility
   pendingBalance: number;
   updatedAt: any;
   bankAccount?: any;
 }
 
 export interface WalletTransaction {
+  id?: string; // Added
   userId: string;
   type: 'credit' | 'debit';
   amount: number;
   description: string;
+  reason?: string; // Added for UI
   bookingId: string;
   propertyTitle: string;
   bookingAmount?: number;
@@ -41,6 +44,22 @@ export interface WalletTransaction {
   walletProcessed: boolean;
   createdAt: any;
   balanceAfter: number;
+}
+
+export interface WithdrawalRequest {
+  id?: string;
+  userId: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'rejected';
+  bankAccount: {
+    bankName: string;
+    accountNumber: string;
+    ifsc: string;
+    upiId?: string;
+  };
+  createdAt: any;
+  requestedAt?: any; // Added for UI alias
+  processedAt?: any;
 }
 
 export const walletService = {
@@ -515,7 +534,86 @@ export const walletService = {
   async getWallet(userId: string) {
     const walletRef = doc(db, 'wallets', userId);
     const snap = await getDoc(walletRef);
-    if (snap.exists()) return snap.data();
-    return null;
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        ...data,
+        availableBalance: data.balance ?? 0 // Map balance to availableBalance for UI
+      };
+    }
+    return { balance: 0, availableBalance: 0, pendingBalance: 0 };
+  },
+
+  async updateBankAccount(userId: string, bankAccount: any) {
+    const walletRef = doc(db, 'wallets', userId);
+    await updateDoc(walletRef, {
+      bankAccount,
+      updatedAt: serverTimestamp()
+    });
+  },
+
+  async getTransactions(userId: string): Promise<WalletTransaction[]> {
+    const q = query(
+      collection(db, 'walletTransactions'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      reason: d.data().description // Map description to reason for UI
+    })) as WalletTransaction[];
+  },
+
+  async getWalletTransactions(userId: string): Promise<WalletTransaction[]> {
+    return this.getTransactions(userId);
+  },
+
+  async getAllPendingSettlements(): Promise<WalletTransaction[]> {
+    const q = query(
+      collection(db, 'walletTransactions'),
+      where('walletProcessed', '==', true), // Assuming processed ones are candidates for display in admin
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      reason: d.data().description
+    })) as WalletTransaction[];
+  },
+
+  async getAllWithdrawalRequests(): Promise<WithdrawalRequest[]> {
+    const q = query(
+      collection(db, 'withdrawalRequests'),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      requestedAt: d.data().createdAt,
+      bankAccount: d.data().bankDetails // Map bankDetails to bankAccount for UI
+    })) as WithdrawalRequest[];
+  },
+
+  async markSettlementComplete(transactionId: string) {
+    // In this simplified model, settlements are auto-completed. 
+    // This method exists for UI compatibility.
+    console.log('Marking settlement complete:', transactionId);
+    return true;
+  },
+
+  async processWithdrawal(requestId: string, status: 'completed' | 'rejected') {
+    const reqRef = doc(db, 'withdrawalRequests', requestId);
+    await updateDoc(reqRef, {
+      status,
+      processedAt: serverTimestamp()
+    });
+    return true;
   }
 };

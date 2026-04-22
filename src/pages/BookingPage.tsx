@@ -205,9 +205,6 @@ export default function BookingPage() {
         guests,
         govIdAcknowledged,
         propertyTitle: property.title
-      }, {
-        platformCommission,
-        receivedAmount
       });
 
       // Send Emails
