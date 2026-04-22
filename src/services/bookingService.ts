@@ -77,14 +77,7 @@ export const bookingService = {
 
   async acceptBooking(bookingId: string, booking: Booking) {
     try {
-      const bookingRef = doc(db, 'bookings', bookingId);
-      await updateDoc(bookingRef, {
-        status: 'confirmed',
-        acceptedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
-      // Credit wallets
+      // Logic moved into walletService.processBookingWallet for atomicity
       await walletService.processBookingWallet(
         bookingId,
         booking.totalAmount,
@@ -100,26 +93,16 @@ export const bookingService = {
     }
   },
 
-  async rejectBooking(bookingId: string, booking: Booking) {
+  async rejectBooking(bookingId: string, booking: Booking, rejectionReason?: string) {
     try {
-      const refundAmount = booking.totalAmount * 0.95;
-      const bookingRef = doc(db, 'bookings', bookingId);
-      await updateDoc(bookingRef, {
-        status: 'rejected_by_owner',
-        rejectedAt: serverTimestamp(),
-        rejectionReason: 'Owner rejected booking',
-        refundPercentage: 95,
-        refundAmount: refundAmount,
-        updatedAt: serverTimestamp()
-      });
-
-      // Process visitor refund (95%) and admin (5%)
+      // Logic moved into walletService.processOwnerRejectionWallet for atomicity
       await walletService.processOwnerRejectionWallet(
         bookingId,
         booking.totalAmount,
         booking.ownerId,
         booking.visitorId,
-        booking.propertyTitle || 'Property'
+        booking.propertyTitle || 'Property',
+        rejectionReason
       );
 
       return true;
@@ -177,7 +160,11 @@ export const bookingService = {
 
   async getBookingsByProperty(propertyId: string) {
     try {
-      const q = query(collection(db, 'bookings'), where('propertyId', '==', propertyId));
+      const q = query(
+        collection(db, 'bookings'), 
+        where('propertyId', '==', propertyId),
+        where('status', 'in', ['confirmed', 'pending_owner'])
+      );
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -193,7 +180,12 @@ export const bookingService = {
 
   async getAllBookings() {
     try {
-      const querySnapshot = await getDocs(collection(db, 'bookings'));
+      const q = query(
+        collection(db, 'bookings'), 
+        orderBy('createdAt', 'desc'), 
+        limit(100)
+      );
+      const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -227,36 +219,27 @@ export const bookingService = {
 
   async updateBookingStatus(bookingId: string, status: Booking['status'], extraData?: any) {
     try {
-      const bookingRef = doc(db, 'bookings', bookingId);
-      
-      // Get existing booking for wallet logic
       const booking = await this.getBookingById(bookingId);
       if (!booking) throw new Error("Booking not found");
 
-      await updateDoc(bookingRef, {
-        status,
-        ...extraData,
-        updatedAt: serverTimestamp()
-      });
-
-      // Wallet triggers
-      if (status === 'confirmed' && booking.status !== 'confirmed') {
-        const totalAmount = extraData?.totalAmount || booking.totalAmount || booking.estimatedCost || 0;
-        await walletService.processBookingWallet(
-          bookingId,
-          totalAmount,
-          booking.ownerId,
-          booking.visitorId,
-          booking.propertyTitle || 'Property Stay'
-        );
-      } else if ((status as string === 'cancelled' || status as string === 'rejected_by_owner') && booking.status !== status) {
-        // cancellation or rejection logic usually passed via extraData
-        const refundPercent = extraData?.refundPercentage ?? 100; // Default to 100 for rejections if not provided
+      if (status === 'confirmed') {
+        return this.acceptBooking(bookingId, booking);
+      } else if (status === 'rejected_by_owner') {
+        return this.rejectBooking(bookingId, booking);
+      } else if (status === 'cancelled') {
+        const refundPercent = extraData?.refundPercentage ?? 100;
         await walletService.processCancellationWallet(
           bookingId,
           { ...booking, ...extraData },
           refundPercent
         );
+      } else {
+        const bookingRef = doc(db, 'bookings', bookingId);
+        await updateDoc(bookingRef, {
+          status,
+          ...extraData,
+          updatedAt: serverTimestamp()
+        });
       }
     } catch (error) {
       console.error("Error updating booking status:", error);

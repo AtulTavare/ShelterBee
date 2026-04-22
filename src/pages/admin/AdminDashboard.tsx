@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { propertyService } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { bookingService } from '../../services/bookingService';
+import { walletService } from '../../services/walletService';
 import { 
   Building2, 
   Clock, 
@@ -31,6 +32,7 @@ export const AdminDashboard = () => {
     totalBookings: 0,
     revenueToday: 0,
     revenueThisMonth: 0,
+    platformBalance: 0,
     pendingPayments: 0,
     pendingRefunds: 0,
     loading: true
@@ -43,50 +45,63 @@ export const AdminDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [properties, users, bookings] = await Promise.all([
+        const [properties, users, bookings, adminId] = await Promise.all([
           propertyService.getAllProperties(),
           userService.getAllUsers(),
-          bookingService.getAllBookings()
+          bookingService.getAllBookings(),
+          walletService.getAdminId()
         ]);
 
-        const pendingApprovals = properties.filter(p => p.status === 'Pending');
-        const recentlyApproved = properties.filter(p => p.status === 'Approved').sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0)).slice(0, 5);
+        // Fetch admin wallet concurrently with processing data
+        const adminWalletPromise = walletService.getWallet(adminId);
         
-        const newUsers = users.sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0)).slice(0, 5);
+        const pendingApprovalsCount = properties.filter(p => p.status === 'Pending').length;
+        const pendingApprovals = properties.filter(p => p.status === 'Pending').slice(0, 10);
+        const recentlyApproved = properties
+          .filter(p => p.status === 'Approved')
+          .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))
+          .slice(0, 5);
+        
+        const newUsers = users
+          .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))
+          .slice(0, 5);
 
-        // Calculate basic revenue (sum of platform fees or total cost depending on business logic)
-        // For now, let's just sum up estimatedCost for completed/confirmed bookings
-        const totalRevenue = bookings
-          .filter(b => b.status === 'confirmed' || b.status === 'completed')
-          .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
+        const adminWallet = await adminWalletPromise;
+        const platformBalance = adminWallet.availableBalance;
+
+        // Calculate basic revenue (25% commission)
+        const confirmedBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed');
+        const revenueTotal = confirmedBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
         const pendingPayments = bookings.filter(b => b.status === 'pending_owner').length;
         const pendingRefunds = bookings.filter(b => b.status === 'cancelled' || b.status === 'rejected_by_owner').length;
 
         const now = new Date();
-        const todayBookings = bookings.filter(b => {
-          const bDate = b.createdAt?.toDate?.();
-          return bDate && bDate.getDate() === now.getDate() && bDate.getMonth() === now.getMonth() && bDate.getFullYear() === now.getFullYear();
-        });
-        const revenueToday = todayBookings
-          .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const revenueToday = confirmedBookings
+          .filter(b => {
+             const bDate = b.createdAt?.toDate?.();
+             return bDate && bDate >= startOfToday;
+          })
           .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
-        const thisMonthBookings = bookings.filter(b => {
-          const bDate = b.createdAt?.toDate?.();
-          return bDate && bDate.getMonth() === now.getMonth() && bDate.getFullYear() === now.getFullYear();
-        });
-        const revenueThisMonth = thisMonthBookings
-          .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        const revenueThisMonth = confirmedBookings
+          .filter(b => {
+             const bDate = b.createdAt?.toDate?.();
+             return bDate && bDate >= startOfMonth;
+          })
           .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
 
         setDashboardStats({
           totalListings: properties.length,
-          pendingApprovals: pendingApprovals.length,
+          pendingApprovals: pendingApprovalsCount,
           totalUsers: users.length,
           totalBookings: bookings.length,
           revenueToday: revenueToday,
           revenueThisMonth: revenueThisMonth,
+          platformBalance,
           pendingPayments,
           pendingRefunds,
           loading: false
@@ -96,91 +111,79 @@ export const AdminDashboard = () => {
           'pending-approvals': pendingApprovals.map(p => ({ id: p.id, name: p.title, owner: p.ownerId, date: p.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A' })),
           'recently-approved': recentlyApproved.map(p => ({ id: p.id, name: p.title, owner: p.ownerId, date: p.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A' })),
           'recently-registered': newUsers.map(u => ({ id: u.uid, name: u.displayName || 'Unnamed User', role: u.role, date: u.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A' })),
-          'most-affordable': properties.sort((a, b) => a.pricePerDay - b.pricePerDay).slice(0, 5).map(p => ({ id: p.id, name: p.title, price: `₹${p.pricePerDay}/day`, location: p.area })),
-          'most-expensive': properties.sort((a, b) => b.pricePerDay - a.pricePerDay).slice(0, 5).map(p => ({ id: p.id, name: p.title, price: `₹${p.pricePerDay}/day`, location: p.area })),
+          'most-affordable': properties.sort((a, b) => a.pricePerDay - b.pricePerDay).slice(0, 5).map(p => ({ id: p.id, name: p.title, price: `₹${p.pricePerDay.toLocaleString()}/day`, location: p.area })),
+          'most-expensive': properties.sort((a, b) => b.pricePerDay - a.pricePerDay).slice(0, 5).map(p => ({ id: p.id, name: p.title, price: `₹${p.pricePerDay.toLocaleString()}/day`, location: p.area })),
         });
 
-        // Calculate property types
+        // Property types distribution
         const typeCounts = properties.reduce((acc: any, p) => {
           const type = p.type || 'Other';
           acc[type] = (acc[type] || 0) + 1;
           return acc;
         }, {});
 
-        const colors = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8'];
-        const typesData = Object.keys(typeCounts).map((key, index) => ({
+        const typeColors = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8'];
+        setPropertyTypes(Object.keys(typeCounts).map((key, index) => ({
           name: key,
           value: typeCounts[key],
-          color: colors[index % colors.length]
-        }));
-        setPropertyTypes(typesData);
+          color: typeColors[index % typeColors.length]
+        })));
 
-        // Generate chart data based on timeframe
+        // Optimized Chart Data Generation
         const generateChartData = () => {
-          const now = new Date();
-          let data = [];
+          const data = [];
           if (timeframe === 'daily') {
             for (let i = 6; i >= 0; i--) {
-              const d = new Date(now);
-              d.setDate(now.getDate() - i);
-              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+              const d = new Date(startOfToday);
+              d.setDate(startOfToday.getDate() - i);
+              const dateStr = d.toDateString();
               
-              const dayBookings = bookings.filter(b => {
-                const bDate = b.createdAt?.toDate?.();
-                return bDate && bDate.getDate() === d.getDate() && bDate.getMonth() === d.getMonth() && bDate.getFullYear() === d.getFullYear();
+              const dayBookings = confirmedBookings.filter(b => b.createdAt?.toDate?.()?.toDateString() === dateStr);
+              const dayRev = dayBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
+              
+              data.push({ 
+                name: d.toLocaleDateString('en-US', { weekday: 'short' }), 
+                revenue: dayRev, 
+                bookings: dayBookings.length 
               });
-              
-              const dayRevenue = dayBookings
-                .filter(b => b.status === 'confirmed' || b.status === 'completed')
-                .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-
-              data.push({ name: dayName, revenue: dayRevenue, bookings: dayBookings.length });
             }
           } else if (timeframe === 'weekly') {
             for (let i = 3; i >= 0; i--) {
-              const d = new Date(now);
-              d.setDate(now.getDate() - (i * 7));
-              const weekName = `Week ${4 - i}`;
+              const startOfWeek = new Date(startOfToday);
+              startOfWeek.setDate(startOfToday.getDate() - (i * 7 + 6));
+              const endOfWeek = new Date(startOfToday);
+              endOfWeek.setDate(startOfToday.getDate() - (i * 7));
               
-              const weekBookings = bookings.filter(b => {
+              const weekBookings = confirmedBookings.filter(b => {
                 const bDate = b.createdAt?.toDate?.();
-                if (!bDate) return false;
-                const diffTime = Math.abs(now.getTime() - bDate.getTime());
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays <= (i + 1) * 7 && diffDays > i * 7;
+                return bDate && bDate >= startOfWeek && bDate <= endOfWeek;
               });
               
-              const weekRevenue = weekBookings
-                .filter(b => b.status === 'confirmed' || b.status === 'completed')
-                .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-
-              data.push({ name: weekName, revenue: weekRevenue, bookings: weekBookings.length });
+              const weekRev = weekBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
+              data.push({ name: `Week ${4-i}`, revenue: weekRev, bookings: weekBookings.length });
             }
           } else if (timeframe === 'monthly') {
             for (let i = 5; i >= 0; i--) {
-              const d = new Date(now);
-              d.setMonth(now.getMonth() - i);
-              const monthName = d.toLocaleDateString('en-US', { month: 'short' });
+              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+              const month = d.getMonth();
+              const year = d.getFullYear();
               
-              const monthBookings = bookings.filter(b => {
+              const monthBookings = confirmedBookings.filter(b => {
                 const bDate = b.createdAt?.toDate?.();
-                return bDate && bDate.getMonth() === d.getMonth() && bDate.getFullYear() === d.getFullYear();
+                return bDate && bDate.getMonth() === month && bDate.getFullYear() === year;
               });
               
-              const monthRevenue = monthBookings
-                .filter(b => b.status === 'confirmed' || b.status === 'completed')
-                .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-
-              data.push({ name: monthName, revenue: monthRevenue, bookings: monthBookings.length });
+              const monthRev = monthBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
+              data.push({ name: d.toLocaleDateString('en-US', { month: 'short' }), revenue: monthRev, bookings: monthBookings.length });
             }
           }
           return data;
         };
 
         setChartData(generateChartData());
-
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
+      } finally {
         setDashboardStats(prev => ({ ...prev, loading: false }));
       }
     };
@@ -204,6 +207,7 @@ export const AdminDashboard = () => {
     { label: 'Pending Approvals', value: dashboardStats.loading ? '...' : dashboardStats.pendingApprovals.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-100' },
     { label: 'Total Users', value: dashboardStats.loading ? '...' : dashboardStats.totalUsers.toString(), icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-100' },
     { label: 'Revenue Today', value: dashboardStats.loading ? '...' : `₹${(dashboardStats.revenueToday || 0).toLocaleString()}`, icon: Banknote, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { label: 'Platform Balance', value: dashboardStats.loading ? '...' : `₹${(dashboardStats.platformBalance || 0).toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-100' },
     { label: 'Total Revenue', value: dashboardStats.loading ? '...' : `₹${(dashboardStats.revenueThisMonth || 0).toLocaleString()}`, icon: Wallet, color: 'text-purple-600', bg: 'bg-purple-100' },
     { label: 'Total Bookings', value: dashboardStats.loading ? '...' : dashboardStats.totalBookings.toString(), icon: CalendarCheck, color: 'text-rose-600', bg: 'bg-rose-100' },
   ];

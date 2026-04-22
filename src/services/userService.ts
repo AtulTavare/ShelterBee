@@ -1,11 +1,12 @@
-import { collection, getDocs, doc, updateDoc, query, where, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query, where, getDoc, limit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile } from '../contexts/AuthContext';
 
 export const userService = {
   async getAllUsers() {
     const usersRef = collection(db, 'users');
-    const snapshot = await getDocs(usersRef);
+    const q = query(usersRef, orderBy('createdAt', 'desc'), limit(100)); // Limit to first 100 for performance
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
   },
 

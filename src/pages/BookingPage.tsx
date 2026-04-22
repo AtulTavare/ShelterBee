@@ -201,7 +201,7 @@ export default function BookingPage() {
         checkOut: dateRange.to || null,
         nights: effectiveNights,
         totalAmount,
-        status: 'confirmed',
+        status: 'pending_owner',
         guests,
         govIdAcknowledged,
         propertyTitle: property.title

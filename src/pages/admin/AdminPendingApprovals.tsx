@@ -6,7 +6,7 @@ import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { emailService } from '../../services/emailService';
 import { emailTemplates } from '../../services/emailTemplates';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 const rejectionReasons = [
@@ -29,7 +29,13 @@ export const AdminPendingApprovals = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'properties'), where('status', '==', 'Pending'));
+    // Only fetch first 50 pending approvals to avoid rate limits
+    const q = query(
+      collection(db, 'properties'), 
+      where('status', '==', 'Pending'),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const pendingProps = snapshot.docs.map(doc => ({
         id: doc.id,

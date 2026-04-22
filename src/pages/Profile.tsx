@@ -2144,12 +2144,8 @@ function FavouritesTab() {
       const bookingId = rejectionBooking.id;
       const amount = rejectionBooking.totalAmount || rejectionBooking.estimatedCost || 0;
       
-      // 1. Update booking status and reason (Triggers wallet internally)
-      await bookingService.updateBookingStatus(bookingId, 'cancelled', {
-        rejectionReason,
-        cancelledBy: 'owner',
-        refundPercentage: 100
-      });
+      // 1. Update booking status and reason (Atomic transaction inside walletService)
+      await bookingService.rejectBooking(bookingId, rejectionBooking, rejectionReason);
 
       // 3. Notify Visitor
       const visitor = await userService.getUserProfile(rejectionBooking.visitorId);
@@ -2808,28 +2804,28 @@ function WalletTab() {
 
   const handleSaveBankDetails = async () => {
     if (!bankDetails.accountHolderName || !bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.branchName || !bankDetails.bankName) {
-      showToast("An error occurred", "error");
+      showToast("Please fill all bank details", "error");
       return;
     }
     try {
-      await walletService.updateBankAccount(user!.uid, { ...bankDetails, verified: false });
+      await walletService.updateBankAccount(user!.uid, { ...bankDetails, verified: true });
       fetchWalletData();
       setShowBankDetailsModal(false);
-      showToast("An error occurred", "error");
+      showToast("Bank details updated successfully", "success");
     } catch (error) {
       console.error("Error saving bank details:", error);
-      showToast("An error occurred", "error");
+      showToast("Failed to update bank details", "error");
     }
   };
 
   const handleNextStep = () => {
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
-      showToast("An error occurred", "error");
+      showToast("Please enter a valid amount", "error");
       return;
     }
     if (amount > (wallet?.availableBalance || 0)) {
-      showToast("An error occurred", "error");
+      showToast("Insufficient balance", "error");
       return;
     }
     if (todaysWithdrawalCount >= 2) {
@@ -2841,7 +2837,7 @@ function WalletTab() {
       return;
     }
     if (!bankDetails.accountNumber || !bankDetails.ifsc || !bankDetails.bankName) {
-      showToast("An error occurred", "error");
+      showToast("Please add your bank details first", "error");
       setShowWithdrawModal(false);
       setShowBankDetailsModal(true);
       return;
@@ -2853,7 +2849,7 @@ function WalletTab() {
     const amount = parseFloat(withdrawAmount);
     try {
       await walletService.requestWithdrawal(user!.uid, amount, bankDetails);
-      showToast("An error occurred", "error");
+      showToast("Withdrawal request submitted successfully", "success");
       setShowWithdrawModal(false);
       setWithdrawStep(1);
       setWithdrawAmount('');
@@ -2861,7 +2857,7 @@ function WalletTab() {
       fetchWalletData();
     } catch (error: any) {
       console.error("Error requesting withdrawal:", error);
-      showToast("An error occurred", "error");
+      showToast(error.message || "Failed to request withdrawal", "error");
     }
   };
 
@@ -3320,18 +3316,19 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
     const fetchStats = async () => {
       if (!user) return;
       try {
-        const properties = await propertyService.getPropertiesByOwner(user.uid);
-        const wallet = await walletService.getWallet(user.uid);
-        const txns = await walletService.getTransactions(user.uid);
+        const [properties, wallet, txns, allBookings] = await Promise.all([
+          propertyService.getPropertiesByOwner(user.uid),
+          walletService.getWallet(user.uid),
+          walletService.getTransactions(user.uid),
+          bookingService.getBookingsByOwner(user.uid)
+        ]);
         
-        // Fetch all bookings for owner's properties
-        const allBookings = await bookingService.getBookingsByOwner(user.uid);
         const completedBookings = allBookings.filter(b => b.status === 'completed');
         
         // Calculate aggregate ratings from property documents directly
         const totalReviewsCount = properties.reduce((sum, p: any) => sum + (p.totalReviews || p.reviewCount || 0), 0);
         const weightedSum = properties.reduce((sum, p: any) => sum + ((p.averageRating || p.rating || 0) * (p.totalReviews || p.reviewCount || 0)), 0);
-        const aggregateAverageRating = totalReviewsCount > 0 ? (weightedSum / totalReviewsCount).toFixed(1) : 0;
+        const aggregateAverageRating = totalReviewsCount > 0 ? Number((weightedSum / totalReviewsCount).toFixed(1)) : 0;
 
         const pendingPayments = txns
           .filter(t => t.type === 'debit' && t.status === 'pending')
@@ -3350,7 +3347,7 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
           totalRevenue: totalEarnings,
           averageRating: aggregateAverageRating,
           totalVisitors: completedBookings.length,
-          occupancyRate: properties.length > 0 ? Math.round((completedBookings.length / (properties.length * 30)) * 100) : 0, // Mock occupancy over 30 days
+          occupancyRate: properties.length > 0 ? Math.round((completedBookings.length / (properties.length * 30)) * 100) : 0, 
           rejections: properties.filter(p => p.status === 'Rejected').length,
           reviewCount: totalReviewsCount
         });

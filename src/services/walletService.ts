@@ -128,6 +128,14 @@ export const walletService = {
     const ownerShare = bookingAmount * 0.75;
 
     await runTransaction(db, async (transaction) => {
+      // 0. Update Booking Status Atomically
+      const bookingRef = doc(db, 'bookings', bookingId);
+      transaction.update(bookingRef, {
+        status: 'confirmed',
+        acceptedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
       // 1. Credit owner (75%)
       const ownerWalletRef = doc(db, 'wallets', ownerId);
       const ownerWalletSnap = await transaction.get(ownerWalletRef);
@@ -163,6 +171,7 @@ export const walletService = {
       transaction.set(doc(txnsRef), {
         userId: ownerId,
         type: 'credit',
+        reason: 'booking_earning',
         amount: ownerShare,
         description: `Booking accepted - ${propertyTitle}`,
         bookingId,
@@ -170,6 +179,7 @@ export const walletService = {
         bookingAmount,
         platformCommission,
         receivedAmount: ownerShare,
+        status: 'pending', // Pending for settlement
         createdAt: serverTimestamp(),
         balanceAfter: ownerBal
       });
@@ -178,46 +188,47 @@ export const walletService = {
       transaction.set(doc(txnsRef), {
         userId: adminId,
         type: 'credit',
+        reason: 'admin_commission',
         amount: platformCommission,
         description: `Platform commission - ${propertyTitle}`,
         bookingId,
         propertyTitle,
         bookingAmount,
+        status: 'pending', // Pending for settlement
         createdAt: serverTimestamp(),
         balanceAfter: adminBal
       });
     });
   },
 
-  async processOwnerRejectionWallet(bookingId: string, bookingAmount: number, ownerId: string, visitorId: string, propertyTitle: string) {
+  async processOwnerRejectionWallet(bookingId: string, bookingAmount: number, ownerId: string, visitorId: string, propertyTitle: string, rejectionReason?: string) {
     const adminId = await this.getAdminId();
-    const paymentPartnerCharge = bookingAmount * 0.05;
-    const visitorRefund = bookingAmount * 0.95;
+    // On owner rejection, visitor gets 100% refund. No charges to anyone.
+    const visitorRefund = bookingAmount;
 
     await runTransaction(db, async (transaction) => {
-      // 1. Visitor wallet: +95% credit
+      // 0. Update Booking Status Atomically
+      const bookingRef = doc(db, 'bookings', bookingId);
+      transaction.update(bookingRef, {
+        status: 'rejected_by_owner',
+        rejectedAt: serverTimestamp(),
+        rejectionReason: rejectionReason || 'Owner rejected booking',
+        refundPercentage: 100,
+        refundAmount: visitorRefund,
+        refundStatus: 'completed',
+        updatedAt: serverTimestamp()
+      });
+
+      // 1. Visitor wallet: +100% credit
       const visitorWalletRef = doc(db, 'wallets', visitorId);
       const visitorWalletSnap = await transaction.get(visitorWalletRef);
       let visitorBal = visitorRefund;
       if (visitorWalletSnap.exists()) {
-        visitorBal += visitorWalletSnap.data().availableBalance || 0;
+        visitorBal += (visitorWalletSnap.data().availableBalance || 0);
       }
       transaction.set(visitorWalletRef, {
         userId: visitorId,
         availableBalance: visitorBal,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // 2. Admin wallet: +5% credit
-      const adminWalletRef = doc(db, 'wallets', adminId);
-      const adminWalletSnap = await transaction.get(adminWalletRef);
-      let adminBal = paymentPartnerCharge;
-      if (adminWalletSnap.exists()) {
-        adminBal += adminWalletSnap.data().availableBalance || 0;
-      }
-      transaction.set(adminWalletRef, {
-        userId: adminId,
-        availableBalance: adminBal,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
@@ -227,27 +238,16 @@ export const walletService = {
       transaction.set(doc(txnsRef), {
         userId: visitorId,
         type: 'credit',
+        reason: 'refund',
         amount: visitorRefund,
-        description: `Booking rejected by owner - 95% refund - ${propertyTitle}`,
+        description: `Booking rejected by owner - Full refund - ${propertyTitle}`,
         bookingId,
         propertyTitle,
         bookingAmount,
-        refundPercentage: 95,
+        refundPercentage: 100,
+        status: 'completed',
         createdAt: serverTimestamp(),
         balanceAfter: visitorBal
-      });
-
-      // Admin Transaction
-      transaction.set(doc(txnsRef), {
-        userId: adminId,
-        type: 'credit',
-        amount: paymentPartnerCharge,
-        description: `Rejection payment partner charge - ${propertyTitle}`,
-        bookingId,
-        propertyTitle,
-        bookingAmount,
-        createdAt: serverTimestamp(),
-        balanceAfter: adminBal
       });
     });
   },
@@ -256,17 +256,32 @@ export const walletService = {
     const adminId = await this.getAdminId();
     const bookingAmount = booking.totalAmount;
     const propertyTitle = booking.propertyTitle || 'Property';
+    const ownerShare = bookingAmount * 0.75;
     
-    // CASE A: Booking was 'confirmed' (owner had accepted)
+    // CASE A: Booking was 'confirmed' (owner had already received 75%)
     if (booking.status === 'confirmed') {
       const refundAmount = bookingAmount * (refundPercent / 100);
-      const remainingToAdmin = bookingAmount - refundAmount;
+      // Delta logic for confirmed booking:
+      // 1. We take back 100% of the Owner's share (75% of total).
+      // 2. We give the Visitor their refund amount.
+      // 3. The difference stays with/is taken from the Admin.
+      // Math: DeltaOwner + DeltaVisitor + DeltaAdmin = 0
+      // (-ownerShare) + (refundAmount) + DeltaAdmin = 0
+      // DeltaAdmin = ownerShare - refundAmount
+      const adminDelta = ownerShare - refundAmount;
 
       await runTransaction(db, async (transaction) => {
-        // 1. Owner wallet: -100% debit
+        // 0. Update Booking status
+        const bookingRef = doc(db, 'bookings', bookingId);
+        transaction.update(bookingRef, {
+          status: 'cancelled',
+          updatedAt: serverTimestamp()
+        });
+
+        // 1. Owner wallet: -OwnerShare (Debit full amount they earned)
         const ownerWalletRef = doc(db, 'wallets', booking.ownerId);
         const ownerWalletSnap = await transaction.get(ownerWalletRef);
-        let ownerBal = -bookingAmount;
+        let ownerBal = -ownerShare;
         if (ownerWalletSnap.exists()) {
           ownerBal += ownerWalletSnap.data().availableBalance || 0;
         }
@@ -292,10 +307,10 @@ export const walletService = {
           }, { merge: true });
         }
 
-        // 3. Admin wallet: +remainingToAdmin
+        // 3. Admin wallet: +adminDelta
         const adminWalletRef = doc(db, 'wallets', adminId);
         const adminWalletSnap = await transaction.get(adminWalletRef);
-        let adminBal = remainingToAdmin;
+        let adminBal = adminDelta;
         if (adminWalletSnap.exists()) {
           adminBal += adminWalletSnap.data().availableBalance || 0;
         }
@@ -311,12 +326,14 @@ export const walletService = {
         transaction.set(doc(txnsRef), {
           userId: booking.ownerId,
           type: 'debit',
-          amount: bookingAmount,
-          description: `Booking cancelled by visitor - ${propertyTitle}`,
+          reason: 'cancellation_deduction',
+          amount: ownerShare,
+          description: `Booking cancelled by visitor - Earning reversed - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           bookingAmount,
           refundPercentage: refundPercent,
+          status: 'completed',
           createdAt: serverTimestamp(),
           balanceAfter: ownerBal
         });
@@ -326,26 +343,30 @@ export const walletService = {
           transaction.set(doc(txnsRef), {
             userId: booking.visitorId,
             type: 'credit',
+            reason: 'refund',
             amount: refundAmount,
             description: `Refund - ${refundPercent}% - ${propertyTitle}`,
             bookingId,
             propertyTitle,
             bookingAmount,
             refundPercentage: refundPercent,
+            status: 'completed',
             createdAt: serverTimestamp(),
             balanceAfter: visitorBal
           });
         }
 
         // Admin Transaction
-        if (remainingToAdmin > 0) {
+        if (adminDelta !== 0) {
           transaction.set(doc(txnsRef), {
             userId: adminId,
-            type: 'credit',
-            amount: remainingToAdmin,
-            description: `Cancellation - ${propertyTitle}`,
+            type: adminDelta > 0 ? 'credit' : 'debit',
+            reason: 'admin_commission',
+            amount: Math.abs(adminDelta),
+            description: `Cancellation capture adjustment - ${propertyTitle}`,
             bookingId,
             propertyTitle,
+            status: 'pending', // Pending for admin settlement
             createdAt: serverTimestamp(),
             balanceAfter: adminBal
           });
@@ -355,6 +376,13 @@ export const walletService = {
     // CASE B: Booking was 'pending_owner' (owner never accepted)
     else if (booking.status === 'pending_owner') {
       await runTransaction(db, async (transaction) => {
+        // 0. Update booking status
+        const bookingRef = doc(db, 'bookings', bookingId);
+        transaction.update(bookingRef, {
+          status: 'cancelled',
+          updatedAt: serverTimestamp()
+        });
+
         // Give visitor 100% refund directly
         const visitorWalletRef = doc(db, 'wallets', booking.visitorId);
         const visitorWalletSnap = await transaction.get(visitorWalletRef);
@@ -374,11 +402,13 @@ export const walletService = {
         transaction.set(doc(txnsRef), {
           userId: booking.visitorId,
           type: 'credit',
+          reason: 'refund',
           amount: bookingAmount,
           description: `Booking cancelled - Full refund - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           refundPercentage: 100,
+          status: 'completed',
           createdAt: serverTimestamp(),
           balanceAfter: visitorBal
         });
@@ -386,11 +416,7 @@ export const walletService = {
     }
 
     // Update booking document (for completion)
-    const bookingRef = doc(db, 'bookings', bookingId);
-    await updateDoc(bookingRef, {
-      status: 'cancelled',
-      updatedAt: serverTimestamp()
-    });
+    // No longer needed as it is handled inside the transactions above
   },
 
   async requestWithdrawal(userId: string, amount: number, bankAccount: any) {

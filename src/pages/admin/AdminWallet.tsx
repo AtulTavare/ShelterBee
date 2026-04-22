@@ -18,6 +18,7 @@ export const AdminWallet = () => {
   const [pendingSettlements, setPendingSettlements] = useState<WalletTransaction[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [platformBalance, setPlatformBalance] = useState(0);
   const [stats, setStats] = useState({
     totalPendingSettlements: 0,
     totalPendingWithdrawals: 0,
@@ -43,6 +44,10 @@ export const AdminWallet = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const adminId = await walletService.getAdminId();
+      const wallet = await walletService.getWallet(adminId);
+      setPlatformBalance(wallet.availableBalance);
+
       const settlements = await walletService.getAllPendingSettlements();
       const withdrawals = await walletService.getAllWithdrawalRequests();
       
@@ -121,13 +126,22 @@ export const AdminWallet = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-          <Wallet className="w-5 h-5 text-blue-600" />
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <Wallet className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 leading-tight">Wallet & Payments</h1>
+            <p className="text-sm text-slate-500">Manage platform finances, payouts, and refunds.</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 leading-tight">Wallet & Payments</h1>
-          <p className="text-sm text-slate-500">Manage platform finances, payouts, and refunds.</p>
+        <div className="bg-[#1E1B4B] px-6 py-3 rounded-2xl border border-indigo-900/50 shadow-xl shadow-indigo-200/50">
+          <div className="text-[10px] font-black text-indigo-200 uppercase tracking-[0.2em] mb-1">Platform Balance</div>
+          <div className="text-2xl font-black text-white flex items-center gap-1">
+            <span className="text-indigo-400 text-lg">₹</span>
+            {platformBalance.toLocaleString()}
+          </div>
         </div>
       </div>
 
