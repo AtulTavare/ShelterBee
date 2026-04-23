@@ -401,7 +401,7 @@ export default function ListProperty() {
         checkOutTime: formData.checkOutTime,
         submissionType: isEditMode 
           ? (existingProperty?.status === 'Rejected' ? 'resubmission' : 'changes approval') 
-          : 'new listing' as any,
+          : 'new_listing' as any,
         resubmittedAt: (isEditMode && existingProperty?.status === 'Rejected') ? serverTimestamp() : null,
       };
 
@@ -409,8 +409,9 @@ export default function ListProperty() {
         try {
           console.log(`DIAGNOSTIC: Attempting UPDATE. Document ID: "${propertyId}", User UID: "${user.uid}", AdminEdit: ${isAdminEdit}`);
           
-          // Remove ownerId and submissionType from update to avoid immutable field or schema errors
-          const { ownerId, submissionType, ...updateData } = propertyData;
+          // Remove ownerId from update to avoid immutable field or schema errors
+          // submissionType and resubmittedAt are now included in the update
+          const { ownerId, ...updateData } = propertyData;
           
           await propertyService.updateProperty(propertyId, {
             ...updateData,

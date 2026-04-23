@@ -34,7 +34,7 @@ export interface Property {
   gender?: string[]; // Male, Female, Other
   checkInTime?: string;
   checkOutTime?: string;
-  submissionType?: 'new listing' | 'changes approval' | 'resubmission';
+  submissionType?: 'new_listing' | 'changes approval' | 'resubmission';
   resubmittedAt?: any;
   unavailabilityUntil?: any; // Date or 'permanently' or 'manual'
   availabilityStatus?: 'available' | 'unavailable';

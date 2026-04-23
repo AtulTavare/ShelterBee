@@ -150,15 +150,23 @@ export const AdminPendingApprovals = () => {
                 <span className="px-2.5 py-1 rounded-full bg-orange-500 text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
                   Pending
                 </span>
-                {(prop.submissionType === 'resubmission' || prop.resubmittedAt) ? (
-                  <span className="px-2.5 py-1 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm border border-indigo-400">
-                    Resubmission
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm border border-emerald-400">
-                    New Listing
-                  </span>
-                )}
+                {(() => {
+                  const type = prop.submissionType ?? 'new_listing';
+                  const isResubmission = type === 'resubmission' || !!prop.resubmittedAt;
+                  
+                  if (isResubmission) {
+                    return (
+                      <span className="px-2.5 py-1 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm border border-indigo-400">
+                        Resubmission
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm border border-emerald-400">
+                      New Listing
+                    </span>
+                  );
+                })()}
               </div>
             </div>
             <div className="p-5 flex-1 flex flex-col">
