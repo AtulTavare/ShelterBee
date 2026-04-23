@@ -149,6 +149,12 @@ export const walletService = {
           createdAt: serverTimestamp(),
           balanceAfter: newAdminBalance
         });
+
+        console.log('Admin wallet update:', {
+          type: 'credit',
+          amount: adminCredit,
+          balanceAfter: newAdminBalance
+        });
         
         // Mark booking as processed
         t.update(bookingRef, { walletProcessed: true });
@@ -212,17 +218,24 @@ export const walletService = {
         });
         
         // 2. Admin Debit (Reverse commission)
+        const adminBalanceAfterDebit = adminWallet.balance - adminReversal;
         t.set(doc(txnRef), {
           userId: adminUid,
           type: 'debit',
           amount: adminReversal,
-          description: `Commission reversed - booking rejected - ${propertyTitle}`,
+          description: `Commission reversed - booking rejected by owner - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           bookingAmount,
           scenario: 'owner_rejected',
           createdAt: serverTimestamp(),
-          balanceAfter: adminWallet.balance - adminReversal
+          balanceAfter: adminBalanceAfterDebit
+        });
+
+        console.log('Admin wallet update:', {
+          type: 'debit',
+          amount: adminReversal,
+          balanceAfter: adminBalanceAfterDebit
         });
         
         // 3. Admin Credit (Payment partner charge)
@@ -230,13 +243,19 @@ export const walletService = {
           userId: adminUid,
           type: 'credit',
           amount: paymentPartnerCharge,
-          description: `Payment partner charge collected - ${propertyTitle}`,
+          description: `Payment partner charge - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           bookingAmount,
           paymentPartnerCharge,
           scenario: 'owner_rejected',
           createdAt: serverTimestamp(),
+          balanceAfter: newAdminBalance
+        });
+
+        console.log('Admin wallet update:', {
+          type: 'credit',
+          amount: paymentPartnerCharge,
           balanceAfter: newAdminBalance
         });
         
@@ -351,6 +370,11 @@ export const walletService = {
               createdAt: serverTimestamp(),
               balanceAfter: newAdminBalance
             });
+            console.log('Admin wallet update:', {
+              type: 'credit',
+              amount: adminGets,
+              balanceAfter: newAdminBalance
+            });
           }
         } else {
           // SCENARIO 5: Visitor cancels PENDING_OWNER booking
@@ -391,6 +415,11 @@ export const walletService = {
             bookingAmount,
             scenario: 'pending_cancelled',
             createdAt: serverTimestamp(),
+            balanceAfter: newAdminBalance
+          });
+          console.log('Admin wallet update:', {
+            type: 'debit',
+            amount: adminReversal,
             balanceAfter: newAdminBalance
           });
 
@@ -589,18 +618,18 @@ export const walletService = {
   },
 
   async approveWithdrawal(requestId: string): Promise<void> {
-    const ref = doc(db, 'withdrawalRequests', requestId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-    const data = snap.data();
-    
-    await updateDoc(ref, { status: 'completed', processedAt: serverTimestamp() });
-    
-    if (data.transactionId) {
-      try {
-        await updateDoc(doc(db, 'walletTransactions', data.transactionId), { status: 'completed' });
-      } catch (e) {}
-    }
+    await runTransaction(db, async (t) => {
+      const ref = doc(db, 'withdrawalRequests', requestId);
+      const snap = await t.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      
+      t.update(ref, { status: 'completed', processedAt: serverTimestamp() });
+      
+      if (data.transactionId) {
+        t.update(doc(db, 'walletTransactions', data.transactionId), { status: 'completed' });
+      }
+    });
   },
 
   async rejectWithdrawal(requestId: string, reason: string): Promise<void> {

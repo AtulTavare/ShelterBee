@@ -149,15 +149,15 @@ export const AdminWallet = () => {
   });
 
   const totalCommissions = transactions
-    .filter(t => t.description.toLowerCase().includes('commission'))
+    .filter(t => t.type === 'credit' && t.description.toLowerCase().includes('commission'))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalCharges = transactions
-    .filter(t => t.description.toLowerCase().includes('charge'))
+    .filter(t => t.type === 'credit' && t.description.toLowerCase().includes('payment partner'))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalRefunds = transactions
-    .filter(t => t.description.toLowerCase().includes('refund'))
+    .filter(t => t.type === 'debit' && (t.description.toLowerCase().includes('reversed') || t.description.toLowerCase().includes('refund')))
     .reduce((sum, t) => sum + t.amount, 0);
 
   return (
