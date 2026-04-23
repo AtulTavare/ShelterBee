@@ -147,14 +147,16 @@ export const AdminPendingApprovals = () => {
             <div className="h-48 relative">
               <img src={prop.photos?.[0] || 'https://picsum.photos/seed/placeholder/400/300'} alt={prop.title} className="w-full h-full object-cover" />
               <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
-                <span className="px-2.5 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                <span className="px-2.5 py-1 rounded-full bg-orange-500 text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
                   Pending
                 </span>
-                {prop.submissionType && (
-                  <span className={`px-2.5 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                    (prop.submissionType === 'resubmission' || prop.submissionType === 'changes approval' || prop.resubmittedAt) ? 'bg-indigo-500' : 'bg-purple-500'
-                  }`}>
-                    {(prop.submissionType === 'resubmission' || prop.submissionType === 'changes approval' || prop.resubmittedAt) ? 'Resubmission' : 'New Listing'}
+                {(prop.submissionType === 'resubmission' || prop.resubmittedAt) ? (
+                  <span className="px-2.5 py-1 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm border border-indigo-400">
+                    Resubmission
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm border border-emerald-400">
+                    New Listing
                   </span>
                 )}
               </div>

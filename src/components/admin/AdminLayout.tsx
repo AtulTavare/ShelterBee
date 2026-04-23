@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { showConfirm } from '../../utils/toast';
+import { db } from '../../firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   LayoutDashboard, 
   Clock, 
@@ -20,6 +22,29 @@ import {
 export const AdminLayout = () => {
   const { user, profile, loading, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [openFeedbackCount, setOpenFeedbackCount] = useState(0);
+
+  useEffect(() => {
+    // Monitor open feedback/reports from multiple collections
+    const collections = ['feedbacks', 'reports', 'support_inquiries', 'feedback'];
+    const counts: Record<string, number> = {};
+    const unsubscribes: (() => void)[] = [];
+
+    collections.forEach(collName => {
+      const q = query(collection(db, collName), where('status', '==', 'open'));
+      const unsub = onSnapshot(q, (snapshot) => {
+        counts[collName] = snapshot.size;
+        const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
+        setOpenFeedbackCount(total);
+      }, (err) => {
+        console.warn(`Sidebar monitor failed for ${collName}:`, err);
+        counts[collName] = 0;
+      });
+      unsubscribes.push(unsub);
+    });
+
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, []);
 
   const navItems = [
     { name: 'Dashboard', path: '/admin-secret-dashboard', icon: LayoutDashboard },
@@ -28,7 +53,7 @@ export const AdminLayout = () => {
     { name: 'Recent Registrations', path: '/admin-secret-dashboard/recent-registrations', icon: UserPlus },
     { name: 'Manage Properties', path: '/admin-secret-dashboard/manage-properties', icon: Building },
     { name: 'Users', path: '/admin-secret-dashboard/users', icon: Users },
-    { name: 'Feedback', path: '/admin-secret-dashboard/feedback', icon: MessageSquare },
+    { name: 'Feedback', path: '/admin-secret-dashboard/feedback', icon: MessageSquare, badge: openFeedbackCount },
     { name: 'Settings', path: '/admin-secret-dashboard/settings', icon: Settings },
   ];
 
@@ -96,6 +121,11 @@ export const AdminLayout = () => {
                       strokeWidth={2} 
                     />
                     {item.name}
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className="ml-auto w-5 h-5 flex items-center justify-center bg-blue-600 text-[10px] font-black text-white rounded-lg shadow-md shadow-blue-600/20 animate-in zoom-in-50 duration-300">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </>
                 )}
               </NavLink>

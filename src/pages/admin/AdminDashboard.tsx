@@ -5,6 +5,8 @@ import { propertyService } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { bookingService } from '../../services/bookingService';
 import { walletService } from '../../services/walletService';
+import { db } from '../../firebase';
+import { onSnapshot, collection, query, where, orderBy, doc } from 'firebase/firestore';
 import { 
   Building2, 
   Clock, 
@@ -18,7 +20,8 @@ import {
   UserPlus, 
   TrendingDown, 
   TrendingUp,
-  X
+  X,
+  RefreshCcw
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
@@ -43,152 +46,175 @@ export const AdminDashboard = () => {
   const [propertyTypes, setPropertyTypes] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [properties, users, bookings, adminId] = await Promise.all([
-          propertyService.getAllProperties(),
-          userService.getAllUsers(),
-          bookingService.getAllBookings(),
-          walletService.getAdminId()
-        ]);
+    // Monitor property stats
+    const unsubProperties = onSnapshot(collection(db, 'properties'), (snapshot) => {
+      const properties = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      
+      const typeCounts = properties.reduce((acc: any, p: any) => {
+        const type = p.type || 'Other';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
 
-        // Fetch admin wallet concurrently with processing data
-        const adminWalletPromise = walletService.getWallet(adminId);
-        
-        const pendingApprovalsCount = properties.filter(p => p.status === 'Pending').length;
-        const pendingApprovals = properties.filter(p => p.status === 'Pending').slice(0, 10);
-        const recentlyApproved = properties
-          .filter(p => p.status === 'Approved')
-          .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))
-          .slice(0, 5);
-        
-        const newUsers = users
-          .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))
-          .slice(0, 5);
+      const typeColors = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8'];
+      const pTypes = Object.keys(typeCounts).map((key, index) => ({
+        name: key,
+        value: typeCounts[key],
+        color: typeColors[index % typeColors.length]
+      }));
+      setPropertyTypes(pTypes);
 
-        const adminWallet = await adminWalletPromise;
-        const platformBalance = adminWallet.availableBalance;
+      setDashboardStats(prev => ({
+        ...prev,
+        totalListings: properties.length,
+        pendingApprovals: properties.filter((p: any) => p.status === 'Pending').length
+      }));
+      
+      setAnalyticDetails(prev => ({
+        ...prev,
+        'pending-approvals': properties.filter((p: any) => p.status === 'Pending').slice(0, 10).map((p: any) => ({
+          id: p.id,
+          name: p.title,
+          owner: p.ownerId,
+          date: p.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'
+        })),
+        'recently-approved': properties.filter((p: any) => p.status === 'Approved').sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 5).map((p: any) => ({
+          id: p.id,
+          name: p.title,
+          owner: p.ownerId,
+          date: p.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'
+        })),
+        'most-expensive': properties.sort((a: any, b: any) => b.pricePerDay - a.pricePerDay).slice(0, 5).map((p: any) => ({
+          id: p.id,
+          name: p.title,
+          price: `₹${p.pricePerDay.toLocaleString()}/day`,
+          location: p.area
+        })),
+        'most-affordable': properties.sort((a: any, b: any) => a.pricePerDay - b.pricePerDay).slice(0, 5).map((p: any) => ({
+          id: p.id,
+          name: p.title,
+          price: `₹${p.pricePerDay.toLocaleString()}/day`,
+          location: p.area
+        }))
+      }));
+    });
 
-        // Calculate basic revenue (25% commission)
-        const confirmedBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed');
-        const revenueTotal = confirmedBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
+    // Monitor user stats
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as any));
+      setDashboardStats(prev => ({
+        ...prev,
+        totalUsers: users.length
+      }));
+      setAnalyticDetails(prev => ({
+        ...prev,
+        'recently-registered': users
+          .sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+          .slice(0, 5)
+          .map((u: any) => ({
+            id: u.uid,
+            name: u.displayName || 'Unnamed User',
+            role: u.role,
+            date: u.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'
+          }))
+      }));
+    });
 
-        const pendingPayments = bookings.filter(b => b.status === 'pending_owner').length;
-        const pendingRefunds = bookings.filter(b => b.status === 'cancelled' || b.status === 'rejected_by_owner').length;
+    // Monitor booking stats
+    const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+      const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      setDashboardStats(prev => ({
+        ...prev,
+        totalBookings: bookings.length,
+        pendingPayments: bookings.filter((b: any) => b.status === 'pending_owner').length,
+        pendingRefunds: bookings.filter((b: any) => b.status === 'cancelled' || b.status === 'rejected_by_owner').length,
+        loading: false
+      }));
 
+      // Calculate revenue
+      const confirmed = bookings.filter((b: any) => b.status === 'confirmed' || b.status === 'completed');
+      const startOfToday = new Date();
+      startOfToday.setHours(0,0,0,0);
+      
+      const revenueToday = confirmed
+        .filter((b: any) => (b.createdAt?.toDate?.() || new Date()) >= startOfToday)
+        .reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
+      
+      const revenueThisMonth = confirmed
+        .filter((b: any) => (b.createdAt?.toDate?.() || new Date()).getMonth() === new Date().getMonth())
+        .reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
+
+      setDashboardStats(prev => ({
+        ...prev,
+        revenueToday,
+        revenueThisMonth
+      }));
+
+      // Generate Chart Data
+      const generateChartData = () => {
+        const data = [];
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const revenueToday = confirmedBookings
-          .filter(b => {
-             const bDate = b.createdAt?.toDate?.();
-             return bDate && bDate >= startOfToday;
-          })
-          .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-
-        const revenueThisMonth = confirmedBookings
-          .filter(b => {
-             const bDate = b.createdAt?.toDate?.();
-             return bDate && bDate >= startOfMonth;
-          })
-          .reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-
-        setDashboardStats({
-          totalListings: properties.length,
-          pendingApprovals: pendingApprovalsCount,
-          totalUsers: users.length,
-          totalBookings: bookings.length,
-          revenueToday: revenueToday,
-          revenueThisMonth: revenueThisMonth,
-          platformBalance,
-          pendingPayments,
-          pendingRefunds,
-          loading: false
-        });
-
-        setAnalyticDetails({
-          'pending-approvals': pendingApprovals.map(p => ({ id: p.id, name: p.title, owner: p.ownerId, date: p.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A' })),
-          'recently-approved': recentlyApproved.map(p => ({ id: p.id, name: p.title, owner: p.ownerId, date: p.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A' })),
-          'recently-registered': newUsers.map(u => ({ id: u.uid, name: u.displayName || 'Unnamed User', role: u.role, date: u.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A' })),
-          'most-affordable': properties.sort((a, b) => a.pricePerDay - b.pricePerDay).slice(0, 5).map(p => ({ id: p.id, name: p.title, price: `₹${p.pricePerDay.toLocaleString()}/day`, location: p.area })),
-          'most-expensive': properties.sort((a, b) => b.pricePerDay - a.pricePerDay).slice(0, 5).map(p => ({ id: p.id, name: p.title, price: `₹${p.pricePerDay.toLocaleString()}/day`, location: p.area })),
-        });
-
-        // Property types distribution
-        const typeCounts = properties.reduce((acc: any, p) => {
-          const type = p.type || 'Other';
-          acc[type] = (acc[type] || 0) + 1;
-          return acc;
-        }, {});
-
-        const typeColors = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8'];
-        setPropertyTypes(Object.keys(typeCounts).map((key, index) => ({
-          name: key,
-          value: typeCounts[key],
-          color: typeColors[index % typeColors.length]
-        })));
-
-        // Optimized Chart Data Generation
-        const generateChartData = () => {
-          const data = [];
-          if (timeframe === 'daily') {
-            for (let i = 6; i >= 0; i--) {
-              const d = new Date(startOfToday);
-              d.setDate(startOfToday.getDate() - i);
-              const dateStr = d.toDateString();
-              
-              const dayBookings = confirmedBookings.filter(b => b.createdAt?.toDate?.()?.toDateString() === dateStr);
-              const dayRev = dayBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-              
-              data.push({ 
-                name: d.toLocaleDateString('en-US', { weekday: 'short' }), 
-                revenue: dayRev, 
-                bookings: dayBookings.length 
-              });
-            }
-          } else if (timeframe === 'weekly') {
-            for (let i = 3; i >= 0; i--) {
-              const startOfWeek = new Date(startOfToday);
-              startOfWeek.setDate(startOfToday.getDate() - (i * 7 + 6));
-              const endOfWeek = new Date(startOfToday);
-              endOfWeek.setDate(startOfToday.getDate() - (i * 7));
-              
-              const weekBookings = confirmedBookings.filter(b => {
-                const bDate = b.createdAt?.toDate?.();
-                return bDate && bDate >= startOfWeek && bDate <= endOfWeek;
-              });
-              
-              const weekRev = weekBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-              data.push({ name: `Week ${4-i}`, revenue: weekRev, bookings: weekBookings.length });
-            }
-          } else if (timeframe === 'monthly') {
-            for (let i = 5; i >= 0; i--) {
-              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-              const month = d.getMonth();
-              const year = d.getFullYear();
-              
-              const monthBookings = confirmedBookings.filter(b => {
-                const bDate = b.createdAt?.toDate?.();
-                return bDate && bDate.getMonth() === month && bDate.getFullYear() === year;
-              });
-              
-              const monthRev = monthBookings.reduce((sum, b) => sum + ((b as any).totalAmount || (b as any).estimatedCost || 0) * 0.25, 0);
-              data.push({ name: d.toLocaleDateString('en-US', { month: 'short' }), revenue: monthRev, bookings: monthBookings.length });
-            }
+        if (timeframe === 'daily') {
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date(startOfToday);
+            d.setDate(startOfToday.getDate() - i);
+            const dateStr = d.toDateString();
+            const dayBookings = confirmed.filter(b => (b.createdAt?.toDate?.() || new Date()).toDateString() === dateStr);
+            const dayRev = dayBookings.reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
+            data.push({ name: d.toLocaleDateString('en-US', { weekday: 'short' }), revenue: dayRev, bookings: dayBookings.length });
           }
-          return data;
-        };
+        } else if (timeframe === 'weekly') {
+          for (let i = 3; i >= 0; i--) {
+            const startOfWeek = new Date(startOfToday);
+            startOfWeek.setDate(startOfToday.getDate() - (i * 7 + 6));
+            const endOfWeek = new Date(startOfToday);
+            endOfWeek.setDate(startOfToday.getDate() - (i * 7));
+            const weekBookings = confirmed.filter(b => {
+              const bDate = b.createdAt?.toDate?.() || new Date();
+              return bDate >= startOfWeek && bDate <= endOfWeek;
+            });
+            const weekRev = weekBookings.reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
+            data.push({ name: `Wk ${4-i}`, revenue: weekRev, bookings: weekBookings.length });
+          }
+        } else if (timeframe === 'monthly') {
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const month = d.getMonth();
+            const year = d.getFullYear();
+            const monthBookings = confirmed.filter(b => {
+              const bDate = b.createdAt?.toDate?.() || new Date();
+              return bDate.getMonth() === month && bDate.getFullYear() === year;
+            });
+            const monthRev = monthBookings.reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
+            data.push({ name: d.toLocaleDateString('en-US', { month: 'short' }), revenue: monthRev, bookings: monthBookings.length });
+          }
+        }
+        return data;
+      };
+      setChartData(generateChartData());
+    });
 
-        setChartData(generateChartData());
-      } catch (error) {
-        console.error("Error fetching dashboard stats:", error);
-      } finally {
-        setDashboardStats(prev => ({ ...prev, loading: false }));
-      }
+    // Monitor wallet
+    let unsubWallet: () => void = () => {};
+    walletService.getAdminId().then(adminId => {
+      unsubWallet = onSnapshot(doc(db, 'wallets', adminId), (snapshot) => {
+        if (snapshot.exists()) {
+          setDashboardStats(prev => ({
+            ...prev,
+            platformBalance: snapshot.data().balance || 0
+          }));
+        }
+      });
+    });
+
+    return () => {
+      unsubProperties();
+      unsubUsers();
+      unsubBookings();
+      unsubWallet();
     };
-
-    fetchStats();
   }, [timeframe]);
 
   useEffect(() => {
