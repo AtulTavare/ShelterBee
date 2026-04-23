@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
 import { propertyService, Property } from '../../services/propertyService';
 import { UserProfile } from '../../contexts/AuthContext';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export const AdminOwnerDetails = () => {
   const { id } = useParams();
@@ -12,23 +14,33 @@ export const AdminOwnerDetails = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!id) return;
-      setLoading(true);
-      try {
-        const userProfile = await userService.getUserProfile(id);
-        setOwner(userProfile);
-        
-        const allProps = await propertyService.getAllProperties();
-        const ownerProps = allProps.filter(p => p.ownerId === id);
-        setProperties(ownerProps);
-      } catch (error) {
-        console.error("Error fetching owner details:", error);
-      } finally {
-        setLoading(false);
+    if (!id) return;
+    setLoading(true);
+
+    const unsubOwner = onSnapshot(doc(db, 'users', id), (snapshot) => {
+      if (snapshot.exists()) {
+        setOwner({ uid: snapshot.id, ...snapshot.data() } as UserProfile);
+      } else {
+        setOwner(null);
       }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching owner profile:", error);
+      setLoading(false);
+    });
+
+    const q = query(collection(db, 'properties'), where('ownerId', '==', id));
+    const unsubProps = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+      setProperties(data);
+    }, (error) => {
+      console.error("Error fetching owner properties:", error);
+    });
+
+    return () => {
+      unsubOwner();
+      unsubProps();
     };
-    fetchData();
   }, [id]);
 
   if (loading) {

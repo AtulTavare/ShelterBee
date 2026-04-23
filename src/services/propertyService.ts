@@ -15,6 +15,7 @@ export interface Property {
   description: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   rejectionReason?: string;
+  rejectedAt?: any;
   createdAt: any;
   updatedAt?: any;
   availableFrom?: string;
@@ -132,8 +133,9 @@ export const propertyService = {
   async updatePropertyStatus(id: string, status: 'Pending' | 'Approved' | 'Rejected', rejectionReason?: string) {
     const docRef = doc(db, 'properties', id);
     const updateData: any = { status };
-    if (rejectionReason) {
-      updateData.rejectionReason = rejectionReason;
+    if (status === 'Rejected') {
+      updateData.rejectionReason = rejectionReason || 'No reason provided by admin';
+      updateData.rejectedAt = serverTimestamp();
     }
     await updateDoc(docRef, updateData);
   },

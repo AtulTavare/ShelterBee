@@ -293,7 +293,7 @@ export default function Profile() {
                 <div className="mt-1 space-y-1">
                   {rejectedProperties.map(prop => (
                     <p key={prop.id} className="text-xs text-red-700">
-                      <span className="font-bold">{prop.title}:</span> {prop.rejectionReason || 'No reason provided by admin.'}
+                      <span className="font-bold">{prop.title}:</span> {prop.rejectionReason || 'No reason provided by admin'}
                     </p>
                   ))}
                 </div>
@@ -2386,7 +2386,7 @@ function FavouritesTab() {
                   {property.status === 'Rejected' && (
                     <div className="mb-3 p-2.5 bg-red-50 border border-red-100 rounded-xl flex gap-2">
                       <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                      <p className="text-[9px] text-red-700 font-medium leading-tight line-clamp-2">{property.rejectionReason || 'No reason provided.'}</p>
+                      <p className="text-[9px] text-red-700 font-medium leading-tight line-clamp-2">{property.rejectionReason || 'No reason provided by admin'}</p>
                     </div>
                   )}
 
@@ -3328,7 +3328,7 @@ function PropertyApprovalsTab() {
                   {property.status === 'Rejected' ? (
                     <div className="bg-red-50 p-3 rounded-lg border border-red-100">
                       <p className="text-xs font-bold text-red-600 mb-1">Rejection Reason:</p>
-                      <p className="text-sm text-red-700">{property.rejectionReason || 'No reason provided by admin.'}</p>
+                      <p className="text-sm text-red-700">{property.rejectionReason || 'No reason provided by admin'}</p>
                     </div>
                   ) : (
                     <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100">
@@ -3581,17 +3581,7 @@ function OwnerDashboardTab({ user, profile, isEditing, setIsEditing, setActiveTa
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Total Visitors</p>
-            <p className="text-xl font-bold text-[#1A1A2E]">{stats?.totalVisitors}</p>
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
             <TrendingUp className="w-6 h-6" />

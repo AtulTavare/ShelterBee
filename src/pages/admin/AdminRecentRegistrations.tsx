@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 import { UserProfile } from '../../contexts/AuthContext';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export const AdminRecentRegistrations = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -8,22 +10,29 @@ export const AdminRecentRegistrations = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const data = await userService.getAllUsers();
+    // Simple collection listener, sorting client-side to avoid index requirements for combined queries if any
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      })) as UserProfile[];
+      
       // Sort by createdAt descending
-      const sorted = data.sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0));
+      const sorted = data.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.()?.getTime() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const dateB = b.createdAt?.toDate?.()?.getTime() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return dateB - dateA;
+      });
+      
       setUsers(sorted);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error("Error fetching recent users:", error);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
 
   const filteredUsers = users.filter(u => {
     const nameToSearch = u.displayName || u.name || '';

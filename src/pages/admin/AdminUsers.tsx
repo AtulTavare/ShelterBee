@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userService } from '../../services/userService';
 import { UserProfile } from '../../contexts/AuthContext';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export const AdminUsers = () => {
   const [activeTab, setActiveTab] = useState<'visitors' | 'owners'>('visitors');
@@ -12,20 +14,20 @@ export const AdminUsers = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const data = await userService.getAllUsers();
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      })) as UserProfile[];
       setUsers(data);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
 
   const filteredUsers = users.filter(u => {
     const name = u.displayName || u.name || '';

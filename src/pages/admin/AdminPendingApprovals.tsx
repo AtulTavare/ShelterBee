@@ -29,12 +29,10 @@ export const AdminPendingApprovals = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Only fetch first 50 pending approvals to avoid rate limits
+    // Simplify query to avoid index requirements and show all pending
     const q = query(
       collection(db, 'properties'), 
-      where('status', '==', 'Pending'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
+      where('status', '==', 'Pending')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const pendingProps = snapshot.docs.map(doc => ({
