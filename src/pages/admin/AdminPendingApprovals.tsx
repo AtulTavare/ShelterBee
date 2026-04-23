@@ -100,7 +100,7 @@ export const AdminPendingApprovals = () => {
     const finalReason = rejectReason === 'Other' ? otherReason : rejectReason;
     if (!finalReason || !selectedProperty) return;
     try {
-      await propertyService.updatePropertyStatus(selectedProperty.id, 'Rejected');
+      await propertyService.updatePropertyStatus(selectedProperty.id, 'Rejected', finalReason);
       
       try {
         const ownerProfile = await userService.getUserProfile(selectedProperty.ownerId);
@@ -152,9 +152,9 @@ export const AdminPendingApprovals = () => {
                 </span>
                 {prop.submissionType && (
                   <span className={`px-2.5 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                    (prop.submissionType === 'changes approval' || prop.submissionType === 'resubmission') ? 'bg-indigo-500' : 'bg-purple-500'
+                    (prop.submissionType === 'resubmission' || prop.submissionType === 'changes approval' || prop.resubmittedAt) ? 'bg-indigo-500' : 'bg-purple-500'
                   }`}>
-                    {(prop.submissionType === 'changes approval' || prop.submissionType === 'resubmission') ? 'Resubmission' : 'New Listing'}
+                    {(prop.submissionType === 'resubmission' || prop.submissionType === 'changes approval' || prop.resubmittedAt) ? 'Resubmission' : 'New Listing'}
                   </span>
                 )}
               </div>

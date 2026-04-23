@@ -615,5 +615,45 @@ export const walletService = {
       processedAt: serverTimestamp()
     });
     return true;
+  },
+
+  subscribeToPendingSettlements(callback: (settlements: WalletTransaction[]) => void): () => void {
+    const q = query(
+      collection(db, 'walletTransactions'),
+      where('walletProcessed', '==', true),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    return onSnapshot(q, (snap) => {
+      const settlements = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+        reason: d.data().description
+      })) as WalletTransaction[];
+      callback(settlements);
+    }, (error) => {
+      console.error('Pending settlements listener error:', error);
+      callback([]);
+    });
+  },
+
+  subscribeToWithdrawalRequests(callback: (requests: WithdrawalRequest[]) => void): () => void {
+    const q = query(
+      collection(db, 'withdrawalRequests'),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    return onSnapshot(q, (snap) => {
+      const requests = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+        requestedAt: d.data().createdAt,
+        bankAccount: d.data().bankDetails
+      })) as WithdrawalRequest[];
+      callback(requests);
+    }, (error) => {
+      console.error('Withdrawal requests listener error:', error);
+      callback([]);
+    });
   }
 };

@@ -27,7 +27,50 @@ export const AdminWallet = () => {
   const [confirmAction, setConfirmAction] = useState<{type: 'settle' | 'withdraw', id: string, action?: 'completed' | 'rejected'} | null>(null);
 
   useEffect(() => {
-    fetchData();
+    setLoading(true);
+    let unsubBalance: () => void = () => {};
+    let unsubSettlements: () => void = () => {};
+    let unsubWithdrawals: () => void = () => {};
+
+    const setupSubscriptions = async () => {
+      try {
+        const adminId = await walletService.getAdminId();
+        
+        unsubBalance = walletService.subscribeToWalletBalance(adminId, (balance) => {
+          setPlatformBalance(balance);
+        });
+
+        unsubSettlements = walletService.subscribeToPendingSettlements((settlements) => {
+          setPendingSettlements(settlements);
+          setStats(prev => ({
+            ...prev,
+            totalPendingSettlements: settlements.reduce((sum, s) => sum + s.amount, 0)
+          }));
+          setLoading(false);
+        });
+
+        unsubWithdrawals = walletService.subscribeToWithdrawalRequests((withdrawals) => {
+          setWithdrawalRequests(withdrawals);
+          const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
+          setStats(prev => ({
+            ...prev,
+            totalPendingWithdrawals: pendingWithdrawals.reduce((sum, w) => sum + w.amount, 0)
+          }));
+        });
+
+      } catch (error) {
+        console.error("Error setting up wallet subscriptions:", error);
+        setLoading(false);
+      }
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      unsubBalance();
+      unsubSettlements();
+      unsubWithdrawals();
+    };
   }, []);
 
   useEffect(() => {
@@ -79,7 +122,6 @@ export const AdminWallet = () => {
     try {
       await walletService.markSettlementComplete(transactionId);
       showToast('success', 'Transaction settled successfully.');
-      fetchData();
     } catch (error) {
       console.error("Error settling transaction:", error);
       showToast('error', 'Failed to settle transaction.');
@@ -107,7 +149,6 @@ export const AdminWallet = () => {
       }
 
       showToast('success', `Withdrawal marked as ${action}.`);
-      fetchData();
     } catch (error) {
       console.error("Error processing withdrawal:", error);
       showToast('error', 'Failed to process withdrawal.');

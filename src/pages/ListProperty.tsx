@@ -402,6 +402,7 @@ export default function ListProperty() {
         submissionType: isEditMode 
           ? (existingProperty?.status === 'Rejected' ? 'resubmission' : 'changes approval') 
           : 'new listing' as any,
+        resubmittedAt: (isEditMode && existingProperty?.status === 'Rejected') ? serverTimestamp() : null,
       };
 
       if (isEditMode && propertyId) {

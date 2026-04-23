@@ -113,8 +113,8 @@ export default function BookingPage() {
 
   const diffDays = dateRange.from && dateRange.to ? differenceInDays(dateRange.to, dateRange.from) : 0;
   const nights = (dateRange.from && !dateRange.to) ? "--" : diffDays;
-  const isMinNightsError = dateRange.from && dateRange.to && diffDays < 2;
-  const effectiveNights = diffDays >= 2 ? diffDays : 2;
+  const isMinNightsError = dateRange.from && dateRange.to && diffDays < 1;
+  const effectiveNights = diffDays >= 1 ? diffDays : 1;
   
   const totalGuests = guests.length;
   const totalAmount = effectiveNights * property.pricePerDay * totalGuests;

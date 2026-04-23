@@ -1038,7 +1038,7 @@ function MyBookingsTab() {
   const getVisitorStatusDisplay = (status: string, checkOut: Date | null) => {
     const now = new Date();
     if (status === 'completed' || (checkOut && now > checkOut)) return { label: 'Completed', note: '', color: 'bg-slate-500/90' };
-    if (status === 'pending_owner') return { label: 'Confirmed', note: 'Awaiting property owner confirmation', color: 'bg-emerald-500/90' };
+    if (status === 'pending_owner') return { label: 'Confirmed', note: '', color: 'bg-emerald-500/90' };
     if (status === 'confirmed') return { label: 'Confirmed', note: '', color: 'bg-emerald-500/90' };
     if (status === 'rejected_by_owner') return { label: 'Cancelled', note: 'Cancelled by property owner. 95% refund credited to your wallet.', color: 'bg-rose-500/90' };
     if (status === 'cancelled') return { label: 'Cancelled by you', note: '', color: 'bg-gray-500/90' };
@@ -1209,11 +1209,7 @@ function MyBookingsTab() {
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
                           <p className="text-2xl font-black text-[#1A1A2E]">₹{(booking.totalAmount || (booking as any).estimatedCost || 0).toLocaleString()}</p>
                           
-                          {booking.status === 'pending_owner' && (
-                            <div className="mt-2 bg-amber-50 text-amber-600 px-3 py-1 rounded-lg border border-amber-100 text-[9px] font-bold text-center">
-                              Awaiting final confirmation from property owner.
-                            </div>
-                          )}
+                          {/* Hidden internal pending state helper */}
 
                           {booking.status === 'rejected_by_owner' && (
                             <div className="mt-2 bg-red-50 text-red-600 px-3 py-1 rounded-lg border border-red-100 text-[9px] font-bold text-center">

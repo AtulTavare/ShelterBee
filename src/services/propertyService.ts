@@ -35,6 +35,7 @@ export interface Property {
   checkInTime?: string;
   checkOutTime?: string;
   submissionType?: 'new listing' | 'changes approval' | 'resubmission';
+  resubmittedAt?: any;
   unavailabilityUntil?: any; // Date or 'permanently' or 'manual'
   availabilityStatus?: 'available' | 'unavailable';
   unavailableFrom?: string; // ISO string
@@ -128,9 +129,13 @@ export const propertyService = {
     }
   },
 
-  async updatePropertyStatus(id: string, status: 'Pending' | 'Approved' | 'Rejected') {
+  async updatePropertyStatus(id: string, status: 'Pending' | 'Approved' | 'Rejected', rejectionReason?: string) {
     const docRef = doc(db, 'properties', id);
-    await updateDoc(docRef, { status });
+    const updateData: any = { status };
+    if (rejectionReason) {
+      updateData.rejectionReason = rejectionReason;
+    }
+    await updateDoc(docRef, updateData);
   },
 
   async updateProperty(id: string, data: Partial<Property>) {
