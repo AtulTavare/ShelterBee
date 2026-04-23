@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, limit, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc, limit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { walletService } from './walletService';
 
@@ -37,10 +37,10 @@ export interface Booking {
   createdAt: any;
   updatedAt: any;
   walletProcessed: boolean;
+  estimatedCost?: number; // Added for UI compatibility
 }
 
 export const bookingService = {
-  // 1. createBooking: call processBookingWallet()
   async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>) {
     try {
       const docRef = await addDoc(collection(db, 'bookings'), {
@@ -61,9 +61,10 @@ export const bookingService = {
           bookingData.visitorId, 
           bookingData.propertyTitle || 'Property'
         );
-        console.log(`processBookingWallet success for booking: ${bookingId}`);
+        console.log('Wallet processed for booking:', bookingId);
       } catch (walletError) {
-        console.error('Initial processBookingWallet failed:', { bookingId, error: (walletError as any).message });
+        console.error('Wallet failed for booking:', bookingId, walletError);
+        // Booking still created, wallet will retry
       }
 
       return bookingId;
@@ -73,7 +74,6 @@ export const bookingService = {
     }
   },
 
-  // 2. acceptBooking: only update status, NO wallet changes
   async acceptBooking(bookingId: string) {
     try {
       const bookingRef = doc(db, 'bookings', bookingId);
@@ -82,7 +82,7 @@ export const bookingService = {
         acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      console.log(`acceptBooking success for: ${bookingId}`);
+      // NO wallet change (already processed on creation)
       return true;
     } catch (error) {
       console.error("Error accepting booking:", error);
@@ -90,7 +90,6 @@ export const bookingService = {
     }
   },
 
-  // 3. rejectBooking: update status and call processOwnerRejectionWallet()
   async rejectBooking(bookingId: string, rejectionReason?: string) {
     try {
       const booking = await this.getBookingById(bookingId);
@@ -112,10 +111,8 @@ export const bookingService = {
           booking.visitorId,
           booking.propertyTitle || 'Property'
         );
-        console.log(`processOwnerRejectionWallet success for: ${bookingId}`);
       } catch (walletError) {
-        console.error('rejectBooking wallet failed:', { bookingId, error: (walletError as any).message });
-        await updateDoc(bookingRef, { walletProcessed: false });
+        console.error('Rejection wallet failed:', walletError);
       }
 
       return true;
@@ -125,29 +122,10 @@ export const bookingService = {
     }
   },
 
-  // 4. cancelBooking: determine wasAccepted and refundPercent, call processCancellationWallet()
-  async cancelBooking(bookingId: string) {
+  async cancelBooking(bookingId: string, refundPercent: number) {
     try {
       const booking = await this.getBookingById(bookingId);
       if (!booking) throw new Error("Booking not found");
-
-      const checkInDate = booking.checkIn ? new Date(booking.checkIn) : new Date();
-      const now = new Date();
-      const diffMs = checkInDate.getTime() - now.getTime();
-      const hoursBeforeCheckIn = diffMs / (1000 * 60 * 60);
-
-      let refundPercent = 100; // Default for pending
-      const wasAccepted = booking.status === 'confirmed';
-
-      if (wasAccepted) {
-        if (hoursBeforeCheckIn > 24) {
-          refundPercent = 75;
-        } else if (hoursBeforeCheckIn > 6) {
-          refundPercent = 50;
-        } else {
-          refundPercent = 0;
-        }
-      }
 
       const bookingRef = doc(db, 'bookings', bookingId);
       const refundAmount = booking.totalAmount * (refundPercent / 100);
@@ -162,13 +140,10 @@ export const bookingService = {
       try {
         await walletService.processCancellationWallet(
           booking, 
-          refundPercent,
-          wasAccepted
+          refundPercent
         );
-        console.log(`processCancellationWallet success for: ${bookingId}, refundPercent: ${refundPercent}`);
       } catch (walletError) {
-        console.error('cancelBooking wallet failed:', { bookingId, error: (walletError as any).message });
-        await updateDoc(bookingRef, { walletProcessed: false });
+        console.error('Cancellation wallet failed:', walletError);
       }
 
       return true;
@@ -178,51 +153,27 @@ export const bookingService = {
     }
   },
 
-  // 5. retryFailedWalletTransactions
   async retryFailedWalletTransactions(ownerUid: string) {
     try {
       const q = query(
         collection(db, 'bookings'),
         where('ownerId', '==', ownerUid),
-        where('walletProcessed', '==', false),
-        where('status', '!=', 'pending_owner') // Pending ones might still be pending
+        where('walletProcessed', '==', false)
       );
       const failedBookings = await getDocs(q);
       
-      console.log(`Found ${failedBookings.size} failed wallet transactions for owner ${ownerUid}`);
-      
       for (const bookingDoc of failedBookings.docs) {
-        const booking = { id: bookingDoc.id, ...bookingDoc.data() } as any;
+        const data = bookingDoc.data();
         try {
-          if (booking.status === 'rejected_by_owner') {
-            await walletService.processOwnerRejectionWallet(
-              booking.id,
-              booking.totalAmount,
-              booking.ownerId,
-              booking.visitorId,
-              booking.propertyTitle || 'Property'
-            );
-          } else if (booking.status === 'cancelled') {
-            // We assume refundPercentage was already calculated and saved
-            const wasAccepted = booking.acceptedAt !== undefined && booking.acceptedAt !== null;
-            await walletService.processCancellationWallet(
-              booking,
-              booking.refundPercentage || 0,
-              wasAccepted
-            );
-          } else if (booking.status === 'confirmed' || booking.status === 'pending_owner') {
-            // Re-run the initial credit
-            await walletService.processBookingWallet(
-              booking.id,
-              booking.totalAmount,
-              booking.ownerId,
-              booking.visitorId,
-              booking.propertyTitle || 'Property'
-            );
-          }
-          console.log(`Retried and succeeded for booking: ${booking.id}`);
+          await walletService.processBookingWallet(
+            bookingDoc.id,
+            data.totalAmount,
+            data.ownerId,
+            data.visitorId,
+            data.propertyTitle || 'Property'
+          );
         } catch (err) {
-          console.error(`Retry failed for booking: ${booking.id}`, err);
+          console.error('Retry failed:', bookingDoc.id, err);
         }
       }
     } catch (error) {
@@ -230,7 +181,6 @@ export const bookingService = {
     }
   },
 
-  // Helper methods
   async getBookingsByVisitor(visitorId: string) {
     try {
       const q = query(collection(db, 'bookings'), where('visitorId', '==', visitorId));
@@ -263,6 +213,46 @@ export const bookingService = {
     }
   },
 
+  async getBookingsByProperty(propertyId: string) {
+    try {
+      const q = query(
+        collection(db, 'bookings'), 
+        where('propertyId', '==', propertyId),
+        where('status', 'in', ['confirmed', 'pending_owner'])
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        checkIn: doc.data().checkIn?.toDate() || null,
+        checkOut: doc.data().checkOut?.toDate() || null,
+      })) as Booking[];
+    } catch (error) {
+      console.error("Error fetching property bookings:", error);
+      throw error;
+    }
+  },
+
+  async getAllBookings() {
+    try {
+      const q = query(
+        collection(db, 'bookings'), 
+        orderBy('createdAt', 'desc'), 
+        limit(100)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        checkIn: doc.data().checkIn?.toDate() || null,
+        checkOut: doc.data().checkOut?.toDate() || null,
+      })) as Booking[];
+    } catch (error) {
+      console.error("Error fetching all bookings:", error);
+      throw error;
+    }
+  },
+
   async getBookingById(bookingId: string) {
     try {
       const docRef = doc(db, 'bookings', bookingId);
@@ -283,30 +273,29 @@ export const bookingService = {
     }
   },
 
-  async getAllBookings() {
-    try {
-      const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(100));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        checkIn: doc.data().checkIn?.toDate() || null,
-        checkOut: doc.data().checkOut?.toDate() || null,
-      })) as Booking[];
-    } catch (error) {
-      console.error("Error fetching all bookings:", error);
-      throw error;
-    }
+  async getBookingFinancials(bookingId: string) {
+    const booking = await this.getBookingById(bookingId);
+    if (!booking) return { ownerPayout: 0, platformCommission: 0, visitorRefund: 0 };
+    
+    return {
+      ownerPayout: booking.totalAmount * 0.75,
+      platformCommission: booking.totalAmount * 0.25,
+      visitorRefund: 0 // Placeholder
+    };
   },
 
   async updateBookingStatus(bookingId: string, status: Booking['status'], extraData?: any) {
     try {
+      const booking = await this.getBookingById(bookingId);
+      if (!booking) throw new Error("Booking not found");
+
       if (status === 'confirmed') {
         return this.acceptBooking(bookingId);
       } else if (status === 'rejected_by_owner') {
         return this.rejectBooking(bookingId, extraData?.rejectionReason);
       } else if (status === 'cancelled') {
-        return this.cancelBooking(bookingId);
+        const refundPercent = extraData?.refundPercentage ?? 100;
+        return this.cancelBooking(bookingId, refundPercent);
       } else {
         const bookingRef = doc(db, 'bookings', bookingId);
         await updateDoc(bookingRef, {

@@ -2952,7 +2952,7 @@ function WalletTab({ walletBalance, walletTransactions }: { walletBalance: numbe
           <div className="space-y-4">
             {walletTransactions
               .filter(txn => {
-                if (isVisitor) return (txn.type === 'credit' && (txn.refundPercentage || txn.scenario === 'withdrawal_rejected')) || txn.scenario === 'withdrawal';
+                if (isVisitor) return txn.type === 'credit' && (txn.refundPercentage || txn.paymentPartnerCharge);
                 return true;
               })
               .map((txn) => (
