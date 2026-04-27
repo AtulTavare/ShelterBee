@@ -156,7 +156,9 @@ export const AdminManageProperties = () => {
               </div>
             </div>
             <div className="p-5 flex-1 flex flex-col">
-              <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1">{prop.type}</div>
+              <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1">
+                {prop.type} {prop.gender?.map((g: string) => g === 'Male' ? '♂️' : g === 'Female' ? '♀️' : g === 'Other' ? '🏳️🌈' : '').join('')}
+              </div>
               <h3 className="font-semibold text-slate-900 text-lg mb-1 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedProperty(prop)}>{prop.title}</h3>
               <div className="text-sm font-medium text-slate-600 mb-3">₹{(prop.pricePerDay || 0).toLocaleString()}/day</div>
               
@@ -249,7 +251,9 @@ export const AdminManageProperties = () => {
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Type</h3>
-                  <p className="text-slate-900 font-medium">{selectedProperty.type}</p>
+                  <p className="text-slate-900 font-medium">
+                    {selectedProperty.type} {selectedProperty.gender?.map((g: string) => g === 'Male' ? '♂️' : g === 'Female' ? '♀️' : g === 'Other' ? '🏳️🌈' : '').join('')}
+                  </p>
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Price</h3>

@@ -73,7 +73,9 @@ export default function PropertyCard({
           <div className="w-px h-6 bg-surface-container-high self-center shrink-0"></div>
           <div className="flex flex-col min-w-0">
             <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Type</span>
-            <span className="text-sm sm:text-base font-extrabold text-on-secondary-fixed truncate">{property.type}</span>
+            <span className="text-sm sm:text-base font-extrabold text-on-secondary-fixed truncate">
+              {property.type} {property.gender?.map((g: string) => g === 'Male' ? '♂️' : g === 'Female' ? '♀️' : g === 'Other' ? '🏳️🌈' : '').join('')}
+            </span>
           </div>
         </div>
         <div className="mt-auto pt-3 border-t border-surface-container-high flex justify-between items-center">

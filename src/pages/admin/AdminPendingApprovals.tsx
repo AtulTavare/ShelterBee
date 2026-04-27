@@ -168,7 +168,9 @@ export const AdminPendingApprovals = () => {
               </div>
             </div>
             <div className="p-5 flex-1 flex flex-col">
-              <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1">{prop.type}</div>
+              <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1">
+                {prop.type} {prop.gender?.map((g: string) => g === 'Male' ? '♂️' : g === 'Female' ? '♀️' : g === 'Other' ? '🏳️🌈' : '').join('')}
+              </div>
               <h3 className="font-semibold text-slate-900 text-lg mb-1">{prop.title}</h3>
               <div className="text-sm font-medium text-slate-600 mb-3">₹{(prop.pricePerDay || 0).toLocaleString()}/day</div>
               <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
@@ -220,7 +222,9 @@ export const AdminPendingApprovals = () => {
                 </div>
                 <div>
                   <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Type & Price</div>
-                  <div className="font-semibold text-slate-900 text-base">{selectedProperty.type} • ₹{(selectedProperty.pricePerDay || 0).toLocaleString()}/day</div>
+                  <div className="font-semibold text-slate-900 text-base">
+                    {selectedProperty.type} {selectedProperty.gender?.map((g: string) => g === 'Male' ? '♂️' : g === 'Female' ? '♀️' : g === 'Other' ? '🏳️🌈' : '').join('')} • ₹{(selectedProperty.pricePerDay || 0).toLocaleString()}/day
+                  </div>
                 </div>
                 <div className="col-span-2">
                   <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</div>

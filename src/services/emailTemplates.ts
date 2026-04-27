@@ -164,14 +164,6 @@ export const emailTemplates = {
           <span class="detail-label">Total Booking Value</span>
           <span class="detail-value">₹${totalAmount}</span>
         </div>
-        <div class="detail-item">
-          <span class="detail-label">Commission (25%)</span>
-          <span class="detail-value">₹${commission}</span>
-        </div>
-        <div class="detail-item">
-          <span class="detail-label">Owner Payout</span>
-          <span class="detail-value" style="color: #059669;">₹${payout}</span>
-        </div>
       </div>
       <div class="details-box">
         <h3 style="font-size: 14px; margin-bottom: 15px; color: #1E1B4B; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px;">Notes</h3>

@@ -550,7 +550,7 @@ function NewBookingsTab() {
               <div>
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-3">
                   <div className="flex items-center gap-2.5">
-                    <img src={getAvatarUrl(booking.visitorName)} className="w-10 h-10 rounded-full border border-slate-100 shadow-sm shrink-0" alt="Visitor" />
+                    <img src={getAvatarUrl()} className="w-10 h-10 rounded-full border border-slate-100 shadow-sm shrink-0" alt="Visitor" />
                     <div className="min-w-0">
                       <h3 className="font-bold text-[#1A1A2E] text-xs leading-tight truncate">{booking.visitorName}</h3>
                       <div className="flex items-center gap-1 mt-0.5">
@@ -634,7 +634,7 @@ function NewBookingsTab() {
               <div className="space-y-6">
                  {/* Visitor Identity */}
                  <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <img src={getAvatarUrl(selectedBooking.visitorName)} className="w-16 h-16 rounded-full border-2 border-white shadow-sm" alt="Visitor" />
+                    <img src={getAvatarUrl()} className="w-16 h-16 rounded-full border-2 border-white shadow-sm" alt="Visitor" />
                     <div>
                        <h4 className="font-black text-lg text-[#1A1A2E] leading-tight">{selectedBooking.visitorName}</h4>
                        <p className="text-sm text-slate-500 font-medium">{selectedBooking.visitorContact}</p>
@@ -1256,7 +1256,7 @@ function MyBookingsTab() {
                             <div className="flex flex-col sm:flex-row items-center gap-6">
                               <div className="flex items-center gap-4 flex-1">
                                 <img 
-                                  src={getAvatarUrl(owner.displayName || 'Owner')} 
+                                  src={getAvatarUrl(owner.gender)} 
                                   className="w-14 h-14 rounded-full border-2 border-amber-100"
                                   alt="Owner"
                                 />
@@ -2568,7 +2568,7 @@ function FavouritesTab() {
                   selectedPropertyReviews.map((review) => (
                     <div key={review.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       <div className="flex items-center gap-4">
-                        <img src={review.visitorAvatar || getAvatarUrl(review.visitorName)} alt={review.visitorName} className="w-12 h-12 rounded-full bg-slate-200" referrerPolicy="no-referrer" />
+                        <img src={review.visitorAvatar || getAvatarUrl()} alt={review.visitorName} className="w-12 h-12 rounded-full bg-slate-200" referrerPolicy="no-referrer" />
                         <div>
                           <h4 className="font-bold text-[#1E1B4B]">{review.visitorName}</h4>
                           <p className="text-xs text-[#64748B]">{review.date}</p>
@@ -3322,7 +3322,9 @@ function PropertyApprovalsTab() {
                 </p>
                 <div className="flex justify-between items-center mb-4">
                   <span className="font-bold text-[#F59E0B]">₹{(property.pricePerDay || 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/day</span></span>
-                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">{property.type}</span>
+                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                    {property.type} {property.gender?.map((g: string) => g === 'Male' ? '♂️' : g === 'Female' ? '♀️' : g === 'Other' ? '🏳️🌈' : '').join('')}
+                  </span>
                 </div>
                 <div className="border-t border-gray-100 pt-4">
                   {property.status === 'Rejected' ? (
@@ -3653,7 +3655,7 @@ function ReviewModal({ isOpen, onClose, booking, profile }: { isOpen: boolean, o
         visitorId: booking.visitorId,
         bookingId: booking.id,
         visitorName: profile?.displayName || 'Anonymous',
-        visitorAvatar: profile?.photoURL || getAvatarUrl(profile?.displayName || 'Anonymous'),
+        visitorAvatar: profile?.photoURL || getAvatarUrl(profile?.gender),
         text,
         rating,
         ratings,

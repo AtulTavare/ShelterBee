@@ -374,7 +374,7 @@ export default function BookingPage() {
                     
                     {isMinNightsError && (
                       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 shadow-sm animate-pulse">
-                        Minimum booking is 2 nights
+                        Minimum booking is 1 night
                       </div>
                     )}
                   </div>

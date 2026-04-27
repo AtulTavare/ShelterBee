@@ -51,11 +51,13 @@ export default function Listings() {
     const occ = params.get('occupancy');
     const search = params.get('search');
     const areas = params.get('areas');
+    const gender = params.get('gender');
 
     if (type && type !== 'Any Type') setSelectedTypes([type]);
     if (occ && occ !== 'Any') setOccupancy(Number(occ));
     if (search) setSearchTerm(search);
     if (areas) setSelectedAreas(areas.split(','));
+    if (gender) setSelectedGender(gender);
   }, [location.search]);
 
   const maxPropertyPrice = useMemo(() => properties.length > 0 ? Math.max(...properties.map(p => p.pricePerDay || 0), 50000) : 50000, [properties]);
@@ -72,6 +74,7 @@ export default function Listings() {
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [occupancy, setOccupancy] = useState<number | 'Any'>('Any');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGender, setSelectedGender] = useState('Any');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined
@@ -80,7 +83,7 @@ export default function Listings() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState('Highest Rated');
 
-  const [visibleCount, setVisibleCount] = useState(4);
+  const [visibleCount, setVisibleCount] = useState(16);
 
   const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -105,7 +108,17 @@ export default function Listings() {
   };
 
   // Slideshow State
-  const topProperties = useMemo(() => properties.filter(p => p.rating && p.rating >= 4.5).slice(0, 5), [properties]);
+  const topProperties = useMemo(() => {
+    if (properties.length === 0) return [];
+    
+    // Sort logic for hero banner: most premium and most affordable
+    const sortedByPrice = [...properties].sort((a, b) => (b.pricePerDay || 0) - (a.pricePerDay || 0));
+    
+    const premium = sortedByPrice.slice(0, 3); // 3 Most expensive
+    const affordable = sortedByPrice.slice(-2); // 2 Most affordable
+    
+    return [...premium, ...affordable];
+  }, [properties]);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
@@ -135,6 +148,7 @@ export default function Listings() {
         if (!matchesArea) return false;
       }
       if (occupancy !== 'Any' && (p.guests || 0) < occupancy) return false;
+      if (selectedGender !== 'Any' && (!p.gender || !p.gender.includes(selectedGender))) return false;
       if (selectedAmenities.length > 0) {
         const hasAllAmenities = selectedAmenities.every(a => p.amenities && p.amenities.includes(a));
         if (!hasAllAmenities) return false;
@@ -160,7 +174,7 @@ export default function Listings() {
     }
 
     setFilteredProperties(filtered);
-    setVisibleCount(4);
+    setVisibleCount(16);
   }, [properties, priceRange, selectedAmenities, selectedTypes, selectedAreas, dateRange, sortBy, showFavoritesOnly, favorites, maxPropertyPrice]);
 
   return (
@@ -261,6 +275,7 @@ export default function Listings() {
             setSelectedAreas([]);
             setOccupancy('Any');
             setSearchTerm('');
+            setSelectedGender('Any');
             setDateRange({ from: undefined, to: undefined });
             setShowFavoritesOnly(false);
           }}
@@ -307,6 +322,7 @@ export default function Listings() {
                       setSelectedTypes([]);
                       setSelectedAreas([]);
                       setOccupancy('Any');
+                      setSelectedGender('Any');
                       setDateRange({ from: undefined, to: undefined });
                       setShowFavoritesOnly(false);
                     }}
@@ -333,7 +349,7 @@ export default function Listings() {
               {filteredProperties.length > visibleCount && (
                 <div className="flex justify-center py-12">
                   <button 
-                    onClick={() => setVisibleCount(prev => prev + 4)}
+                    onClick={() => setVisibleCount(prev => prev + 16)}
                     className="group flex flex-col items-center gap-4 hover:-translate-y-1 transition-transform duration-300"
                   >
                     <div className="w-16 h-16 rounded-full bg-white shadow-xl flex items-center justify-center text-primary-container group-hover:bg-primary group-hover:text-white transition-all">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
@@ -9,16 +9,22 @@ import { showToast, showFavoriteToast } from '../utils/toast';
 
 export default function Home() {
   const { user, profile, updateProfileData } = useAuth();
-  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
-  const [isAreaPopupOpen, setIsAreaPopupOpen] = useState(false);
+  const [locationInput, setLocationInput] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [availableLocations, setAvailableLocations] = useState<string[]>([]);
   const [filterType, setFilterType] = useState('Any Type');
   const [occupancy, setOccupancy] = useState<number | 'Any'>('Any');
+  const [selectedGender, setSelectedGender] = useState('Any');
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isOccupancyDropdownOpen, setIsOccupancyDropdownOpen] = useState(false);
+  const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [topFilter, setTopFilter] = useState<'ratings' | 'reviews'>('ratings');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [properties, setProperties] = useState<any[]>([]);
   const navigate = useNavigate();
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const favorites = profile?.favorites || [];
 
@@ -27,6 +33,16 @@ export default function Home() {
       try {
         const data = await propertyService.getApprovedProperties();
         setProperties(data);
+        
+        // Extract unique areas/locations from approved properties
+        const areas = data.map((p: any) => p.area).filter(Boolean);
+        // Remove duplicates case-insensitively
+        const unique = [...new Set(
+          areas.map((a: string) => a.toLowerCase())
+        )].map(a => areas.find(
+          (orig: string) => orig.toLowerCase() === a
+        )) as string[];
+        setAvailableLocations(unique);
       } catch (error) {
         console.error("Error fetching properties:", error);
       }
@@ -35,20 +51,26 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (isAreaPopupOpen || isTypeDropdownOpen || isOccupancyDropdownOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+        setIsTypeDropdownOpen(false);
+        setIsOccupancyDropdownOpen(false);
+        setIsGenderDropdownOpen(false);
+      }
     };
-  }, [isAreaPopupOpen, isTypeDropdownOpen, isOccupancyDropdownOpen]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const availableAreas = useMemo(() => {
-    const areas = properties.map(p => p.area).filter(Boolean);
-    return Array.from(new Set(areas));
-  }, [properties]);
+  useEffect(() => {
+    if (isTypeDropdownOpen || isOccupancyDropdownOpen || isGenderDropdownOpen || showSuggestions) {
+      setSearchFocused(true);
+    } else {
+      setSearchFocused(false);
+    }
+  }, [isTypeDropdownOpen, isOccupancyDropdownOpen, isGenderDropdownOpen, showSuggestions]);
+
 
   const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -123,11 +145,32 @@ export default function Home() {
     { q: "Do I need to provide documents?", a: "Yes, ID proof and property proof required for verification and trust." }
   ];
 
+  const handleLocationInput = (value: string) => {
+    setLocationInput(value);
+    if (value.length >= 1) {
+      const filtered = availableLocations.filter(loc =>
+        loc.toLowerCase().includes(value.toLowerCase())
+      );
+      setSuggestions(filtered);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (location: string) => {
+    setLocationInput(location);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
   const handleSearch = () => {
     const params = new URLSearchParams();
-    if (selectedAreas.length > 0) params.set('areas', selectedAreas.join(','));
+    if (locationInput) params.set('areas', locationInput);
     if (filterType !== 'Any Type') params.set('type', filterType);
     if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
+    if (selectedGender !== 'Any') params.set('gender', selectedGender);
     navigate(`/stays?${params.toString()}`);
   };
 
@@ -153,13 +196,38 @@ export default function Home() {
         .pill-glow-1 { animation: blinkGlow 3s infinite 0s; }
         .pill-glow-2 { animation: blinkGlow 3s infinite 1s; }
         .pill-glow-3 { animation: blinkGlow 3s infinite 2s; }
+        .suggestions-dropdown::-webkit-scrollbar { 
+          display: none;
+        }
+        .suggestions-dropdown {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
         @media (min-width: 1024px) {
           /* Navbar z-index handled centrally in Navbar.tsx */
         }
       `}</style>
 
       {/* Hero Section */}
-      <section className="relative flex flex-col items-center justify-end min-h-[100vh] px-4 md:px-8 pb-12 md:pb-16 overflow-hidden -mt-20 pt-24 md:pt-20">
+      <section className="relative flex flex-col items-center justify-end min-h-[100vh] px-4 md:px-8 pb-32 md:pb-40 overflow-hidden -mt-20 pt-24 md:pt-20">
+        {/* Dark Overlay when search is focused */}
+        <AnimatePresence>
+          {searchFocused && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-[15] transition-all duration-300"
+              onClick={() => {
+                setShowSuggestions(false);
+                setIsTypeDropdownOpen(false);
+                setIsOccupancyDropdownOpen(false);
+                setIsGenderDropdownOpen(false);
+              }}
+            />
+          )}
+        </AnimatePresence>
+
         {/* YouTube Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden z-0 bg-black">
           <iframe
@@ -172,31 +240,109 @@ export default function Home() {
           <div className="absolute inset-0 bg-black/60 z-10"></div>
         </div>
 
-        <div className="relative z-20 w-full max-w-5xl mx-auto flex flex-col items-center text-center">
+        <div 
+          ref={searchRef}
+          className="relative z-20 w-full max-w-5xl mx-auto flex flex-col items-center text-center"
+          style={{
+            transform: searchFocused ? 'translateY(-25vh)' : 'translateY(0)',
+            transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+        >
           <h1 className="text-3xl md:text-6xl font-extrabold text-white tracking-tight mb-8 md:mb-8 leading-[1.1] drop-shadow-2xl">
             Find your perfect Stay
           </h1>
           
           {/* Search Bar (Pill Style) */}
-          <div className="w-full max-w-xl bg-white rounded-3xl md:rounded-full shadow-2xl flex flex-col md:flex-row items-center p-2 md:p-1.5 relative z-20 border border-gray-200 gap-1 md:gap-0">
+          <div className="w-full max-w-2xl bg-white rounded-3xl md:rounded-full shadow-2xl flex flex-col md:flex-row items-center p-2 md:p-1.5 relative z-20 border border-gray-200 gap-1 md:gap-0">
             
-            {/* Where */}
-            <div 
-              className="flex-1 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors w-full text-left"
-              onClick={() => setIsAreaPopupOpen(true)}
-            >
+            {/* Where Typeahead */}
+            <div className="flex-[1.2] relative flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full transition-colors w-full text-left">
               <label className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Where</label>
-              <div className={`text-sm mt-0.5 truncate ${selectedAreas.length === 0 ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
-                {selectedAreas.length > 0 ? selectedAreas.join(', ') : 'Search destinations'}
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={locationInput}
+                  onChange={(e) => handleLocationInput(e.target.value)}
+                  onFocus={() => {
+                    if (locationInput.length >= 1) {
+                      setShowSuggestions(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay to allow click on suggestion
+                    setTimeout(() => setShowSuggestions(false), 200);
+                  }}
+                  placeholder="Search destinations"
+                  className="w-full text-sm mt-0.5 bg-transparent border-none focus:ring-0 focus:outline-none outline-none p-0 text-gray-600 font-medium placeholder-gray-400 truncate pr-6"
+                />
+                
+                {locationInput && (
+                  <button
+                    onClick={() => {
+                      setLocationInput('');
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                    }}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={14} strokeWidth={3} />
+                  </button>
+                )}
               </div>
+
+              <AnimatePresence>
+                {showSuggestions && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="suggestions-dropdown absolute top-[calc(100%+8px)] left-0 right-0 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] max-h-[200px] overflow-y-auto mt-1 p-2"
+                  >
+                    {suggestions.length > 0 ? (
+                      suggestions.map((location, index) => (
+                        <div
+                          key={index}
+                          onMouseDown={() => handleSelectSuggestion(location)}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors rounded-xl border-b border-gray-50 last:border-0"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                            <MapPin size={16} />
+                          </div>
+                          <span className="text-sm font-bold text-gray-800">
+                            {(() => {
+                              const index = location.toLowerCase().indexOf(locationInput.toLowerCase());
+                              if (index === -1) return location;
+                              const before = location.substring(0, index);
+                              const match = location.substring(index, index + locationInput.length);
+                              const after = location.substring(index + locationInput.length);
+                              return (
+                                <>
+                                  {before}
+                                  <span className="text-primary">{match}</span>
+                                  {after}
+                                </>
+                              );
+                            })()}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-8 text-sm text-gray-400 text-center font-medium italic">
+                        No locations found
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
 
-            <div className="flex w-full md:w-auto gap-2">
+            <div className="flex w-full md:w-auto gap-1">
               {/* Type */}
               <div 
-                className="flex-1 md:w-32 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
+                className="flex-[0.8] md:w-28 flex flex-col px-4 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
                 onClick={() => setIsTypeDropdownOpen(true)}
               >
                 <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Type</div>
@@ -205,16 +351,29 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="h-6 w-px bg-gray-300 hidden md:block mx-1"></div>
+              <div className="h-6 w-px bg-gray-300 hidden md:block"></div>
 
               {/* Occupancy */}
               <div 
-                className="flex-1 md:w-32 flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
+                className="flex-[0.8] md:w-28 flex flex-col px-4 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
                 onClick={() => setIsOccupancyDropdownOpen(true)}
               >
                 <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Guests</div>
                 <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
                   {occupancy === 'Any' ? 'Any' : `${occupancy} Guests`}
+                </div>
+              </div>
+
+              <div className="h-6 w-px bg-gray-300 hidden md:block"></div>
+
+              {/* Gender */}
+              <div 
+                className="flex-[0.8] md:w-28 flex flex-col px-4 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
+                onClick={() => setIsGenderDropdownOpen(true)}
+              >
+                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Gender</div>
+                <div className={`text-sm mt-0.5 truncate ${selectedGender === 'Any' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
+                  {selectedGender === 'Any' ? 'Any' : selectedGender}
                 </div>
               </div>
             </div>
@@ -230,84 +389,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Multi-select Area Popup */}
-        <AnimatePresence>
-          {isAreaPopupOpen && (
-            <div className="modal-overlay p-4">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/60 shadow-2xl backdrop-blur-md"
-                onClick={() => setIsAreaPopupOpen(false)}
-              />
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 30 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                className="modal-content relative bg-white rounded-[32px] w-full max-w-md flex flex-col"
-              >
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <div>
-                    <h3 className="text-xl font-extrabold text-[#1A1A2E]">Select Destinations</h3>
-                    <p className="text-xs text-gray-500 font-medium mt-0.5">Select multiple areas to search</p>
-                  </div>
-                  <button 
-                    onClick={() => setIsAreaPopupOpen(false)}
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
-                  {availableAreas.length === 0 ? (
-                    <div className="p-8 text-center text-gray-400 italic">No areas found.</div>
-                  ) : (
-                    <div className="space-y-1">
-                      {availableAreas.map((area) => (
-                        <div 
-                          key={area}
-                          className={`group px-5 py-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all duration-200 border-2 ${
-                            selectedAreas.includes(area) 
-                              ? 'bg-primary/5 border-primary' 
-                              : 'hover:bg-gray-50 border-transparent hover:border-gray-200'
-                          }`}
-                          onClick={() => {
-                            setSelectedAreas(prev => 
-                              prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
-                            );
-                          }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl transition-colors ${selectedAreas.includes(area) ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
-                              <MapPin size={18} />
-                            </div>
-                            <span className={`text-base font-bold transition-colors ${selectedAreas.includes(area) ? 'text-primary' : 'text-gray-700'}`}>
-                              {area}
-                            </span>
-                          </div>
-                          {selectedAreas.includes(area) && (
-                            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                              <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="p-6 bg-gray-50 border-t border-gray-100">
-                  <button 
-                    onClick={() => setIsAreaPopupOpen(false)}
-                    className="w-full py-4 bg-[#1A1A2E] text-white rounded-2xl font-bold hover:bg-[#2A2A3E] transition-all transform active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
-                  >
-                    {selectedAreas.length > 0 ? `Apply ${selectedAreas.length} Areas` : 'Select Areas'}
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
 
         {/* Property Type Popup Modal */}
         <AnimatePresence>
@@ -416,6 +497,70 @@ export default function Home() {
                           {num === 'Any' ? 'Any Occupancy' : `${num} Guest${typeof num === 'number' && num > 1 ? 's' : ''}`}
                         </span>
                         {occupancy === num && (
+                          <Check className="w-5 h-5 text-primary" strokeWidth={3} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Gender Popup Modal */}
+        <AnimatePresence>
+          {isGenderDropdownOpen && (
+            <div className="modal-overlay p-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/60 shadow-2xl backdrop-blur-md"
+                onClick={() => setIsGenderDropdownOpen(false)}
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                className="modal-content relative bg-white rounded-[32px] w-full max-w-sm flex flex-col"
+              >
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#1A1A2E]">Gender</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Filter by gender preference</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsGenderDropdownOpen(false)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="space-y-1">
+                    {[
+                      { label: 'Any', value: 'Any' },
+                      { label: 'Male ♂️', value: 'Male' },
+                      { label: 'Female ♀️', value: 'Female' },
+                      { label: 'Other ⚧️', value: 'Other' }
+                    ].map((gender) => (
+                      <div 
+                        key={gender.value}
+                        className={`px-5 py-4 rounded-2xl cursor-pointer flex items-center justify-between transition-all duration-200 border-2 ${
+                          selectedGender === gender.value 
+                            ? 'bg-primary/5 border-primary' 
+                            : 'hover:bg-gray-50 border-transparent'
+                        }`}
+                        onClick={() => {
+                          setSelectedGender(gender.value);
+                          setIsGenderDropdownOpen(false);
+                        }}
+                      >
+                        <span className={`text-base font-bold ${selectedGender === gender.value ? 'text-primary' : 'text-gray-700'}`}>
+                          {gender.label}
+                        </span>
+                        {selectedGender === gender.value && (
                           <Check className="w-5 h-5 text-primary" strokeWidth={3} />
                         )}
                       </div>

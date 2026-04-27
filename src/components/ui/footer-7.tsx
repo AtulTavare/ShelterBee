@@ -1,5 +1,5 @@
 import React from "react";
-import { Facebook, Instagram, Linkedin, Twitter, ArrowUpRight } from "lucide-react";
+import { Facebook, Instagram, Twitter, ArrowUpRight } from "lucide-react";
 
 interface Footer7Props {
   logo?: {
@@ -57,7 +57,6 @@ const defaultSocialLinks = [
   { icon: <Instagram className="w-5 h-5" />, href: "https://www.instagram.com/shelterbee_4_you", label: "Instagram" },
   { icon: <Facebook className="w-5 h-5" />, href: "https://www.facebook.com/share/1BQoUFoHto/", label: "Facebook" },
   { icon: <Twitter className="w-5 h-5" />, href: "https://x.com/ShelterBee8426", label: "Twitter" },
-  { icon: <Linkedin className="w-5 h-5" />, href: "#", label: "LinkedIn" },
 ];
 
 const defaultLegalLinks = [

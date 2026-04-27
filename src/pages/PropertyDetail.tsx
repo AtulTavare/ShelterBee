@@ -503,7 +503,7 @@ export default function PropertyDetail() {
                         <div key={review.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                           <div className="flex items-center gap-4">
                             <img 
-                              src={review.visitorAvatar || getAvatarUrl(review.visitorName)} 
+                              src={review.visitorAvatar || getAvatarUrl()} 
                               alt={review.visitorName} 
                               className="w-12 h-12 rounded-full bg-slate-100" 
                               referrerPolicy="no-referrer" 

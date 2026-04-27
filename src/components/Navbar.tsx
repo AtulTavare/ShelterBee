@@ -151,7 +151,7 @@ export default function Navbar() {
                   </Link>
                   <Link to={isAdmin ? '/admin-secret-dashboard' : '/profile'} className="hidden sm:block cursor-pointer">
                     <img 
-                      src={user.photoURL || getAvatarUrl(user.email || user.uid)} 
+                      src={user.photoURL || getAvatarUrl(profile?.gender)} 
                       alt="Profile" 
                       className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-outline-variant hover:border-primary transition-colors bg-gray-100" 
                     />
@@ -171,7 +171,7 @@ export default function Navbar() {
                     className="hidden sm:flex items-center gap-2 hover:text-primary transition-colors"
                   >
                     <img 
-                      src={getAvatarUrl(`guest-${guestSeed}`)} 
+                      src={getAvatarUrl()} 
                       alt="Guest Profile" 
                       className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-outline-variant hover:border-primary transition-colors bg-gray-100" 
                     />
@@ -261,12 +261,12 @@ export default function Navbar() {
             <div className="w-10"></div>
           </div>
 
-          <div className="flex-1 overflow-y-auto pb-24">
+          <div className="flex-1 overflow-y-auto pb-24 hide-scrollbar">
             {/* Profile Card */}
             <div className="p-4">
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
                 <img 
-                  src={user?.photoURL || getAvatarUrl(user?.email || user?.uid || 'guest')} 
+                  src={user?.photoURL || getAvatarUrl(profile?.gender || 'male')} 
                   alt="Profile" 
                   className="w-16 h-16 rounded-full border-2 border-primary/10 object-cover" 
                 />
@@ -332,7 +332,7 @@ export default function Navbar() {
                 <Link 
                   to="/about-us"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-5 py-4 border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
@@ -342,18 +342,6 @@ export default function Navbar() {
                   </div>
                   <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
                 </Link>
-                <div className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-lg text-gray-600">dark_mode</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">Theme</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 font-medium">Light</span>
-                    <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
-                  </div>
-                </div>
               </div>
             </div>
 
