@@ -38,6 +38,10 @@ export default function BookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
 
+  useEffect(() => {
+    document.title = 'Book Property - ShelterBee'
+  }, [])
+
   // Step 1: Dates
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,

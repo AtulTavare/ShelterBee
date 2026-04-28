@@ -120,6 +120,10 @@ export default function Profile() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [rejectedProperties, setRejectedProperties] = useState<any[]>([]);
 
+  useEffect(() => {
+    document.title = 'My Profile - ShelterBee'
+  }, [])
+
   // Realtime Wallet State
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [walletTransactions, setWalletTransactions] = useState<any[]>([]);
@@ -1161,6 +1165,19 @@ function MyBookingsTab() {
             const owner = ownersInfo[booking.ownerId];
             const isLoadingOwner = loadingOwners[booking.ownerId];
             const hasReviewed = userReviews.some(r => r.bookingId === booking.id);
+            const isValidGoogleMapsLink = (url: string | undefined): boolean => {
+              if (!url || url.trim() === '') return false
+              const validPatterns = [
+                'google.com/maps',
+                'maps.google.com', 
+                'maps.app.goo.gl',
+                'goo.gl/maps',
+                'maps.googleapis.com'
+              ]
+              return validPatterns.some(pattern => 
+                url.toLowerCase().includes(pattern)
+              )
+            }
 
             return (
               <div 
@@ -1333,6 +1350,15 @@ function MyBookingsTab() {
                         );
                       })()}
 
+                      {isValidGoogleMapsLink(booking.property?.googleMapsLink) && (booking.status === 'confirmed' || booking.status === 'completed') && (
+                        <button
+                          onClick={() => window.open(booking.property?.googleMapsLink!, '_blank', 'noopener,noreferrer')}
+                          className="flex-1 min-w-[140px] py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/10"
+                        >
+                          <MapPin className="w-4 h-4" /> View Location
+                        </button>
+                      )}
+                      
                       <button 
                         onClick={() => { setSelectedBooking(booking); setShowReportModal(true); }}
                         className="flex-1 min-w-[140px] py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-slate-200 flex items-center justify-center gap-2 shadow-lg shadow-slate-500/5"

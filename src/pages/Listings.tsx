@@ -46,6 +46,17 @@ export default function Listings() {
   }, []);
 
   useEffect(() => {
+    document.title = 'Search Properties - ShelterBee'
+    // Update meta description for search page
+    const metaDesc = document.querySelector(
+      'meta[name="description"]'
+    )
+    if (metaDesc) {
+      metaDesc.setAttribute('content',
+        'ShelterBee is India\'s trusted platform for finding verified PGs, hostels, rooms, and rental properties. Browse affordable short and long-term stays near you, connect directly with verified property owners, and book your perfect stay in minutes.'
+      )
+    }
+
     const params = new URLSearchParams(location.search);
     const type = params.get('type');
     const occ = params.get('occupancy');

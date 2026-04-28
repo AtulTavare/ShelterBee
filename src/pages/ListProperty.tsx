@@ -69,6 +69,7 @@ export default function ListProperty() {
     type: 'Room',
     area: '',
     address: '',
+    googleMapsLink: '', // added
     price: '',
     photos: [] as File[],
     description: '',
@@ -89,6 +90,43 @@ export default function ListProperty() {
     checkInTime: '12:00 PM',
     checkOutTime: '11:00 AM',
   });
+
+  const [googleMapsLink, setGoogleMapsLink] = useState('')
+  const [mapsLinkError, setMapsLinkError] = useState('')
+  const [mapsLinkValid, setMapsLinkValid] = useState(false)
+
+  const isValidGoogleMapsLink = (url: string): boolean => {
+    if (!url || url.trim() === '') return false
+    const validPatterns = [
+      'google.com/maps',
+      'maps.google.com',
+      'maps.app.goo.gl',
+      'goo.gl/maps',
+      'maps.googleapis.com'
+    ]
+    return validPatterns.some(pattern => 
+      url.toLowerCase().includes(pattern)
+    )
+  }
+
+  const handleMapsLinkChange = (value: string) => {
+    setGoogleMapsLink(value)
+    if (value.trim() === '') {
+      setMapsLinkError('')
+      setMapsLinkValid(false)
+      return
+    }
+    if (isValidGoogleMapsLink(value)) {
+      setMapsLinkError('')
+      setMapsLinkValid(true)
+    } else {
+      setMapsLinkError(
+        'Please enter a valid Google Maps link only. ' +
+        'Random text or other links are not accepted.'
+      )
+      setMapsLinkValid(false)
+    }
+  }
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAdminEdit, setIsAdminEdit] = useState(false);
@@ -142,6 +180,12 @@ export default function ListProperty() {
         checkInTime: property.checkInTime || '12:00 PM',
         checkOutTime: property.checkOutTime || '11:00 AM',
       });
+      setGoogleMapsLink(property.googleMapsLink || '');
+      if (property.googleMapsLink) {
+        setMapsLinkValid(
+          isValidGoogleMapsLink(property.googleMapsLink)
+        );
+      }
       // Store existing photos to show them
       (window as any)._existingPhotos = property.photos;
     }
@@ -399,6 +443,7 @@ export default function ListProperty() {
         gender: formData.gender,
         checkInTime: formData.checkInTime,
         checkOutTime: formData.checkOutTime,
+        googleMapsLink: mapsLinkValid ? googleMapsLink.trim() : '',
         submissionType: isEditMode 
           ? (existingProperty?.status === 'Rejected' ? 'resubmission' : 'changes approval') 
           : 'new_listing' as any,
@@ -623,6 +668,39 @@ export default function ListProperty() {
                       className="w-full border border-outline-variant rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary bg-surface-container-lowest text-on-surface"
                       placeholder="Enter full address with landmark and pincode"
                     />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-on-surface mb-2">
+                      Google Maps Location Link
+                      <span className="text-gray-400 font-normal ml-2">
+                        (Optional - shown to visitors after booking)
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="url"
+                        value={googleMapsLink}
+                        onChange={(e) => handleMapsLinkChange(e.target.value)}
+                        placeholder="https://maps.google.com/..."
+                        className="w-full border border-outline-variant rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary bg-surface-container-lowest text-on-surface pr-10"
+                      />
+                      {googleMapsLink && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg">
+                          {mapsLinkValid ? '✅' : '❌'}
+                        </span>
+                      )}
+                    </div>
+                    {mapsLinkError && (
+                      <p className="text-red-500 text-xs font-medium">
+                        {mapsLinkError}
+                      </p>
+                    )}
+                    {!mapsLinkError && (
+                      <p className="text-gray-400 text-xs">
+                        How to get link: Open Google Maps → Search your property location → Tap Share → Copy Link → Paste here
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               )}

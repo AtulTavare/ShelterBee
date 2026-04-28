@@ -162,6 +162,12 @@ export default function PropertyDetail() {
     return () => unsubscribeReviews();
   }, [id, navigate, loading]);
 
+  useEffect(() => {
+    if (property) {
+      document.title = `${property.title} - ${property.area} | ShelterBee`
+    }
+  }, [property])
+
   if (!property) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
   return (

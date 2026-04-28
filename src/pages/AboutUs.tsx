@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Home, 
@@ -34,6 +34,10 @@ const AboutUs = () => {
       }
     }
   } as any;
+
+  useEffect(() => {
+    document.title = 'About Us - ShelterBee'
+  }, [])
 
   const values = [
     {

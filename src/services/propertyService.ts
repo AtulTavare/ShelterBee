@@ -42,6 +42,7 @@ export interface Property {
   unavailableFrom?: string; // ISO string
   unavailableTo?: string; // ISO string
   unavailabilityOption?: 'today' | 'range' | 'manual';
+  googleMapsLink?: string;
 }
 
 export const propertyService = {

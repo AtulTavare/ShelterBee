@@ -71,6 +71,10 @@ export default function Home() {
     }
   }, [isTypeDropdownOpen, isOccupancyDropdownOpen, isGenderDropdownOpen, showSuggestions]);
 
+  useEffect(() => {
+    document.title = 'ShelterBee - Find Verified PGs, Hostels & Rental Properties in India';
+  }, []);
+
 
   const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

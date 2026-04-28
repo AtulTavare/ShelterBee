@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /stays
+Allow: /about
+Allow: /support
+Allow: /list-property
+Disallow: /admin-secret-dashboard
+Disallow: /profile
+Disallow: /booking
+Disallow: /api/
+
+Sitemap: https://shelterbee.vercel.app/sitemap.xml
