@@ -161,6 +161,7 @@ export default function ListProperty() {
         type: property.type,
         area: property.area,
         address: property.address,
+        googleMapsLink: property.googleMapsLink || '',
         price: property.pricePerDay.toString(),
         photos: property.photos.map(() => null), // Use nulls as placeholders for existing photos
         description: property.description,

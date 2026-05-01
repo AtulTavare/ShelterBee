@@ -13,6 +13,7 @@ export interface UserProfile {
   photoURL: string | null;
   role: UserRole;
   createdAt: any;
+  phone?: string;
   phoneNumber?: string;
   location?: string;
   gender?: string;

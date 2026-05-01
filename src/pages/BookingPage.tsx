@@ -11,6 +11,7 @@ import { walletService } from '../services/walletService';
 import { emailService } from '../services/emailService';
 import { emailTemplates } from '../services/emailTemplates';
 import { userService } from '../services/userService';
+import { sendBookingConfirmationToVisitor, sendNewBookingAlertToOwner } from '../services/whatsappService';
 import { showToast } from '../utils/toast';
 import { 
   ChevronLeft, 
@@ -270,6 +271,62 @@ export default function BookingPage() {
         }
       } catch (emailError) {
         console.error("Failed to send booking emails:", emailError);
+      }
+
+      try {
+        const visitorProfile = await userService
+          .getUserProfile(user.uid)
+        
+        if (visitorProfile?.phone || visitorProfile?.phoneNumber) {
+          const mobile = visitorProfile.phone || 
+            visitorProfile.phoneNumber
+          
+          const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
+          const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
+          
+          await sendBookingConfirmationToVisitor(
+            mobile,
+            visitorProfile.displayName || 'Guest',
+            property.title,
+            inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            totalGuests,
+            totalAmount,
+            property.address || property.area,
+            property.googleMapsLink || ''
+          )
+        }
+      } catch (waError) {
+        console.error('WhatsApp booking confirmation failed:', 
+          waError)
+      }
+
+      try {
+        const ownerProfile = await userService
+          .getUserProfile(property.ownerId)
+        
+        if (ownerProfile?.phone || ownerProfile?.phoneNumber) {
+          const visitorProfile = await userService.getUserProfile(user.uid)
+          const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
+          const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
+
+          await sendNewBookingAlertToOwner(
+            ownerProfile.phone || ownerProfile.phoneNumber,
+            ownerProfile.displayName || 'Owner',
+            property.title,
+            visitorProfile?.displayName || guests[0].name || 'Guest',
+            visitorProfile?.phone || visitorProfile?.phoneNumber || guests[0].contactNo || 'N/A',
+            inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            effectiveNights,
+            totalGuests,
+            bookingId,
+            totalAmount
+          )
+        }
+      } catch (waError) {
+        console.error('WhatsApp booking alert to owner failed:', 
+          waError)
       }
 
       showToast("Booking confirmed successfully!", "success");

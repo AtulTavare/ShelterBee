@@ -6,6 +6,7 @@ import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { emailService } from '../../services/emailService';
 import { emailTemplates } from '../../services/emailTemplates';
+import { sendPropertyApprovalToOwner, sendPropertyRejectionToOwner } from '../../services/whatsappService';
 import { collection, query, where, onSnapshot, limit, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -84,6 +85,19 @@ export const AdminPendingApprovals = () => {
         } catch (e) {
           console.error("Failed to send email:", e);
         }
+
+        try {
+          const ownerProfile = await userService.getUserProfile(property.ownerId);
+          if (ownerProfile?.phone || ownerProfile?.phoneNumber) {
+            await sendPropertyApprovalToOwner(
+              ownerProfile.phone || ownerProfile.phoneNumber,
+              ownerProfile.displayName || 'Owner',
+              property.title
+            );
+          }
+        } catch (waError) {
+          console.error('WhatsApp property approval failed:', waError);
+        }
       }
 
       setSelectedProperty(null);
@@ -116,6 +130,20 @@ export const AdminPendingApprovals = () => {
         }
       } catch (e) {
         console.error("Failed to send email:", e);
+      }
+
+      try {
+        const ownerProfile = await userService.getUserProfile(selectedProperty.ownerId);
+        if (ownerProfile?.phone || ownerProfile?.phoneNumber) {
+          await sendPropertyRejectionToOwner(
+            ownerProfile.phone || ownerProfile.phoneNumber,
+            ownerProfile.displayName || 'Owner',
+            selectedProperty.title,
+            finalReason
+          );
+        }
+      } catch (waError) {
+        console.error('WhatsApp property rejection failed:', waError);
       }
 
       setShowRejectModal(false);

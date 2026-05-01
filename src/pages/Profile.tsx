@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { mockProperties } from '../data/mockProperties';
 import { bookingService, Booking } from '../services/bookingService';
 import { propertyService } from '../services/propertyService';
+import { sendBookingRejectionToVisitor } from '../services/whatsappService';
 import { emailService } from '../services/emailService';
 import { userService } from '../services/userService';
 import { reviewService, Review } from '../services/reviewService';
@@ -403,6 +404,18 @@ function NewBookingsTab() {
           subject: template.subject,
           html: template.html
         });
+      }
+
+      try {
+        if (visitorProfile?.phone || visitorProfile?.phoneNumber) {
+          await sendBookingRejectionToVisitor(
+            visitorProfile.phone || visitorProfile.phoneNumber,
+            visitorProfile.displayName || 'Guest',
+            selectedBooking.property?.title || 'Property'
+          );
+        }
+      } catch (waError) {
+        console.error('WhatsApp rejection notification failed:', waError);
       }
 
       showToast("Booking rejected and refund processed", "success");
