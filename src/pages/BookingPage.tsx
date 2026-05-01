@@ -279,15 +279,17 @@ export default function BookingPage() {
         const ownerProfile = await userService
           .getUserProfile(property.ownerId)
         
+        console.log('Visitor profile:', visitorProfile)
+        console.log('Visitor phone:', visitorProfile?.phone || visitorProfile?.phoneNumber || (visitorProfile as any)?.mobile)
+        
         // WhatsApp to visitor - booking confirmation
-        if (visitorProfile?.phone || 
-            visitorProfile?.phoneNumber) {
+        const visitorMobile = visitorProfile?.phone || visitorProfile?.phoneNumber || (visitorProfile as any)?.mobile || guests[0]?.contactNo;
+        if (visitorMobile) {
           const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
           const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
           await sendBookingConfirmationToVisitor(
-            visitorProfile.phone || 
-              visitorProfile.phoneNumber,
-            visitorProfile.displayName || 'Guest',
+            visitorMobile,
+            visitorProfile?.displayName || guests[0]?.name || 'Guest',
             property.title,
             inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
             outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -296,24 +298,23 @@ export default function BookingPage() {
             property.address || '',
             property.googleMapsLink || ''
           )
+          console.log('Visitor WhatsApp sent to:', visitorMobile)
         }
 
         // WhatsApp to owner - new booking alert
-        if (ownerProfile?.phone || 
-            ownerProfile?.phoneNumber) {
+        const ownerMobile = ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile || (ownerProfile as any)?.contactNumber;
+        if (ownerMobile) {
           const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
           const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
           const diff = outDate.getTime() - inDate.getTime()
           const nights = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
           await sendNewBookingAlertToOwner(
-            ownerProfile.phone || 
-              ownerProfile.phoneNumber,
-            ownerProfile.displayName || 'Owner',
+            ownerMobile,
+            ownerProfile?.displayName || 'Owner',
             property.title,
-            visitorProfile?.displayName || guests[0].name || 'Guest',
-            visitorProfile?.phone || 
-              visitorProfile?.phoneNumber || guests[0].contactNo || 'N/A',
+            visitorProfile?.displayName || guests[0]?.name || 'Guest',
+            visitorMobile || 'N/A',
             inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
             outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
             nights,
@@ -321,6 +322,7 @@ export default function BookingPage() {
             bookingId,
             totalAmount
           )
+          console.log('Owner WhatsApp sent to:', ownerMobile)
         }
       } catch (waError) {
         console.error(
