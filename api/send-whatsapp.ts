@@ -50,7 +50,7 @@ export default async function handler(
             kind: 'template',
             template: {
               name: templateName,
-              language: 'en',
+              language: 'en_US',
               components: components || []
             }
           }]

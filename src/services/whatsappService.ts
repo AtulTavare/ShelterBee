@@ -57,7 +57,7 @@ export const sendBookingConfirmationToVisitor = async (
   await sendWhatsApp(
     visitorMobile,
     visitorName,
-    'booking_confirmation_for_visitors',
+    'booking_confirmation_for_visitors_20260429162121',
     [buildBodyComponent([
       visitorName,
       propertyName,
@@ -79,7 +79,7 @@ export const sendBookingRejectionToVisitor = async (
   await sendWhatsApp(
     visitorMobile,
     visitorName,
-    'visitor_apologies',
+    'visitor_apologies_20260428005608',
     [buildBodyComponent([
       visitorName,
       propertyName
@@ -106,7 +106,7 @@ export const sendNewBookingAlertToOwner = async (
   await sendWhatsApp(
     ownerMobile,
     ownerName,
-    'booking_alert_for_channel_partner',
+    'booking_alert_for_channel_partner_20260428005151',
     [buildBodyComponent([
       propertyName,
       guestName,
@@ -131,7 +131,7 @@ export const sendPropertyApprovalToOwner = async (
   await sendWhatsApp(
     ownerMobile,
     ownerName,
-    'property_approval_template',
+    'property_approval_template__20260428003741',
     [buildBodyComponent([
       ownerName,
       propertyName
@@ -148,7 +148,7 @@ export const sendPropertyRejectionToOwner = async (
   await sendWhatsApp(
     ownerMobile,
     ownerName,
-    'property_rejection_template',
+    'property_rejection_template_20260427165038',
     [buildBodyComponent([
       ownerName,
       propertyName,
