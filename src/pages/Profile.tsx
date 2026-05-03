@@ -1271,7 +1271,7 @@ function MyBookingsTab() {
                       </div>
 
                       {/* Owner Info - Only shown post-booking (confirmed) */}
-                      {booking.status === 'confirmed' && (
+                      {(booking.status === 'confirmed' || booking.status === 'pending_owner') && (
                         <div className="mb-8 bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm">
                           <h4 className="text-[10px] font-black text-[#F59E0B] uppercase tracking-[0.2em] mb-4">Host Contact Details</h4>
                           {isLoadingOwner ? (
