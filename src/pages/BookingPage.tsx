@@ -279,16 +279,31 @@ export default function BookingPage() {
         const ownerProfile = await userService
           .getUserProfile(property.ownerId)
         
-        console.log('Visitor profile:', visitorProfile)
-        console.log('Visitor phone:', visitorProfile?.phone || visitorProfile?.phoneNumber || (visitorProfile as any)?.mobile)
-        
-        // WhatsApp to visitor - booking confirmation
-        const visitorMobile = visitorProfile?.phone || visitorProfile?.phoneNumber || (visitorProfile as any)?.mobile || guests[0]?.contactNo;
+        console.log('Guest 0 full object:', guests[0])
+        console.log('All guest keys:', Object.keys(guests[0] || {}))
+
+        const visitorMobile = (guests[0] as any)?.contactNo || 
+          (guests[0] as any)?.phone ||
+          (guests[0] as any)?.phoneNumber ||
+          (guests[0] as any)?.contact
+
+        let formattedMobile = '';
         if (visitorMobile) {
+          const cleanMobile = visitorMobile
+            .toString()
+            .replace(/[\s\-\(\)]/g, '')
+          formattedMobile = cleanMobile.startsWith('+')
+            ? cleanMobile.slice(1)
+            : cleanMobile.startsWith('91')
+              ? cleanMobile
+              : `91${cleanMobile}`
+        }
+
+        if (formattedMobile) {
           const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
           const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
           await sendBookingConfirmationToVisitor(
-            visitorMobile,
+            formattedMobile,
             visitorProfile?.displayName || guests[0]?.name || 'Guest',
             property.title,
             inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -302,7 +317,18 @@ export default function BookingPage() {
         }
 
         // WhatsApp to owner - new booking alert
-        const ownerMobile = ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile || (ownerProfile as any)?.contactNumber;
+        let rawOwnerMobile = ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile || (ownerProfile as any)?.contactNumber;
+        let ownerMobile = '';
+        
+        if (rawOwnerMobile) {
+          const cleanMobile = rawOwnerMobile.toString().replace(/[\s\-\(\)]/g, '')
+          ownerMobile = cleanMobile.startsWith('+') 
+            ? cleanMobile.slice(1) 
+            : cleanMobile.startsWith('91') 
+              ? cleanMobile 
+              : `91${cleanMobile}`
+        }
+
         if (ownerMobile) {
           const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
           const outDate = dateRange.to ? new Date(dateRange.to) : new Date()

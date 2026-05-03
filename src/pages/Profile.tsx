@@ -495,9 +495,9 @@ function NewBookingsTab() {
     const now = new Date();
     let filtered = [];
     if (activeSubTab === 'new') {
-      filtered = allBookings.filter(b => b.status === 'pending_owner');
+      filtered = allBookings.filter(b => b.status === 'pending_owner' || (b.status === 'confirmed' && !b.acceptedAt));
     } else if (activeSubTab === 'confirmed') {
-      filtered = allBookings.filter(b => b.status === 'confirmed');
+      filtered = allBookings.filter(b => b.status === 'confirmed' && !!b.acceptedAt);
     } else if (activeSubTab === 'cancelled') {
       filtered = allBookings.filter(b => b.status === 'cancelled');
     } else if (activeSubTab === 'rejected') {
@@ -571,9 +571,9 @@ function NewBookingsTab() {
                     <div className="min-w-0">
                       <h3 className="font-bold text-[#1A1A2E] text-xs leading-tight truncate">{booking.visitorName}</h3>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === 'pending_owner' ? 'bg-amber-400 animate-pulse' : booking.status === 'confirmed' ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${(booking.status === 'pending_owner' || (booking.status === 'confirmed' && !booking.acceptedAt)) ? 'bg-amber-400 animate-pulse' : booking.status === 'confirmed' ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
                         <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest truncate">
-                          {booking.status === 'pending_owner' ? 'Pending' : booking.status}
+                          {(booking.status === 'pending_owner' || (booking.status === 'confirmed' && !booking.acceptedAt)) ? 'Pending' : booking.status}
                         </p>
                       </div>
                     </div>
@@ -601,12 +601,12 @@ function NewBookingsTab() {
 
                 <div className="flex items-center gap-1 mb-4 text-[10px] font-medium text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">
                   <Home className="w-2.5 h-2.5 text-amber-500 shrink-0" />
-                  <span className="truncate">{booking.property?.title || 'Property Details'}</span>
+                  <span className="truncate">{booking.property?.title || (booking as any).propertyTitle || (booking as any).propertyName}</span>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                {booking.status === 'pending_owner' ? (
+                {(booking.status === 'pending_owner' || (booking.status === 'confirmed' && !booking.acceptedAt)) ? (
                   <>
                     <button 
                       onClick={() => { setSelectedBooking(booking); setShowRejectModal(true); }} 
@@ -1323,23 +1323,33 @@ function MyBookingsTab() {
                     </div>
 
                     {/* Action Suite */}
+                    {!['cancelled', 'rejected_by_owner', 'completed'].includes(booking.status) && (
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-slate-50">
-                      {booking.status === 'confirmed' && (
-                        <button 
-                          onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
-                          disabled={hasReviewed}
-                          className={`flex-1 min-w-[140px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${
-                            hasReviewed 
-                              ? 'bg-amber-50 text-amber-300 cursor-not-allowed border border-amber-100' 
-                              : 'bg-amber-50 text-[#F59E0B] hover:bg-amber-100 border border-amber-100 shadow-amber-500/5'
-                          }`}
-                        >
-                          <Star className={`w-4 h-4 ${hasReviewed ? 'fill-amber-200' : 'fill-amber-400 text-amber-400'}`} />
-                          {hasReviewed ? 'Reviewed' : 'Rate & Review'}
-                        </button>
-                      )}
+                      {(() => {
+                        const now = new Date();
+                        const checkOut = booking.checkOut ? new Date(booking.checkOut) : null;
+                        
+                        // Show "Rate & Review" ONLY if after checkout
+                        if (checkOut && now > checkOut) {
+                          return (
+                            <button 
+                              onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }}
+                              disabled={hasReviewed}
+                              className={`flex-1 min-w-[140px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${
+                                hasReviewed 
+                                  ? 'bg-amber-50 text-amber-300 cursor-not-allowed border border-amber-100' 
+                                  : 'bg-amber-50 text-[#F59E0B] hover:bg-amber-100 border border-amber-100 shadow-amber-500/5'
+                              }`}
+                            >
+                              <Star className={`w-4 h-4 ${hasReviewed ? 'fill-amber-200' : 'fill-amber-400 text-amber-400'}`} />
+                              {hasReviewed ? 'Reviewed' : 'Rate & Review'}
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                       
-                      {booking.status === 'confirmed' && (() => {
+                      {(() => {
                         const now = new Date();
                         const checkIn = booking.checkIn ? new Date(booking.checkIn) : null;
                         const checkOut = booking.checkOut ? new Date(booking.checkOut) : null;
@@ -1363,7 +1373,7 @@ function MyBookingsTab() {
                         );
                       })()}
 
-                      {isValidGoogleMapsLink(booking.property?.googleMapsLink) && (booking.status === 'confirmed' || booking.status === 'completed') && (
+                      {isValidGoogleMapsLink(booking.property?.googleMapsLink) && (
                         <button
                           onClick={() => window.open(booking.property?.googleMapsLink!, '_blank', 'noopener,noreferrer')}
                           className="flex-1 min-w-[140px] py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/10"
@@ -1379,6 +1389,7 @@ function MyBookingsTab() {
                         <ShieldAlert className="w-4 h-4" /> Report
                       </button>
                     </div>
+                    )}
                   </div>
                 </div>
               </div>

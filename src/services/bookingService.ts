@@ -43,9 +43,14 @@ export interface Booking {
 export const bookingService = {
   async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>) {
     try {
+      // NOTE: Firebase Console firestore.rules update needed manually:
+      // In bookings create rule change:
+      // incoming().status == 'pending_owner'
+      // TO:
+      // incoming().status in ['confirmed', 'pending_owner']
       const docRef = await addDoc(collection(db, 'bookings'), {
         ...bookingData,
-        status: 'pending_owner',
+        status: 'confirmed',
         walletProcessed: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -130,21 +135,28 @@ export const bookingService = {
       const bookingRef = doc(db, 'bookings', bookingId);
       const refundAmount = booking.totalAmount * (refundPercent / 100);
 
+      console.log('Cancel step 1: updating status...');
       await updateDoc(bookingRef, {
         status: 'cancelled',
         refundPercentage: refundPercent,
         refundAmount: refundAmount,
+        cancelledAt: serverTimestamp(),
+        cancelledBy: 'visitor',
         updatedAt: serverTimestamp()
       });
+      console.log('Booking cancelled successfully');
 
+      console.log('Cancel step 2: processing wallet...');
       try {
         await walletService.processCancellationWallet(
           booking, 
           refundPercent
         );
+        console.log('Wallet updated after cancellation');
       } catch (walletError) {
-        console.error('Cancellation wallet failed:', walletError);
+        console.error('Wallet update failed but booking cancelled:', walletError);
       }
+      console.log('Cancel step 3: done');
 
       return true;
     } catch (error) {
