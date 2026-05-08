@@ -1,22 +1,22 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  serverTimestamp, 
-  runTransaction, 
-  onSnapshot, 
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  serverTimestamp,
+  runTransaction,
+  onSnapshot,
   limit,
   Transaction,
-  Timestamp
-} from 'firebase/firestore';
-import { db } from '../firebase';
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
 
 export interface Wallet {
   userId: string;
@@ -30,7 +30,7 @@ export interface Wallet {
 export interface WalletTransaction {
   id?: string; // Added
   userId: string;
-  type: 'credit' | 'debit';
+  type: "credit" | "debit";
   amount: number;
   description: string;
   reason?: string; // Added for UI
@@ -50,7 +50,7 @@ export interface WithdrawalRequest {
   id?: string;
   userId: string;
   amount: number;
-  status: 'pending' | 'completed' | 'rejected';
+  status: "pending" | "completed" | "rejected";
   bankAccount: {
     bankName: string;
     accountNumber: string;
@@ -64,9 +64,12 @@ export interface WithdrawalRequest {
 
 export const walletService = {
   // FUNCTION 1 - getOrCreateWallet
-  async getOrCreateWallet(userId: string, transaction?: Transaction): Promise<number> {
-    const walletRef = doc(db, 'wallets', userId);
-    
+  async getOrCreateWallet(
+    userId: string,
+    transaction?: Transaction,
+  ): Promise<number> {
+    const walletRef = doc(db, "wallets", userId);
+
     if (transaction) {
       const walletSnap = await transaction.get(walletRef);
       if (walletSnap.exists()) {
@@ -76,7 +79,7 @@ export const walletService = {
           userId,
           balance: 0,
           pendingBalance: 0,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
         return 0;
       }
@@ -89,7 +92,7 @@ export const walletService = {
           userId,
           balance: 0,
           pendingBalance: 0,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
         return 0;
       }
@@ -98,19 +101,19 @@ export const walletService = {
 
   // Helper to find admin
   async getAdminId(): Promise<string> {
-    const q = query(collection(db, 'users'), where('role', '==', 'admin'));
+    const q = query(collection(db, "users"), where("role", "==", "admin"));
     const snap = await getDocs(q);
-    if (snap.empty) return 'platform_admin'; // Fallback
+    if (snap.empty) return "platform_admin"; // Fallback
     return snap.docs[0].id;
   },
 
   // FUNCTION 2 - processBookingWallet
   async processBookingWallet(
-    bookingId: string, 
-    bookingAmount: number, 
-    ownerUid: string, 
-    visitorUid: string, 
-    propertyTitle: string
+    bookingId: string,
+    bookingAmount: number,
+    ownerUid: string,
+    visitorUid: string,
+    propertyTitle: string,
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
@@ -118,33 +121,50 @@ export const walletService = {
       const adminCredit = bookingAmount * 0.25;
 
       await runTransaction(db, async (transaction) => {
-        // Get or create wallets
-        const ownerBal = await this.getOrCreateWallet(ownerUid, transaction);
-        const adminBal = await this.getOrCreateWallet(adminUid, transaction);
+        const ownerWalletRef = doc(db, "wallets", ownerUid);
+        const adminWalletRef = doc(db, "wallets", adminUid);
+        const bookingRef = doc(db, "bookings", bookingId);
+        const txnRef = collection(db, "walletTransactions");
+
+        // ALL READS
+        const ownerSnap = await transaction.get(ownerWalletRef);
+        const adminSnap = await transaction.get(adminWalletRef);
+
+        const ownerBal = ownerSnap.exists()
+          ? (ownerSnap.data().balance ?? 0)
+          : 0;
+        const adminBal = adminSnap.exists()
+          ? (adminSnap.data().balance ?? 0)
+          : 0;
 
         const newOwnerBalance = ownerBal + ownerCredit;
         const newAdminBalance = adminBal + adminCredit;
 
-        const ownerWalletRef = doc(db, 'wallets', ownerUid);
-        const adminWalletRef = doc(db, 'wallets', adminUid);
-        const bookingRef = doc(db, 'bookings', bookingId);
-        const txnRef = collection(db, 'walletTransactions');
+        // ALL WRITES
+        transaction.set(
+          ownerWalletRef,
+          {
+            userId: ownerUid,
+            balance: newOwnerBalance,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
 
-        // Update wallets
-        transaction.update(ownerWalletRef, {
-          balance: newOwnerBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        transaction.update(adminWalletRef, {
-          balance: newAdminBalance,
-          updatedAt: serverTimestamp()
-        });
+        transaction.set(
+          adminWalletRef,
+          {
+            userId: adminUid,
+            balance: newAdminBalance,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
 
         // Owner transaction record
         transaction.set(doc(txnRef), {
           userId: ownerUid,
-          type: 'credit',
+          type: "credit",
           amount: ownerCredit,
           description: `New booking - ${propertyTitle}`,
           bookingId,
@@ -154,13 +174,13 @@ export const walletService = {
           receivedAmount: ownerCredit,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newOwnerBalance
+          balanceAfter: newOwnerBalance,
         });
 
         // Admin transaction record
         transaction.set(doc(txnRef), {
           userId: adminUid,
-          type: 'credit',
+          type: "credit",
           amount: adminCredit,
           description: `Platform commission - ${propertyTitle}`,
           bookingId,
@@ -168,19 +188,21 @@ export const walletService = {
           bookingAmount,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newAdminBalance
+          balanceAfter: newAdminBalance,
         });
 
         // Update booking
         transaction.update(bookingRef, {
           walletProcessed: true,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       });
 
-      console.log(`Success: processBookingWallet for ${bookingId}. Owner: +${ownerCredit}, Admin: +${adminCredit}`);
+      console.log(
+        `Success: processBookingWallet for ${bookingId}. Owner: +${ownerCredit}, Admin: +${adminCredit}`,
+      );
     } catch (error) {
-      console.error('Wallet failed for booking:', bookingId, error);
+      console.error("Wallet failed for booking:", bookingId, error);
       throw error;
     }
   },
@@ -191,7 +213,7 @@ export const walletService = {
     bookingAmount: number,
     ownerUid: string,
     visitorUid: string,
-    propertyTitle: string
+    propertyTitle: string,
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
@@ -201,9 +223,26 @@ export const walletService = {
       const adminReversal = bookingAmount * 0.25;
 
       await runTransaction(db, async (transaction) => {
-        const ownerBal = await this.getOrCreateWallet(ownerUid, transaction);
-        const adminBal = await this.getOrCreateWallet(adminUid, transaction);
-        const visitorBal = await this.getOrCreateWallet(visitorUid, transaction);
+        const ownerWalletRef = doc(db, "wallets", ownerUid);
+        const adminWalletRef = doc(db, "wallets", adminUid);
+        const visitorWalletRef = doc(db, "wallets", visitorUid);
+        const bookingRef = doc(db, "bookings", bookingId);
+        const txnRef = collection(db, "walletTransactions");
+
+        // ALL READS
+        const ownerSnap = await transaction.get(ownerWalletRef);
+        const adminSnap = await transaction.get(adminWalletRef);
+        const visitorSnap = await transaction.get(visitorWalletRef);
+
+        const ownerBal = ownerSnap.exists()
+          ? (ownerSnap.data().balance ?? 0)
+          : 0;
+        const adminBal = adminSnap.exists()
+          ? (adminSnap.data().balance ?? 0)
+          : 0;
+        const visitorBal = visitorSnap.exists()
+          ? (visitorSnap.data().balance ?? 0)
+          : 0;
 
         const newOwnerBalance = ownerBal - ownerDebit;
         // Net admin = -25% (reversal) + 5% (charge) = -20%
@@ -211,32 +250,41 @@ export const walletService = {
         const newAdminBalance = adminBalanceAfterDebit + paymentPartnerCharge;
         const newVisitorBalance = visitorBal + visitorRefund;
 
-        const ownerWalletRef = doc(db, 'wallets', ownerUid);
-        const adminWalletRef = doc(db, 'wallets', adminUid);
-        const visitorWalletRef = doc(db, 'wallets', visitorUid);
-        const bookingRef = doc(db, 'bookings', bookingId);
-        const txnRef = collection(db, 'walletTransactions');
+        // ALL WRITES
+        transaction.set(
+          ownerWalletRef,
+          {
+            userId: ownerUid,
+            balance: newOwnerBalance,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
 
-        // Update wallets
-        transaction.update(ownerWalletRef, {
-          balance: newOwnerBalance,
-          updatedAt: serverTimestamp()
-        });
+        transaction.set(
+          adminWalletRef,
+          {
+            userId: adminUid,
+            balance: newAdminBalance,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
 
-        transaction.update(adminWalletRef, {
-          balance: newAdminBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        transaction.update(visitorWalletRef, {
-          balance: newVisitorBalance,
-          updatedAt: serverTimestamp()
-        });
+        transaction.set(
+          visitorWalletRef,
+          {
+            userId: visitorUid,
+            balance: newVisitorBalance,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
 
         // Owner transaction
         transaction.set(doc(txnRef), {
           userId: ownerUid,
-          type: 'debit',
+          type: "debit",
           amount: ownerDebit,
           description: `Booking rejected - refund issued - ${propertyTitle}`,
           bookingId,
@@ -244,39 +292,39 @@ export const walletService = {
           bookingAmount,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newOwnerBalance
+          balanceAfter: newOwnerBalance,
         });
 
         // Admin transaction 1 (reversal)
         transaction.set(doc(txnRef), {
           userId: adminUid,
-          type: 'debit',
+          type: "debit",
           amount: adminReversal,
           description: `Commission reversed - booking rejected - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: adminBalanceAfterDebit
+          balanceAfter: adminBalanceAfterDebit,
         });
 
         // Admin transaction 2 (charge)
         transaction.set(doc(txnRef), {
           userId: adminUid,
-          type: 'credit',
+          type: "credit",
           amount: paymentPartnerCharge,
           description: `Payment partner charge - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newAdminBalance
+          balanceAfter: newAdminBalance,
         });
 
         // Visitor transaction
         transaction.set(doc(txnRef), {
           userId: visitorUid,
-          type: 'credit',
+          type: "credit",
           amount: visitorRefund,
           description: `Refund - booking rejected by owner - ${propertyTitle}`,
           bookingId,
@@ -286,19 +334,21 @@ export const walletService = {
           paymentPartnerCharge: paymentPartnerCharge,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newVisitorBalance
+          balanceAfter: newVisitorBalance,
         });
 
         // Update booking
         transaction.update(bookingRef, {
           walletProcessed: true,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       });
 
-      console.log(`Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin Net: -${adminReversal - paymentPartnerCharge}, Visitor: +${visitorRefund}`);
+      console.log(
+        `Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin Net: -${adminReversal - paymentPartnerCharge}, Visitor: +${visitorRefund}`,
+      );
     } catch (error) {
-      console.error('Rejection wallet failed:', error);
+      console.error("Rejection wallet failed:", error);
       throw error;
     }
   },
@@ -306,7 +356,7 @@ export const walletService = {
   // FUNCTION 4 - processCancellationWallet
   async processCancellationWallet(
     booking: any,
-    refundPercent: number
+    refundPercent: number,
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
@@ -315,7 +365,7 @@ export const walletService = {
       const adminGets = bookingAmount - refundAmount;
       const ownerDebit = bookingAmount; // Assuming owner gets 100% of debit reversal? Or should it be owner payout reversal?
       // Request says: "Owner wallet: -100% debit ALWAYS"
-      // This means we take back the full booking amount from owner's balance? 
+      // This means we take back the full booking amount from owner's balance?
       // If we credited 75% initially, -100% means we take back 75%? Or 100%?
       // "Owner wallet: -100% debit ALWAYS" implies taking back the full potential revenue or reversing the credit.
       // Usually it means taking back what was given.
@@ -323,28 +373,48 @@ export const walletService = {
       // Let's assume -bookingAmount to be safe as per "100% debit ALWAYS".
 
       await runTransaction(db, async (transaction) => {
-        const ownerBal = await this.getOrCreateWallet(booking.ownerId, transaction);
-        const adminBal = await this.getOrCreateWallet(adminUid, transaction);
-        
+        const ownerWalletRef = doc(db, "wallets", booking.ownerId);
+        const adminWalletRef = doc(db, "wallets", adminUid);
+        const visitorWalletRef = doc(db, "wallets", booking.visitorId);
+        const bookingRef = doc(db, "bookings", booking.id);
+        const txnRef = collection(db, "walletTransactions");
+
+        // 1. ALL READS FIRST
+        const ownerSnap = await transaction.get(ownerWalletRef);
+        const adminSnap = await transaction.get(adminWalletRef);
+        const visitorSnap = await transaction.get(visitorWalletRef);
+
+        const ownerBal = ownerSnap.exists()
+          ? (ownerSnap.data().balance ?? 0)
+          : 0;
+        const adminBal = adminSnap.exists()
+          ? (adminSnap.data().balance ?? 0)
+          : 0;
+        const visitorBal = visitorSnap.exists()
+          ? (visitorSnap.data().balance ?? 0)
+          : 0;
+
+        // 2. CALCULATE NEW BALANCES
         const newOwnerBalance = ownerBal - bookingAmount;
         let newAdminBalance = adminBal;
-        let newVisitorBalance = 0;
+        let newVisitorBalance = visitorBal;
 
-        const ownerWalletRef = doc(db, 'wallets', booking.ownerId);
-        const adminWalletRef = doc(db, 'wallets', adminUid);
-        const bookingRef = doc(db, 'bookings', booking.id);
-        const txnRef = collection(db, 'walletTransactions');
-
+        // 3. ALL WRITES SECURELY
         // Update Owner Wallet
-        transaction.update(ownerWalletRef, {
-          balance: newOwnerBalance,
-          updatedAt: serverTimestamp()
-        });
+        transaction.set(
+          ownerWalletRef,
+          {
+            userId: booking.ownerId,
+            balance: newOwnerBalance,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
 
         // Owner transaction
         transaction.set(doc(txnRef), {
           userId: booking.ownerId,
-          type: 'debit',
+          type: "debit",
           amount: bookingAmount,
           description: `Booking cancelled by visitor - ${booking.propertyTitle}`,
           bookingId: booking.id,
@@ -353,22 +423,25 @@ export const walletService = {
           refundPercentage: refundPercent,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newOwnerBalance
+          balanceAfter: newOwnerBalance,
         });
 
         // Visitor refund
         if (refundPercent > 0) {
-          const visitorBal = await this.getOrCreateWallet(booking.visitorId, transaction);
           newVisitorBalance = visitorBal + refundAmount;
-          const visitorWalletRef = doc(db, 'wallets', booking.visitorId);
-          transaction.update(visitorWalletRef, {
-            balance: newVisitorBalance,
-            updatedAt: serverTimestamp()
-          });
+          transaction.set(
+            visitorWalletRef,
+            {
+              userId: booking.visitorId,
+              balance: newVisitorBalance,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
 
           transaction.set(doc(txnRef), {
             userId: booking.visitorId,
-            type: 'credit',
+            type: "credit",
             amount: refundAmount,
             description: `Refund ${refundPercent}% - ${booking.propertyTitle}`,
             bookingId: booking.id,
@@ -377,41 +450,48 @@ export const walletService = {
             refundPercentage: refundPercent,
             walletProcessed: true,
             createdAt: serverTimestamp(),
-            balanceAfter: newVisitorBalance
+            balanceAfter: newVisitorBalance,
           });
         }
 
         // Admin gets
         if (adminGets > 0) {
           newAdminBalance = adminBal + adminGets;
-          transaction.update(adminWalletRef, {
-            balance: newAdminBalance,
-            updatedAt: serverTimestamp()
-          });
+          transaction.set(
+            adminWalletRef,
+            {
+              userId: adminUid,
+              balance: newAdminBalance,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
 
           transaction.set(doc(txnRef), {
             userId: adminUid,
-            type: 'credit',
+            type: "credit",
             amount: adminGets,
             description: `Cancellation charge - ${booking.propertyTitle}`,
             bookingId: booking.id,
             propertyTitle: booking.propertyTitle,
             walletProcessed: true,
             createdAt: serverTimestamp(),
-            balanceAfter: newAdminBalance
+            balanceAfter: newAdminBalance,
           });
         }
 
         // Update booking
         transaction.update(bookingRef, {
           walletProcessed: true,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       });
 
-      console.log(`Success: processCancellationWallet for ${booking.id}. Owner: -${bookingAmount}, Visitor: +${refundAmount}, Admin: +${adminGets}`);
+      console.log(
+        `Success: processCancellationWallet for ${booking.id}. Owner: -${bookingAmount}, Visitor: +${refundAmount}, Admin: +${adminGets}`,
+      );
     } catch (error) {
-      console.error('Cancellation wallet failed:', error);
+      console.error("Cancellation wallet failed:", error);
       throw error;
     }
   },
@@ -420,16 +500,16 @@ export const walletService = {
   async requestWithdrawal(
     userId: string,
     amount: number,
-    bankDetails: object
+    bankDetails: object,
   ): Promise<void> {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const q = query(
-        collection(db, 'withdrawalRequests'),
-        where('userId', '==', userId),
-        where('createdAt', '>=', Timestamp.fromDate(today))
+        collection(db, "withdrawalRequests"),
+        where("userId", "==", userId),
+        where("createdAt", ">=", Timestamp.fromDate(today)),
       );
       const snap = await getDocs(q);
       if (snap.size >= 2) {
@@ -443,43 +523,45 @@ export const walletService = {
         }
 
         const newBalance = walletBal - amount;
-        const walletRef = doc(db, 'wallets', userId);
-        const txnRef = collection(db, 'walletTransactions');
-        const reqRef = collection(db, 'withdrawalRequests');
+        const walletRef = doc(db, "wallets", userId);
+        const txnRef = collection(db, "walletTransactions");
+        const reqRef = collection(db, "withdrawalRequests");
 
         // Deduct from wallet
         transaction.update(walletRef, {
           balance: newBalance,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
 
         // Debit transaction record
         transaction.set(doc(txnRef), {
           userId,
-          type: 'debit',
+          type: "debit",
           amount,
           description: `Withdrawal request of ₹${amount}`,
-          bookingId: '',
-          propertyTitle: 'Withdrawal',
+          bookingId: "",
+          propertyTitle: "Withdrawal",
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: newBalance
+          balanceAfter: newBalance,
         });
 
         // Withdrawal request document
         transaction.set(doc(reqRef), {
           userId,
           amount,
-          status: 'pending',
+          status: "pending",
           bankDetails: bankDetails,
           createdAt: serverTimestamp(),
-          processedAt: null
+          processedAt: null,
         });
       });
 
-      console.log(`Success: requestWithdrawal for ${userId}, amount: ${amount}`);
+      console.log(
+        `Success: requestWithdrawal for ${userId}, amount: ${amount}`,
+      );
     } catch (error) {
-      console.error('Withdrawal request failed:', error);
+      console.error("Withdrawal request failed:", error);
       throw error;
     }
   },
@@ -487,10 +569,10 @@ export const walletService = {
   // FUNCTION 6 - subscribeToWalletBalance
   subscribeToWalletBalance(
     userId: string,
-    callback: (balance: number) => void
+    callback: (balance: number) => void,
   ): () => void {
     return onSnapshot(
-      doc(db, 'wallets', userId),
+      doc(db, "wallets", userId),
       (snap) => {
         if (snap.exists()) {
           callback(snap.data().balance ?? 0);
@@ -499,71 +581,72 @@ export const walletService = {
         }
       },
       (error) => {
-        console.error('Wallet balance listener error:', error);
+        console.error("Wallet balance listener error:", error);
         callback(0);
-      }
+      },
     );
   },
 
   // FUNCTION 7 - subscribeToWalletTransactions
   subscribeToWalletTransactions(
     userId: string,
-    callback: (transactions: any[]) => void
+    callback: (transactions: any[]) => void,
   ): () => void {
     return onSnapshot(
       query(
-        collection(db, 'walletTransactions'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(50)
+        collection(db, "walletTransactions"),
+        where("userId", "==", userId),
+        orderBy("createdAt", "desc"),
+        limit(50),
       ),
       (snap) => {
-        const transactions = snap.docs.map(d => ({
-          id: d.id, ...d.data()
+        const transactions = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
         }));
         callback(transactions);
       },
       (error) => {
-        console.error('Wallet transactions listener error:', error);
+        console.error("Wallet transactions listener error:", error);
         callback([]);
-      }
+      },
     );
   },
 
   // Added for Profile.tsx stats until fully refactored
   async getWallet(userId: string) {
-    const walletRef = doc(db, 'wallets', userId);
+    const walletRef = doc(db, "wallets", userId);
     const snap = await getDoc(walletRef);
     if (snap.exists()) {
       const data = snap.data();
       return {
         ...data,
-        availableBalance: data.balance ?? 0 // Map balance to availableBalance for UI
+        availableBalance: data.balance ?? 0, // Map balance to availableBalance for UI
       };
     }
     return { balance: 0, availableBalance: 0, pendingBalance: 0 };
   },
 
   async updateBankAccount(userId: string, bankAccount: any) {
-    const walletRef = doc(db, 'wallets', userId);
+    const walletRef = doc(db, "wallets", userId);
     await updateDoc(walletRef, {
       bankAccount,
-      updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp(),
     });
   },
 
   async getTransactions(userId: string): Promise<WalletTransaction[]> {
     const q = query(
-      collection(db, 'walletTransactions'),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc'),
-      limit(100)
+      collection(db, "walletTransactions"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(100),
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({
+    return snap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
-      reason: d.data().description // Map description to reason for UI
+      reason: d.data().description, // Map description to reason for UI
     })) as WalletTransaction[];
   },
 
@@ -573,87 +656,99 @@ export const walletService = {
 
   async getAllPendingSettlements(): Promise<WalletTransaction[]> {
     const q = query(
-      collection(db, 'walletTransactions'),
-      where('walletProcessed', '==', true), // Assuming processed ones are candidates for display in admin
-      orderBy('createdAt', 'desc'),
-      limit(100)
+      collection(db, "walletTransactions"),
+      where("walletProcessed", "==", true), // Assuming processed ones are candidates for display in admin
+      orderBy("createdAt", "desc"),
+      limit(100),
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({
+    return snap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
-      reason: d.data().description
+      reason: d.data().description,
     })) as WalletTransaction[];
   },
 
   async getAllWithdrawalRequests(): Promise<WithdrawalRequest[]> {
     const q = query(
-      collection(db, 'withdrawalRequests'),
-      orderBy('createdAt', 'desc'),
-      limit(100)
+      collection(db, "withdrawalRequests"),
+      orderBy("createdAt", "desc"),
+      limit(100),
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({
+    return snap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
       requestedAt: d.data().createdAt,
-      bankAccount: d.data().bankDetails // Map bankDetails to bankAccount for UI
+      bankAccount: d.data().bankDetails, // Map bankDetails to bankAccount for UI
     })) as WithdrawalRequest[];
   },
 
   async markSettlementComplete(transactionId: string) {
-    // In this simplified model, settlements are auto-completed. 
+    // In this simplified model, settlements are auto-completed.
     // This method exists for UI compatibility.
-    console.log('Marking settlement complete:', transactionId);
+    console.log("Marking settlement complete:", transactionId);
     return true;
   },
 
-  async processWithdrawal(requestId: string, status: 'completed' | 'rejected') {
-    const reqRef = doc(db, 'withdrawalRequests', requestId);
+  async processWithdrawal(requestId: string, status: "completed" | "rejected") {
+    const reqRef = doc(db, "withdrawalRequests", requestId);
     await updateDoc(reqRef, {
       status,
-      processedAt: serverTimestamp()
+      processedAt: serverTimestamp(),
     });
     return true;
   },
 
-  subscribeToPendingSettlements(callback: (settlements: WalletTransaction[]) => void): () => void {
+  subscribeToPendingSettlements(
+    callback: (settlements: WalletTransaction[]) => void,
+  ): () => void {
     const q = query(
-      collection(db, 'walletTransactions'),
-      where('walletProcessed', '==', true),
-      orderBy('createdAt', 'desc'),
-      limit(100)
+      collection(db, "walletTransactions"),
+      where("walletProcessed", "==", true),
+      orderBy("createdAt", "desc"),
+      limit(100),
     );
-    return onSnapshot(q, (snap) => {
-      const settlements = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        reason: d.data().description
-      })) as WalletTransaction[];
-      callback(settlements);
-    }, (error) => {
-      console.error('Pending settlements listener error:', error);
-      callback([]);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const settlements = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          reason: d.data().description,
+        })) as WalletTransaction[];
+        callback(settlements);
+      },
+      (error) => {
+        console.error("Pending settlements listener error:", error);
+        callback([]);
+      },
+    );
   },
 
-  subscribeToWithdrawalRequests(callback: (requests: WithdrawalRequest[]) => void): () => void {
+  subscribeToWithdrawalRequests(
+    callback: (requests: WithdrawalRequest[]) => void,
+  ): () => void {
     const q = query(
-      collection(db, 'withdrawalRequests'),
-      orderBy('createdAt', 'desc'),
-      limit(100)
+      collection(db, "withdrawalRequests"),
+      orderBy("createdAt", "desc"),
+      limit(100),
     );
-    return onSnapshot(q, (snap) => {
-      const requests = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        requestedAt: d.data().createdAt,
-        bankAccount: d.data().bankDetails
-      })) as WithdrawalRequest[];
-      callback(requests);
-    }, (error) => {
-      console.error('Withdrawal requests listener error:', error);
-      callback([]);
-    });
-  }
+    return onSnapshot(
+      q,
+      (snap) => {
+        const requests = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          requestedAt: d.data().createdAt,
+          bankAccount: d.data().bankDetails,
+        })) as WithdrawalRequest[];
+        callback(requests);
+      },
+      (error) => {
+        console.error("Withdrawal requests listener error:", error);
+        callback([]);
+      },
+    );
+  },
 };

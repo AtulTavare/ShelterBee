@@ -20,7 +20,6 @@ export default function Home() {
   const [isOccupancyDropdownOpen, setIsOccupancyDropdownOpen] = useState(false);
   const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [topFilter, setTopFilter] = useState<'ratings' | 'reviews'>('ratings');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [properties, setProperties] = useState<any[]>([]);
   const navigate = useNavigate();
@@ -113,13 +112,24 @@ export default function Home() {
   const fourProps = getFourProperties();
 
   const sortedTopProps = [...properties].sort((a, b) => {
-    if (topFilter === 'ratings') {
-      return (b.rating || 0) - (a.rating || 0);
-    } else {
-      return (b.reviewCount || 0) - (a.reviewCount || 0);
-    }
+    const aRating = a.averageRating || a.rating || 0;
+    const bRating = b.averageRating || b.rating || 0;
+    return bRating - aRating;
   }).slice(0, 4);
+
+  const getNewProperties = () => {
+    return properties.filter(p => {
+      const createdAt = p.createdAt instanceof Date ? p.createdAt : (p.createdAt?.toDate ? p.createdAt.toDate() : null);
+      if (!createdAt) return false;
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - createdAt.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 30;
+    }).slice(0, 4);
+  };
   
+  const newPropsList = getNewProperties();
+
   // Ensure we have 4 for sortedTopProps too
   const getFourSortedProps = () => {
     if (sortedTopProps.length === 0) return [];
@@ -608,12 +618,12 @@ export default function Home() {
             <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">New Listings</h2>
             <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Fresh properties added recently.</p>
           </div>
-          <Link to="/stays" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+          <Link to="/stays?filter=new_last_30_days" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
             View All <Search className="w-4 h-4" />
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-          {fourProps.map((property, index) => (
+          {newPropsList.map((property, index) => (
             <PropertyCard 
               key={`new-${property.id}-${index}`} 
               property={property} 
@@ -621,6 +631,9 @@ export default function Home() {
               onToggleFavorite={toggleFavorite}
             />
           ))}
+          {newPropsList.length === 0 && (
+            <p className="text-gray-500 col-span-full">No new listings in the last 30 days.</p>
+          )}
         </div>
       </section>
 
@@ -629,21 +642,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Top Properties</h2>
-            <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Highest rated and most reviewed.</p>
-          </div>
-          <div className="flex bg-[#F1F3F5] rounded-2xl p-1.5 w-full md:w-auto overflow-x-auto scrollbar-hide">
-            <button 
-              onClick={() => setTopFilter('ratings')}
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 whitespace-nowrap ${topFilter === 'ratings' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              By Ratings
-            </button>
-            <button 
-              onClick={() => setTopFilter('reviews')}
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 whitespace-nowrap ${topFilter === 'reviews' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              By Reviews
-            </button>
+            <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Highest rated stays.</p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -666,7 +665,7 @@ export default function Home() {
             <h2 className="text-xl md:text-4xl font-extrabold text-[#1A1A2E] tracking-tight">Most Affordable</h2>
             <p className="text-xs md:text-base text-gray-500 mt-1 md:mt-2 font-medium">Great stays that fit your budget.</p>
           </div>
-          <Link to="/stays" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
+          <Link to="/stays?sort=price_asc" className="flex items-center gap-2 text-primary font-extrabold hover:gap-4 transition-all text-sm md:text-base">
             View All <Search className="w-4 h-4" />
           </Link>
         </div>

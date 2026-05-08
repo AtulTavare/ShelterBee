@@ -39,6 +39,23 @@ export default function BookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
 
+  const [bookingContactNo, setBookingContactNo] = useState('');
+  const [visitorCheckInTime, setVisitorCheckInTime] = useState('14:00');
+  const [visitorCheckOutTime, setVisitorCheckOutTime] = useState('11:00');
+
+  const formatTime12hr = (time24: string) => {
+    if (!time24) return '';
+    if (time24.includes('AM') || time24.includes('PM')) return time24;
+    const parts = time24.split(':');
+    if (parts.length < 2) return time24;
+    const [h, m] = parts;
+    let hours = parseInt(h, 10);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours.toString().padStart(2, '0')}:${m} ${ampm}`;
+  };
+
   useEffect(() => {
     document.title = 'Book Property - ShelterBee'
   }, [])
@@ -127,18 +144,18 @@ export default function BookingPage() {
   const receivedAmount = totalAmount - platformCommission;
 
   const handleAddGuest = () => {
-    const maxGuests = property.maxGuests || 6; // Default to 6 if not specified
+    const maxGuests = property.guests || 6; // Default to 6 if not specified
     if (guests.length >= maxGuests) {
-      showToast(`Maximum ${maxGuests} guests allowed for this property`, "error");
+      showToast(`Maximum number of residents reached`, "error");
       return;
     }
     setGuests([...guests, { name: '', age: 0, gender: 'Male', contactNo: '', type: 'adult' }]);
   };
 
   const handleAddChild = () => {
-    const maxGuests = property.maxGuests || 6;
+    const maxGuests = property.guests || 6;
     if (guests.length >= maxGuests) {
-      showToast(`Maximum ${maxGuests} guests allowed for this property`, "error");
+      showToast(`Maximum number of residents reached`, "error");
       return;
     }
     setGuests([...guests, { name: '', age: 0, gender: 'Male', relation: '', type: 'child' }]);
@@ -183,31 +200,36 @@ export default function BookingPage() {
         showToast("Children must be under 18", "error");
         return false;
       }
-      if (guest.type === 'adult' && !guest.contactNo) {
-        showToast("Please enter contact number for all adults", "error");
-        return false;
-      }
     }
     return true;
   };
 
   const handleConfirmBooking = async () => {
     if (!user) return;
+    
+    if (!bookingContactNo || bookingContactNo.length !== 10) {
+      showToast("Please provide a valid 10-digit primary contact number", "error");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      const guestsWithContact = [...guests];
+      guestsWithContact[0] = { ...guests[0], contactNo: bookingContactNo };
+
       const bookingId = await bookingService.createBooking({
         propertyId: property.id,
         visitorId: user.uid,
         ownerId: property.ownerId,
         visitorName: guests[0].name,
-        visitorContact: guests[0].contactNo || '',
+        visitorContact: bookingContactNo || '',
         isWhatsapp: true,
         checkIn: dateRange.from || null,
         checkOut: dateRange.to || null,
         nights: effectiveNights,
         totalAmount,
         status: 'pending_owner',
-        guests,
+        guests: guestsWithContact,
         govIdAcknowledged,
         propertyTitle: property.title
       });
@@ -282,10 +304,7 @@ export default function BookingPage() {
         console.log('Guest 0 full object:', guests[0])
         console.log('All guest keys:', Object.keys(guests[0] || {}))
 
-        const visitorMobile = (guests[0] as any)?.contactNo || 
-          (guests[0] as any)?.phone ||
-          (guests[0] as any)?.phoneNumber ||
-          (guests[0] as any)?.contact
+        const visitorMobile = bookingContactNo;
 
         let formattedMobile = '';
         if (visitorMobile) {
@@ -437,36 +456,121 @@ export default function BookingPage() {
                     <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Select your dates</h2>
                   </div>
                   
-                  <div className="flex justify-center bg-slate-50/50 rounded-2xl sm:rounded-3xl p-2 sm:p-6 border border-slate-100 overflow-x-auto relative">
-                    <DayPicker
-                      mode="range"
-                      selected={dateRange}
-                      onSelect={(range) => setDateRange(range as any)}
-                      disabled={[
-                        { before: new Date() },
-                        ...bookedDates,
-                        ...(property.availabilityStatus === 'unavailable' ? [
-                          property.unavailabilityOption === 'manual' 
-                            ? { after: new Date(0) } 
-                            : (property.unavailableFrom && property.unavailableTo ? {
-                                from: new Date(property.unavailableFrom),
-                                to: new Date(property.unavailableTo)
-                              } : [])
-                        ] : [])
-                      ].flat()}
-                      className="font-sans scale-90 sm:scale-100"
-                      style={{
-                        '--rdp-accent-color': '#1E1B4B',
-                        '--rdp-background-color': '#EEF2FF',
-                      } as React.CSSProperties}
-                    />
+                  <div className="flex flex-col xl:flex-row gap-6 lg:items-start items-center">
+                    <div className="flex justify-center bg-slate-50/50 rounded-2xl sm:rounded-3xl p-2 sm:p-6 border border-slate-100 overflow-x-auto relative w-full xl:w-auto">
+                      <DayPicker
+                        mode="range"
+                        selected={dateRange}
+                        onSelect={(range) => {
+                          if (range?.from && range?.to) {
+                            const hasBooked = bookedDates.some(d => {
+                              const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                              const fromTime = new Date(range.from!.getFullYear(), range.from!.getMonth(), range.from!.getDate()).getTime();
+                              const toTime = new Date(range.to!.getFullYear(), range.to!.getMonth(), range.to!.getDate()).getTime();
+                              return dTime >= fromTime && dTime <= toTime;
+                            });
+                            if (hasBooked) {
+                              showToast("Property is booked for these dates, please select another dates", "error");
+                              setDateRange({ from: range.from, to: undefined });
+                              return;
+                            }
+                          }
+                          setDateRange(range as any);
+                        }}
+                        disabled={[
+                          { before: new Date() },
+                          ...bookedDates,
+                          ...(property.availabilityStatus === 'unavailable' ? [
+                            property.unavailabilityOption === 'manual' 
+                              ? { after: new Date(0) } 
+                              : (property.unavailableFrom && property.unavailableTo ? {
+                                  from: new Date(property.unavailableFrom),
+                                  to: new Date(property.unavailableTo)
+                                } : [])
+                          ] : [])
+                        ].flat()}
+                        modifiers={{ booked: bookedDates }}
+                        modifiersStyles={{
+                          booked: {
+                            backgroundColor: '#FEF2F2',
+                            color: '#EF4444',
+                            textDecoration: 'line-through'
+                          }
+                        }}
+                        className="font-sans scale-90 sm:scale-100"
+                        style={{
+                          '--rdp-accent-color': '#1E1B4B',
+                          '--rdp-background-color': '#EEF2FF',
+                        } as React.CSSProperties}
+                      />
+                      
+                      {isMinNightsError && (
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 shadow-sm animate-pulse">
+                          Minimum booking is 1 night
+                        </div>
+                      )}
+                    </div>
                     
-                    {isMinNightsError && (
-                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 shadow-sm animate-pulse">
-                        Minimum booking is 1 night
+                    <div className="w-full xl:w-64 flex flex-col gap-6 bg-slate-50/50 rounded-2xl sm:rounded-3xl p-6 border border-slate-100">
+                      <div>
+                        <h3 className="text-sm font-black text-[#1A1A2E] mb-2 uppercase tracking-widest">Timing</h3>
+                        <p className="text-xs text-slate-500 mb-4 font-medium">Property timing set by owner:</p>
+                        <div className="flex flex-col gap-2 mb-6">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-400">Check-in:</span>
+                            <span className="font-black text-[#1E1B4B]">{property?.checkInTime || '12:00 PM'}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-400">Check-out:</span>
+                            <span className="font-black text-[#1E1B4B]">{property?.checkOutTime || '11:00 AM'}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Your Expected Check-in</label>
+                            <input 
+                              type="time" 
+                              value={visitorCheckInTime}
+                              onChange={(e) => setVisitorCheckInTime(e.target.value)}
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Your Expected Check-out</label>
+                            <input 
+                              type="time" 
+                              value={visitorCheckOutTime}
+                              onChange={(e) => setVisitorCheckOutTime(e.target.value)}
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
+
+                  {dateRange.from && (
+                    <div className="mt-6 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Check-in</p>
+                          <p className="text-sm font-black text-[#1E1B4B]">
+                            {format(dateRange.from, 'MMM dd, yyyy')} {visitorCheckInTime && `• ${formatTime12hr(visitorCheckInTime)}`}
+                          </p>
+                        </div>
+                        <div className="hidden sm:block w-px h-8 bg-indigo-200"></div>
+                        {dateRange.to ? (
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Check-out</p>
+                            <p className="text-sm font-black text-[#1E1B4B]">
+                              {format(dateRange.to, 'MMM dd, yyyy')} {visitorCheckOutTime && `• ${formatTime12hr(visitorCheckOutTime)}`}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-sm font-medium text-slate-400">Select checkout date</div>
+                        )}
+                    </div>
+                  )}
 
                   <div className="mt-8 sm:mt-10 flex justify-end">
                     <button
@@ -499,13 +603,15 @@ export default function BookingPage() {
                       <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                         <button 
                           onClick={handleAddGuest}
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 text-[#1E1B4B] rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-indigo-100 transition-all"
+                          disabled={guests.length >= (property?.guests || 6)}
+                          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all ${guests.length >= (property?.guests || 6) ? 'bg-indigo-50/50 text-[#1E1B4B]/50 cursor-not-allowed' : 'bg-indigo-50 text-[#1E1B4B] hover:bg-indigo-100'}`}
                         >
                           <Plus className="w-3 h-3 sm:w-4 sm:h-4" /> Add Guest
                         </button>
                         <button 
                           onClick={handleAddChild}
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-orange-100 transition-all"
+                          disabled={guests.length >= (property?.guests || 6)}
+                          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all ${guests.length >= (property?.guests || 6) ? 'bg-orange-50/50 text-orange-600/50 cursor-not-allowed' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}
                         >
                           <Plus className="w-3 h-3 sm:w-4 sm:h-4" /> Add Child
                         </button>
@@ -513,7 +619,26 @@ export default function BookingPage() {
                     </div>
 
                     <div className="space-y-8 sm:space-y-10">
-                      {guests.map((guest, idx) => (
+                      <div className="p-6 sm:p-8 bg-slate-50/50 rounded-2xl sm:rounded-3xl border border-slate-100 relative transition-all">
+                        <div className="space-y-2 max-w-sm">
+                          <label className="text-[10px] font-black text-[#1E1B4B] uppercase tracking-widest ml-1">Primary Contact No.</label>
+                          <input 
+                            type="tel"
+                            value={bookingContactNo}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              setBookingContactNo(val);
+                            }}
+                            className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-indigo-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
+                            placeholder="10 digit phone number"
+                          />
+                        </div>
+                      </div>
+
+                      {guests.map((guest, idx) => {
+                        const adultIndex = guests.slice(0, idx).filter(g => g.type === 'adult').length + 1;
+                        const childIndex = guests.slice(0, idx).filter(g => g.type === 'child').length + 1;
+                        return (
                         <div key={idx} className="p-6 sm:p-8 bg-slate-50/50 rounded-2xl sm:rounded-3xl border border-slate-100 relative group transition-all hover:bg-white hover:shadow-lg hover:shadow-slate-100">
                           {guests.length > 1 && (
                             <button 
@@ -527,7 +652,7 @@ export default function BookingPage() {
                             <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
                               guest.type === 'adult' ? 'bg-indigo-100 text-[#1E1B4B]' : 'bg-orange-100 text-orange-700'
                             }`}>
-                              {guest.type === 'adult' ? 'Adult' : 'Child'} {idx + 1}
+                              {guest.type === 'adult' ? 'Adult' : 'Child'} {guest.type === 'adult' ? adultIndex : childIndex}
                             </span>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -563,32 +688,9 @@ export default function BookingPage() {
                                 <option>Other</option>
                               </select>
                             </div>
-                            {guest.type === 'adult' ? (
-                              <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contact No.</label>
-                                <input 
-                                  type="tel"
-                                  value={guest.contactNo}
-                                  onChange={(e) => handleGuestChange(idx, 'contactNo', e.target.value)}
-                                  className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
-                                  placeholder="Phone number"
-                                />
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Relation</label>
-                                <input 
-                                  type="text"
-                                  value={guest.relation}
-                                  onChange={(e) => handleGuestChange(idx, 'relation', e.target.value)}
-                                  className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#1E1B4B] outline-none transition-all bg-white font-medium"
-                                  placeholder="e.g. Son, Daughter"
-                                />
-                              </div>
-                            )}
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
 
                     <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row justify-between gap-4">
