@@ -228,7 +228,7 @@ export default function BookingPage() {
         checkOut: dateRange.to || null,
         nights: effectiveNights,
         totalAmount,
-        status: 'pending_owner',
+        status: 'confirmed',
         guests: guestsWithContact,
         govIdAcknowledged,
         propertyTitle: property.title
@@ -245,7 +245,8 @@ export default function BookingPage() {
             dateRange.to!,
             totalGuests,
             totalAmount,
-            property.address || property.area
+            property.address || property.area,
+            property.googleMapsLink
           );
           await emailService.sendEmail({
             to: user.email,
