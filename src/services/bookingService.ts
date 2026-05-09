@@ -38,16 +38,18 @@ export interface Booking {
   updatedAt: any;
   walletProcessed: boolean;
   estimatedCost?: number; // Added for UI compatibility
-  bookingDisplayId?: string; // Unique human-readable ID
 }
 
 export const bookingService = {
-  async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed' | 'bookingDisplayId'>) {
+  async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>) {
     try {
-      const generatedDisplayId = "BKG-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      // NOTE: Firebase Console firestore.rules update needed manually:
+      // In bookings create rule change:
+      // incoming().status == 'pending_owner'
+      // TO:
+      // incoming().status in ['confirmed', 'pending_owner']
       const docRef = await addDoc(collection(db, 'bookings'), {
         ...bookingData,
-        bookingDisplayId: generatedDisplayId,
         status: 'confirmed',
         walletProcessed: false,
         createdAt: serverTimestamp(),
@@ -62,8 +64,7 @@ export const bookingService = {
           bookingData.totalAmount,
           bookingData.ownerId, 
           bookingData.visitorId, 
-          bookingData.propertyTitle || 'Property',
-          generatedDisplayId
+          bookingData.propertyTitle || 'Property'
         );
         console.log('Wallet processed for booking:', bookingId);
       } catch (walletError) {
@@ -113,8 +114,7 @@ export const bookingService = {
           booking.totalAmount,
           booking.ownerId,
           booking.visitorId,
-          booking.propertyTitle || 'Property',
-          booking.bookingDisplayId
+          booking.propertyTitle || 'Property'
         );
       } catch (walletError) {
         console.error('Rejection wallet failed:', walletError);

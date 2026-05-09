@@ -812,17 +812,6 @@ export default function ListProperty() {
                         placeholder="0"
                       />
                     </div>
-                    {Number(formData.price) > 0 && (
-                      <div className="mt-3 p-3 bg-secondary-container/30 rounded-xl border border-secondary-container flex justify-between items-center text-sm">
-                        <div className="text-on-surface-variant">
-                          <p>Platform charges (25%): <span className="font-bold text-red-500">₹{(Number(formData.price) * 0.25).toLocaleString()}</span></p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-on-surface-variant">Receivable amount</p>
-                          <p className="font-black text-emerald-600 text-lg">₹{(Number(formData.price) * 0.75).toLocaleString()}</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               )}

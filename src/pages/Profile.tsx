@@ -452,19 +452,115 @@ function NewBookingsTab() {
   const [visitTime, setVisitTime] = useState("");
   const [processing, setProcessing] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "upcoming" | "cancelled" | "past"
-  >("upcoming");
+    "new" | "confirmed" | "cancelled" | "rejected" | "past"
+  >("new");
 
-  const handleCancelOwner = async (booking: any) => {
+  const handleAccept = async (booking: any) => {
     if (processing) return;
     setProcessing(true);
     try {
-      await bookingService.updateBookingStatus(booking.id, "cancelled");
-      showToast("Booking cancelled successfully", "success");
+      await bookingService.acceptBooking(booking.id);
+      showToast("Booking accepted and visitor notified", "success");
       fetchBookings();
     } catch (error: any) {
-      console.error("Error cancelling booking:", error);
-      showToast(error.message || "Failed to cancel booking", "error");
+      console.error("Error accepting booking:", error);
+      showToast(error.message || "Failed to accept booking", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectionReason.trim() || !selectedBooking) {
+      showToast("Please provide a rejection reason", "error");
+      return;
+    }
+    setProcessing(true);
+    try {
+      await bookingService.rejectBooking(selectedBooking.id, rejectionReason);
+
+      const template = emailTemplates.getBookingRejection(
+        selectedBooking.visitorName,
+        selectedBooking.property?.title || "Property",
+        rejectionReason,
+      );
+
+      const visitorProfile = await userService.getUserProfile(
+        selectedBooking.visitorId,
+      );
+      if (visitorProfile?.email) {
+        await emailService.sendEmail({
+          to: visitorProfile.email,
+          subject: template.subject,
+          html: template.html,
+        });
+      }
+
+      try {
+        if (visitorProfile?.phone || visitorProfile?.phoneNumber) {
+          await sendBookingRejectionToVisitor(
+            visitorProfile.phone || visitorProfile.phoneNumber,
+            visitorProfile.displayName || "Guest",
+            selectedBooking.property?.title || "Property",
+          );
+        }
+      } catch (waError) {
+        console.error("WhatsApp rejection notification failed:", waError);
+      }
+
+      showToast("Booking rejected and refund processed", "success");
+      setShowRejectModal(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error: any) {
+      console.error("Error rejecting booking:", error);
+      showToast(error.message || "Failed to reject booking", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    // ... same as before
+    if (!visitTime.trim() || !selectedBooking) {
+      showToast("Please specify visit time", "error");
+      return;
+    }
+    setProcessing(true);
+    try {
+      await bookingService.updateBookingStatus(
+        selectedBooking.id,
+        "confirmed",
+        {
+          visitTime,
+          confirmedAt: serverTimestamp(),
+        },
+      );
+
+      const template = emailTemplates.getBookingConfirmationWithVisit(
+        selectedBooking.visitorName,
+        selectedBooking.property?.title || "Property",
+        visitTime,
+      );
+
+      const visitorProfile = await userService.getUserProfile(
+        selectedBooking.visitorId,
+      );
+      if (visitorProfile?.email) {
+        await emailService.sendEmail({
+          to: visitorProfile.email,
+          subject: template.subject,
+          html: template.html,
+        });
+      }
+
+      showToast("Booking confirmed", "success");
+      setShowConfirmModal(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error) {
+      console.error("Error confirming booking:", error);
+      showToast("Failed to confirm booking", "error");
     } finally {
       setProcessing(false);
     }
@@ -496,12 +592,20 @@ function NewBookingsTab() {
   useEffect(() => {
     const now = new Date();
     let filtered = [];
-    if (activeSubTab === "upcoming") {
+    if (activeSubTab === "new") {
       filtered = allBookings.filter(
-        (b) => b.status === "confirmed" && (!b.checkOut || b.checkOut >= now),
+        (b) =>
+          b.status === "pending_owner" ||
+          (b.status === "confirmed" && !b.acceptedAt),
+      );
+    } else if (activeSubTab === "confirmed") {
+      filtered = allBookings.filter(
+        (b) => b.status === "confirmed" && !!b.acceptedAt,
       );
     } else if (activeSubTab === "cancelled") {
-      filtered = allBookings.filter((b) => b.status === "cancelled" || b.status === "rejected_by_owner");
+      filtered = allBookings.filter((b) => b.status === "cancelled");
+    } else if (activeSubTab === "rejected") {
+      filtered = allBookings.filter((b) => b.status === "rejected_by_owner");
     } else if (activeSubTab === "past") {
       filtered = allBookings.filter(
         (b) => b.status === "completed" || (b.checkOut && b.checkOut < now),
@@ -530,7 +634,9 @@ function NewBookingsTab() {
 
         <div className="flex bg-slate-50 p-1 rounded-xl overflow-x-auto no-scrollbar">
           {[
-            { id: "upcoming", label: "Upcoming" },
+            { id: "new", label: "New" },
+            { id: "confirmed", label: "Confirmed" },
+            { id: "rejected", label: "Rejected" },
             { id: "cancelled", label: "Cancelled" },
             { id: "past", label: "Past" },
           ].map((tab) => (
@@ -582,10 +688,14 @@ function NewBookingsTab() {
                       </h3>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span
-                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === "confirmed" ? "bg-emerald-400" : "bg-gray-400"}`}
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === "pending_owner" || (booking.status === "confirmed" && !booking.acceptedAt) ? "bg-amber-400 animate-pulse" : booking.status === "confirmed" ? "bg-emerald-400" : "bg-gray-400"}`}
                         ></span>
                         <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest truncate">
-                          {booking.status}
+                          {booking.status === "pending_owner" ||
+                          (booking.status === "confirmed" &&
+                            !booking.acceptedAt)
+                            ? "Pending"
+                            : booking.status}
                         </p>
                       </div>
                     </div>
@@ -610,11 +720,11 @@ function NewBookingsTab() {
                     <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <p className="font-bold text-[#1A1A2E] text-[10px] truncate">
                       {booking.checkIn
-                        ? format(booking.checkIn.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn), "MMM dd")
+                        ? format(booking.checkIn, "MMM dd")
                         : "N/A"}{" "}
                       -{" "}
                       {booking.checkOut
-                        ? format(booking.checkOut.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut), "MMM dd")
+                        ? format(booking.checkOut, "MMM dd")
                         : "N/A"}
                     </p>
                   </div>
@@ -637,20 +747,26 @@ function NewBookingsTab() {
               </div>
 
               <div className="flex gap-2">
-                {activeSubTab === "upcoming" ? (
+                {booking.status === "pending_owner" ||
+                (booking.status === "confirmed" && !booking.acceptedAt) ? (
                   <>
                     <button
-                      onClick={() => handleCancelOwner(booking)}
+                      onClick={() => {
+                        setSelectedBooking(booking);
+                        setShowRejectModal(true);
+                      }}
                       disabled={processing}
                       className="flex-1 h-10 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2"
                     >
-                      <XCircle className="w-3.5 h-3.5" /> Cancel
+                      <XCircle className="w-3.5 h-3.5" /> Reject
                     </button>
                     <button
-                      onClick={() => setSelectedBooking(booking)}
-                      className="w-full h-10 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
+                      onClick={() => handleAccept(booking)}
+                      disabled={processing}
+                      className="flex-[1.5] h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2"
                     >
-                      Details
+                      <CheckCircle2 className="w-3.5 h-3.5" />{" "}
+                      {processing ? "Processing..." : "Accept Booking"}
                     </button>
                   </>
                 ) : (
@@ -690,7 +806,7 @@ function NewBookingsTab() {
                     Booking Details
                   </h3>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
-                    ID: #{selectedBooking.bookingDisplayId || selectedBooking.id?.substring(0, 8).toUpperCase()}
+                    ID: #{selectedBooking.id?.substring(0, 8).toUpperCase()}
                   </p>
                 </div>
                 <button
@@ -1230,12 +1346,16 @@ function PersonalInfoTab({
                     className={`text-xs font-bold px-2 py-1 rounded-md ${
                       booking.status === "confirmed"
                         ? "text-emerald-600 bg-emerald-50"
-                        : booking.status === "cancelled" || booking.status === "rejected_by_owner"
-                          ? "text-red-600 bg-red-50"
-                          : "text-gray-600 bg-gray-50"
+                        : booking.status === "pending_owner"
+                          ? "text-amber-600 bg-amber-50"
+                          : booking.status === "cancelled"
+                            ? "text-red-600 bg-red-50"
+                            : "text-gray-600 bg-gray-50"
                     }`}
                   >
-                    {booking.status === "rejected_by_owner" ? "Rejected" : booking.status.charAt(0).toUpperCase() +
+                    {booking.status === "pending_owner"
+                      ? "Pending"
+                      : booking.status.charAt(0).toUpperCase() +
                         booking.status.slice(1)}
                   </span>
                 </div>
@@ -1325,6 +1445,8 @@ function MyBookingsTab() {
     const now = new Date();
     if (status === "completed" || (checkOut && now > checkOut))
       return { label: "Completed", note: "", color: "bg-slate-500/90" };
+    if (status === "pending_owner")
+      return { label: "Confirmed", note: "", color: "bg-emerald-500/90" };
     if (status === "confirmed")
       return { label: "Confirmed", note: "", color: "bg-emerald-500/90" };
     if (status === "rejected_by_owner")
@@ -1634,7 +1756,8 @@ function MyBookingsTab() {
                       </div>
 
                       {/* Owner Info - Only shown post-booking (confirmed) */}
-                      {(booking.status === "confirmed") && (
+                      {(booking.status === "confirmed" ||
+                        booking.status === "pending_owner") && (
                         <div className="mb-8 bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm">
                           <h4 className="text-[10px] font-black text-[#F59E0B] uppercase tracking-[0.2em] mb-4">
                             Host Contact Details
@@ -1859,18 +1982,23 @@ function CancellationModal({
       let refundPercentage = 0;
       let refundAmount = 0;
 
-      // Logic: Calc based on time to check-in.
-      const now = new Date();
-      const checkInDate = new Date(booking.checkIn);
-      const hoursUntilCheckIn =
-        (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      // New Logic: If pending_owner, 100% refund. If confirmed, calc based on time.
+      if (booking.status === "pending_owner") {
+        refundPercentage = 100;
+        refundAmount = amount;
+      } else {
+        const now = new Date();
+        const checkInDate = new Date(booking.checkIn);
+        const hoursUntilCheckIn =
+          (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-      if (hoursUntilCheckIn >= 24) {
-        refundPercentage = 75;
-      } else if (hoursUntilCheckIn >= 6) {
-        refundPercentage = 50;
+        if (hoursUntilCheckIn >= 24) {
+          refundPercentage = 75;
+        } else if (hoursUntilCheckIn >= 6) {
+          refundPercentage = 50;
+        }
+        refundAmount = (amount * refundPercentage) / 100;
       }
-      refundAmount = (amount * refundPercentage) / 100;
 
       // Update booking status
       await bookingService.updateBookingStatus(booking.id, "cancelled");
@@ -2383,15 +2511,19 @@ function PaymentsTab() {
                         className={`text-xs font-bold px-2 py-1 rounded-md ${
                           booking.status === "confirmed"
                             ? "text-emerald-600 bg-emerald-50"
-                            : booking.status === "cancelled"
-                              ? "text-red-600 bg-red-50"
-                              : "text-gray-600 bg-gray-50"
+                            : booking.status === "pending_owner"
+                              ? "text-amber-600 bg-amber-50"
+                              : booking.status === "cancelled"
+                                ? "text-red-600 bg-red-50"
+                                : "text-gray-600 bg-gray-50"
                         }`}
                       >
                         {booking.status === "confirmed"
                           ? "Paid"
-                          : booking.status.charAt(0).toUpperCase() +
-                            booking.status.slice(1)}
+                          : booking.status === "pending_owner"
+                            ? "Pending"
+                            : booking.status.charAt(0).toUpperCase() +
+                              booking.status.slice(1)}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-sm font-bold text-[#1A1A2E] text-right">
@@ -3058,10 +3190,10 @@ function FavouritesTab() {
                     <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1.5">
                       <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
                       <span className="text-white font-black text-[10px]">
-                        {property.rating || property.averageRating || "New"}
+                        {property.rating || "New"}
                       </span>
                       <span className="text-white/60 text-[8px] font-bold">
-                        ({property.reviewCount || property.totalReviews || 0})
+                        ({property.reviewCount || 0})
                       </span>
                     </div>
                   </div>
@@ -3368,30 +3500,20 @@ function FavouritesTab() {
                       key={review.id}
                       className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4"
                     >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={review.visitorAvatar || getAvatarUrl()}
-                            alt={review.visitorName}
-                            className="w-12 h-12 rounded-full bg-slate-200"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div>
-                            <h4 className="font-bold text-[#1E1B4B]">
-                              {review.visitorName}
-                            </h4>
-                            <p className="text-xs text-[#64748B]">
-                              {review.date}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`w-4 h-4 ${star <= (review.rating || 0) ? "text-amber-400 fill-amber-400" : "text-slate-200"}`}
-                            />
-                          ))}
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={review.visitorAvatar || getAvatarUrl()}
+                          alt={review.visitorName}
+                          className="w-12 h-12 rounded-full bg-slate-200"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div>
+                          <h4 className="font-bold text-[#1E1B4B]">
+                            {review.visitorName}
+                          </h4>
+                          <p className="text-xs text-[#64748B]">
+                            {review.date}
+                          </p>
                         </div>
                       </div>
                       <p className="text-sm text-[#64748B] leading-relaxed">

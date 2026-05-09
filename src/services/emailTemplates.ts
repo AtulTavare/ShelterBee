@@ -80,7 +80,7 @@ export const emailTemplates = {
     };
   },
 
-  getBookingConfirmationGuest: (guestName: string, propertyName: string, checkIn: Date, checkOut: Date, guests: number, amount: number, address: string, locationLink?: string) => {
+  getBookingConfirmationGuest: (guestName: string, propertyName: string, checkIn: Date, checkOut: Date, guests: number, amount: number, address: string) => {
     const content = `
       <h1>Booking Confirmed! 😊</h1>
       <p>Hello <span class="highlight">${guestName}</span>,</p>
@@ -108,7 +108,6 @@ export const emailTemplates = {
         </div>
       </div>
       <p><span class="highlight">📌 Address:</span> ${address}</p>
-      ${locationLink ? `<p><span class="highlight">🗺️ Location:</span> <a href="${locationLink}">${locationLink}</a></p>` : ''}
       <p>Please carry a valid ID at check-in.</p>
       <p>If you need any assistance, feel free to message or call us anytime.</p>
       <p>We look forward to hosting you!</p>
