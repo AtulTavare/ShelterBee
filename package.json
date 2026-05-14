@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && node prerender.mjs",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -39,6 +39,8 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
+    "@prerenderer/prerenderer": "^1.2.5",
+    "@prerenderer/renderer-jsdom": "^1.1.9",
     "@types/express": "^4.17.25",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.14.0",
