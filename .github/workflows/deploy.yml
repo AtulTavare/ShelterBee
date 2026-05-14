@@ -19,11 +19,7 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        run: |
-          rm -f package-lock.json
-          rm -rf node_modules
-          npm install
-          npm rebuild @tailwindcss/oxide
+        run: npm install --package-lock=false
 
       - name: Install Chrome dependencies
         run: |
