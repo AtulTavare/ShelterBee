@@ -21,7 +21,9 @@ jobs:
       - name: Install dependencies
         run: |
           rm -f package-lock.json
+          rm -rf node_modules
           npm install
+          npm rebuild @tailwindcss/oxide
 
       - name: Install Chrome dependencies
         run: |
