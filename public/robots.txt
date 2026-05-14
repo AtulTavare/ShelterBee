@@ -9,4 +9,4 @@ Disallow: /profile
 Disallow: /booking
 Disallow: /api/
 
-Sitemap: https://shelterbee.vercel.app/sitemap.xml
+Sitemap: https://shelterbee.com/sitemap.xml

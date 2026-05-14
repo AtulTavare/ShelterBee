@@ -164,9 +164,13 @@ export default function PropertyDetail() {
 
   useEffect(() => {
     if (property) {
-      document.title = `${property.title} - ${property.area} | ShelterBee`
+      document.title = `${property.title} in ${property.area} ${property.city || ''} | ShelterBee`;
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', `${property.type} available for short and long term stay in ${property.area}. Verified property on ShelterBee — browse amenities, pricing, and availability.`);
+      }
     }
-  }, [property])
+  }, [property]);
 
   if (!property) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
@@ -209,7 +213,7 @@ export default function PropertyDetail() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.8 }}
-                alt="Main Property View" 
+                alt={`${property.title} - ${property.type} for rent in ${property.area}`} 
                 className="w-full h-full object-cover absolute inset-0" 
                 src={property.photos?.[currentSlide] || 'https://picsum.photos/seed/placeholder/800/600'} 
                 referrerPolicy="no-referrer" 
@@ -229,16 +233,16 @@ export default function PropertyDetail() {
           </div>
           <div className="hidden md:grid md:col-span-5 grid-cols-2 grid-rows-2 gap-[6px] h-full">
             <div className="overflow-hidden group relative">
-              <img alt="Interior 1" className="w-full h-full object-cover rounded-tr-[12px]" src={property.photos?.[1] || 'https://picsum.photos/seed/placeholder1/400/300'} referrerPolicy="no-referrer" />
+              <img alt={`${property.title} - ${property.type} for rent in ${property.area}`} className="w-full h-full object-cover rounded-tr-[12px]" src={property.photos?.[1] || 'https://picsum.photos/seed/placeholder1/400/300'} referrerPolicy="no-referrer" />
             </div>
             <div className="overflow-hidden group relative">
-              <img alt="Interior 2" className="w-full h-full object-cover" src={property.photos?.[2] || 'https://picsum.photos/seed/placeholder2/400/300'} referrerPolicy="no-referrer" />
+              <img alt={`${property.title} - ${property.type} for rent in ${property.area}`} className="w-full h-full object-cover" src={property.photos?.[2] || 'https://picsum.photos/seed/placeholder2/400/300'} referrerPolicy="no-referrer" />
             </div>
             <div className="overflow-hidden group relative">
-              <img alt="Interior 3" className="w-full h-full object-cover" src={property.photos?.[3] || 'https://picsum.photos/seed/placeholder3/400/300'} referrerPolicy="no-referrer" />
+              <img alt={`${property.title} - ${property.type} for rent in ${property.area}`} className="w-full h-full object-cover" src={property.photos?.[3] || 'https://picsum.photos/seed/placeholder3/400/300'} referrerPolicy="no-referrer" />
             </div>
             <div className="overflow-hidden group relative">
-              <img alt="Exterior" className="w-full h-full object-cover rounded-br-[12px]" src={property.photos?.[4] || 'https://picsum.photos/seed/placeholder4/400/300'} referrerPolicy="no-referrer" />
+              <img alt={`${property.title} - ${property.type} for rent in ${property.area}`} className="w-full h-full object-cover rounded-br-[12px]" src={property.photos?.[4] || 'https://picsum.photos/seed/placeholder4/400/300'} referrerPolicy="no-referrer" />
             </div>
           </div>
         </section>

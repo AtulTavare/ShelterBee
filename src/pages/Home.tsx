@@ -71,7 +71,11 @@ export default function Home() {
   }, [isTypeDropdownOpen, isOccupancyDropdownOpen, isGenderDropdownOpen, showSuggestions]);
 
   useEffect(() => {
-    document.title = 'ShelterBee - Find Verified PGs, Hostels & Rental Properties in India';
+    document.title = 'Find Verified PGs, Rooms & Short Stay Flats in Maharashtra | ShelterBee';
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', 'Browse verified PGs, hostels, furnished rooms and rental properties across Pune, Mumbai, Nashik and Chh. Sambhajinagar. Book short or long term stays instantly on ShelterBee.');
+    }
   }, []);
 
 

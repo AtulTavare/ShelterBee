@@ -36,7 +36,14 @@ const AboutUs = () => {
   } as any;
 
   useEffect(() => {
-    document.title = 'About Us - ShelterBee'
+    document.title = "About ShelterBee | Maharashtra's Trusted Property Rental Platform";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute(
+        "content",
+        "Learn about ShelterBee — India's trusted platform connecting guests with verified property owners for PGs, hostels, rooms and short stay rentals across Maharashtra."
+      );
+    }
   }, [])
 
   const values = [
