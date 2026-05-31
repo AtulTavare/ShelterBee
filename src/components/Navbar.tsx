@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { showConfirm } from '../utils/toast';
-import { Menu, X, LogOut, User as UserIcon, Home, Map, LifeBuoy, Info, Shield, Plus, Clock, Wallet as WalletIcon, UserPlus, Building, Users as UsersIcon, MessageSquare, Settings as SettingsIcon, Building2, Calendar, Heart, CheckCircle2, ShieldCheck, History, CreditCard, FileText } from 'lucide-react';
+import { Menu, X, LogOut, User as UserIcon, Home, Map, LifeBuoy, Info, Shield, Plus, Clock, Wallet as WalletIcon, UserPlus, Building, Users as UsersIcon, MessageSquare, Settings as SettingsIcon, Building2, Calendar, Heart, CheckCircle2, ShieldCheck, History, CreditCard, FileText, Handshake } from 'lucide-react';
 
 import { getAvatarUrl } from '../utils/avatar';
 
@@ -68,6 +68,8 @@ export default function Navbar() {
     { name: 'Property Approvals', path: '/profile#approvals', icon: CheckCircle2 },
     { name: 'Wallet', path: '/profile#wallet', icon: WalletIcon },
     { name: 'Security', path: '/profile#security', icon: ShieldCheck },
+  ] : profile?.role === 'partner' ? [
+    { name: 'Partner Dashboard', path: '/partner-dashboard', icon: Handshake },
   ] : [
     { name: 'Personal Info', path: '/profile#personal', icon: UserIcon },
     { name: 'Stay History', path: '/profile#history', icon: History },

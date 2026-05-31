@@ -1,10 +1,26 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Clock, ArrowRight, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const PartnerPending = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (!docSnap.exists()) return;
+      const status = docSnap.data().partnerStatus;
+      if (status === 'approved' || status === 'rejected') {
+        navigate('/partner-dashboard', { replace: true });
+      }
+    });
+    return () => unsub();
+  }, [user?.uid, navigate]);
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-6">

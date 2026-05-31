@@ -328,6 +328,26 @@ export const emailTemplates = {
     };
   },
 
+  getPartnerApproval: (partnerName: string, businessName: string, dashboardLink: string) => {
+    const content = `
+      <h1>Welcome to the ShelterBee Partner Program! 🎉</h1>
+      <p>Hello <span class="highlight">${partnerName}</span>,</p>
+      <p>Congratulations! Your application for <span class="highlight">${businessName}</span> has been <span style="color: #059669; font-weight: 700;">approved</span>.</p>
+      <p>You are now an official ShelterBee Partner. Your partner dashboard is ready and you can start earning commissions right away.</p>
+      <div class="details-box">
+        <p style="margin: 0; font-size: 14px;">Share your unique referral link to earn up to <strong>5% commission</strong> on every booking made through your referral.</p>
+      </div>
+      <p>Track your referrals, commissions, and earnings in real-time from your partner dashboard.</p>
+      <a href="${dashboardLink}" class="button">Go to Partner Dashboard</a>
+      <p style="margin-top: 24px;">If you have any questions, feel free to reach out to our support team.</p>
+      <p>— shelterBee</p>
+    `;
+    return {
+      subject: `Partner Application Approved! Welcome to ShelterBee 🎉`,
+      html: baseLayout(content)
+    };
+  },
+
   getBookingCancellationByVisitor: (ownerName: string, propertyName: string, guestName: string, reason: string) => {
     const content = `
       <h1>Booking Cancelled</h1>

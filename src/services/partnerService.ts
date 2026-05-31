@@ -9,6 +9,8 @@ import {
   query, 
   where, 
   orderBy,
+  limit,
+  onSnapshot,
   Timestamp 
 } from 'firebase/firestore';
 
@@ -90,6 +92,63 @@ class PartnerService {
       updatedAt: Timestamp.now(),
     });
     return ref.id;
+  }
+
+  subscribePartners(callback: (partners: any[]) => void) {
+    const q = query(collection(db, 'partners'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const partners = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data(),
+      }));
+      callback(partners);
+    }, (error) => {
+      console.error('Error subscribing to partners:', error);
+    });
+  }
+
+  subscribePartnerStats(uid: string, callback: (stats: any) => void) {
+    const q = query(
+      collection(db, 'partnerCommissions'),
+      where('partnerId', '==', uid)
+    );
+    return onSnapshot(q, (snapshot) => {
+      const commissions: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback({
+        totalReferrals: commissions.length,
+        completedBookings: commissions.filter(c => c.status === 'completed').length,
+        totalCommission: commissions.filter(c => c.status === 'completed').reduce((sum: number, c: any) => sum + (c.amount || 0), 0),
+        pendingCommission: commissions.filter(c => c.status === 'pending').reduce((sum: number, c: any) => sum + (c.amount || 0), 0),
+      });
+    }, (error) => {
+      console.error('Error subscribing to partner stats:', error);
+    });
+  }
+
+  async getPartnerCommissions(uid: string, maxCount: number = 3) {
+    const q = query(
+      collection(db, 'partnerCommissions'),
+      where('partnerId', '==', uid),
+      orderBy('createdAt', 'desc'),
+      limit(maxCount)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+
+  subscribePartnerCommissions(uid: string, callback: (commissions: any[]) => void, maxCount: number = 3) {
+    const q = query(
+      collection(db, 'partnerCommissions'),
+      where('partnerId', '==', uid),
+      orderBy('createdAt', 'desc'),
+      limit(maxCount)
+    );
+    return onSnapshot(q, (snapshot) => {
+      const commissions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(commissions);
+    }, (error) => {
+      console.error('Error subscribing to partner commissions:', error);
+    });
   }
 }
 
