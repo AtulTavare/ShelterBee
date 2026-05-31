@@ -3,6 +3,7 @@ import { partnerService } from '../../services/partnerService';
 import { emailService } from '../../services/emailService';
 import { emailTemplates } from '../../services/emailTemplates';
 import { userService } from '../../services/userService';
+import { showToast } from '../../utils/toast';
 import { CheckCircle2, XCircle, Clock, Search, BarChart3, Users, Banknote, TrendingUp, X, ExternalLink, MessageCircle, Phone, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -24,6 +25,150 @@ interface PartnerUser {
   createdAt: any;
 }
 
+const statusConfig = {
+  pending: { icon: Clock, label: 'Pending', className: 'bg-amber-100 text-amber-700' },
+  approved: { icon: CheckCircle2, label: 'Approved', className: 'bg-green-100 text-green-700' },
+  rejected: { icon: XCircle, label: 'Rejected', className: 'bg-red-100 text-red-700' },
+};
+
+const helpNumber = '+917021054239';
+
+function PartnerAnalytics({ partners }: { partners: PartnerUser[] }) {
+  const [partnerCommissions, setPartnerCommissions] = useState<Record<string, any[]>>({});
+
+  useEffect(() => {
+    const approved = partners.filter(p => p.status === 'approved');
+    const unsubs: (() => void)[] = [];
+
+    approved.forEach(p => {
+      const unsub = partnerService.subscribePartnerCommissions(p.uid, (commissions) => {
+        setPartnerCommissions(prev => ({ ...prev, [p.uid]: commissions }));
+      }, 3);
+      unsubs.push(unsub);
+    });
+
+    return () => unsubs.forEach(u => u());
+  }, [partners]);
+
+  const totalApproved = partners.filter(p => p.status === 'approved').length;
+  const totalPending = partners.filter(p => p.status === 'pending').length;
+  const totalRejected = partners.filter(p => p.status === 'rejected').length;
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+              <CheckCircle2 className="text-green-600" size={20} />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-[#1A1A2E]">{totalApproved}</p>
+              <p className="text-xs text-gray-500">Approved Partners</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+              <Clock className="text-amber-600" size={20} />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-[#1A1A2E]">{totalPending}</p>
+              <p className="text-xs text-gray-500">Pending Review</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+              <XCircle className="text-red-600" size={20} />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-[#1A1A2E]">{totalRejected}</p>
+              <p className="text-xs text-gray-500">Rejected</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="font-bold text-[#1A1A2E] flex items-center gap-2">
+            <Banknote size={18} className="text-amber-500" />
+            Partner Earnings & Booking Stats
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50/50">
+                <th className="text-left px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Partner</th>
+                <th className="text-left px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Business</th>
+                <th className="text-left px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="text-right px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Referrals</th>
+                <th className="text-right px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Last 3 Commissions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {partners.filter(p => p.status === 'approved').length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-12 text-gray-400">
+                    No approved partners yet
+                  </td>
+                </tr>
+              ) : (
+                partners.filter(p => p.status === 'approved').map((partner) => {
+                  const commissions = partnerCommissions[partner.uid] || [];
+                  const totalEarned = commissions
+                    .filter((c: any) => c.status === 'completed')
+                    .reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
+
+                  return (
+                    <tr key={partner.uid} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-[#1A1A2E] text-sm">{partner.displayName}</p>
+                        <p className="text-xs text-gray-400">{partner.email}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{partner.businessName}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                          <CheckCircle2 size={14} />
+                          Approved
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <p className="font-bold text-[#1A1A2E]">{commissions.length}</p>
+                        <p className="text-xs text-gray-400">₹{totalEarned} earned</p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {commissions.length === 0 ? (
+                          <span className="text-xs text-gray-400">No commissions</span>
+                        ) : (
+                          <div className="space-y-1">
+                            {commissions.map((c: any) => (
+                              <div key={c.id} className="flex items-center justify-end gap-2">
+                                <span className={`text-xs font-bold ${c.status === 'completed' ? 'text-green-600' : 'text-amber-600'}`}>
+                                  ₹{c.amount || 0}
+                                </span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'completed' ? 'bg-green-400' : 'bg-amber-400'}`}></span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const AdminPartners = () => {
   const [activeTab, setActiveTab] = useState<'applications' | 'analytics'>('applications');
   const [partners, setPartners] = useState<PartnerUser[]>([]);
@@ -33,7 +178,6 @@ const AdminPartners = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectPartnerId, setRejectPartnerId] = useState<string | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     const unsub = partnerService.subscribePartners((data) => {
@@ -43,30 +187,29 @@ const AdminPartners = () => {
     return () => unsub();
   }, []);
 
-  const handleApprove = async (partnerId: string) => {
+  const handleApprove = async (partnerId: string, partner: PartnerUser) => {
     setActionLoading(partnerId);
     try {
       await partnerService.approvePartner(partnerId);
+      showToast('Partner approved successfully', 'success');
 
-      const partner = partners.find(p => p.uid === partnerId);
-      if (partner) {
-        const recipientEmail = partner.businessEmail || partner.email;
-        const profile = await userService.getUserProfile(partnerId);
-        if (recipientEmail) {
-          const template = emailTemplates.getPartnerApproval(
-            profile?.displayName || partner.displayName,
-            partner.businessName,
-            `${window.location.origin}/partner-dashboard`
-          );
-          emailService.sendEmail({
-            to: recipientEmail,
-            subject: template.subject,
-            html: template.html,
-          });
-        }
+      const recipientEmail = partner.businessEmail || partner.email;
+      const profile = await userService.getUserProfile(partnerId);
+      if (recipientEmail) {
+        const template = emailTemplates.getPartnerApproval(
+          profile?.displayName || partner.displayName,
+          partner.businessName,
+          `${window.location.origin}/partner-dashboard`
+        );
+        emailService.sendEmail({
+          to: recipientEmail,
+          subject: template.subject,
+          html: template.html,
+        });
       }
     } catch (err) {
       console.error('Error approving partner:', err);
+      showToast('Failed to approve partner', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -74,22 +217,23 @@ const AdminPartners = () => {
 
   const openRejectModal = (partnerId: string) => {
     setRejectPartnerId(partnerId);
-    setRejectionReason('');
     setShowRejectModal(true);
   };
 
   const handleReject = async () => {
     if (!rejectPartnerId) return;
-    setActionLoading(rejectPartnerId);
+    const id = rejectPartnerId;
+    setActionLoading(id);
     try {
-      await partnerService.rejectPartner(rejectPartnerId);
-      setShowRejectModal(false);
-      setRejectPartnerId(null);
-      setRejectionReason('');
+      await partnerService.rejectPartner(id);
+      showToast('Partner rejected', 'success');
     } catch (err) {
       console.error('Error rejecting partner:', err);
+      showToast('Failed to reject partner', 'error');
     } finally {
       setActionLoading(null);
+      setShowRejectModal(false);
+      setRejectPartnerId(null);
     }
   };
 
@@ -113,185 +257,16 @@ const AdminPartners = () => {
     return new Date(date).toLocaleDateString();
   };
 
-  // Analytics calculations
   const totalApproved = partners.filter(p => p.status === 'approved').length;
   const totalPending = partners.filter(p => p.status === 'pending').length;
   const totalRejected = partners.filter(p => p.status === 'rejected').length;
 
-  const PartnerAnalytics = () => {
-    const [partnerCommissions, setPartnerCommissions] = useState<Record<string, any[]>>({});
-    const [analyticsLoading, setAnalyticsLoading] = useState(true);
-
-    useEffect(() => {
-      const approved = partners.filter(p => p.status === 'approved');
-      const unsubs: (() => void)[] = [];
-
-      approved.forEach(p => {
-        const unsub = partnerService.subscribePartnerCommissions(p.uid, (commissions) => {
-          setPartnerCommissions(prev => ({ ...prev, [p.uid]: commissions }));
-        }, 3);
-        unsubs.push(unsub);
-      });
-
-      setAnalyticsLoading(false);
-
-      return () => unsubs.forEach(u => u());
-    }, [partners]);
-
-    if (analyticsLoading) {
-      return (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-amber-500 border-t-transparent"></div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-8">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-                <CheckCircle2 className="text-green-600" size={20} />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1A1A2E]">{totalApproved}</p>
-                <p className="text-xs text-gray-500">Approved Partners</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                <Clock className="text-amber-600" size={20} />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1A1A2E]">{totalPending}</p>
-                <p className="text-xs text-gray-500">Pending Review</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                <XCircle className="text-red-600" size={20} />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1A1A2E]">{totalRejected}</p>
-                <p className="text-xs text-gray-500">Rejected</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Per-Partner Earnings */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="font-bold text-[#1A1A2E] flex items-center gap-2">
-              <Banknote size={18} className="text-amber-500" />
-              Partner Earnings & Booking Stats
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50/50">
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Partner</th>
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Business</th>
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-right px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Referrals</th>
-                  <th className="text-right px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Last 3 Commissions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {partners.filter(p => p.status === 'approved').length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-12 text-gray-400">
-                      No approved partners yet
-                    </td>
-                  </tr>
-                ) : (
-                  partners.filter(p => p.status === 'approved').map((partner) => {
-                    const commissions = partnerCommissions[partner.uid] || [];
-                    const totalEarned = commissions
-                      .filter(c => c.status === 'completed')
-                      .reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
-
-                    return (
-                      <tr key={partner.uid} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-[#1A1A2E] text-sm">{partner.displayName}</p>
-                          <p className="text-xs text-gray-400">{partner.email}</p>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{partner.businessName}</td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                            <CheckCircle2 size={14} />
-                            Approved
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <p className="font-bold text-[#1A1A2E]">{commissions.length}</p>
-                          <p className="text-xs text-gray-400">₹{totalEarned} earned</p>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {commissions.length === 0 ? (
-                            <span className="text-xs text-gray-400">No commissions</span>
-                          ) : (
-                            <div className="space-y-1">
-                              {commissions.map((c: any) => (
-                                <div key={c.id} className="flex items-center justify-end gap-2">
-                                  <span className={`text-xs font-bold ${c.status === 'completed' ? 'text-green-600' : 'text-amber-600'}`}>
-                                    ₹{c.amount || 0}
-                                  </span>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'completed' ? 'bg-green-400' : 'bg-amber-400'}`}></span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const statusConfig = {
-    pending: { icon: Clock, label: 'Pending', className: 'bg-amber-100 text-amber-700' },
-    approved: { icon: CheckCircle2, label: 'Approved', className: 'bg-green-100 text-green-700' },
-    rejected: { icon: XCircle, label: 'Rejected', className: 'bg-red-100 text-red-700' },
-  };
-
-  const helpNumber = '+917021054239';
-  const TotalStatsBar = () => (
-    <div className="flex items-center gap-4 text-sm">
-      <span className="text-gray-500">
-        <span className="font-bold text-[#1A1A2E]">{filteredPartners.length}</span> shown
-      </span>
-      <span className="text-gray-300">|</span>
-      <span className="text-green-600 font-bold">{totalApproved} approved</span>
-      <span className="text-gray-300">|</span>
-      <span className="text-amber-600 font-bold">{totalPending} pending</span>
-      <span className="text-gray-300">|</span>
-      <span className="text-red-600 font-bold">{totalRejected} rejected</span>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Partner Program</h2>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         <button
           onClick={() => setActiveTab('applications')}
@@ -312,10 +287,9 @@ const AdminPartners = () => {
       </div>
 
       {activeTab === 'analytics' ? (
-        <PartnerAnalytics />
+        <PartnerAnalytics partners={partners} />
       ) : (
         <>
-          {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -342,9 +316,18 @@ const AdminPartners = () => {
             </div>
           </div>
 
-          <TotalStatsBar />
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-gray-500">
+              <span className="font-bold text-[#1A1A2E]">{filteredPartners.length}</span> shown
+            </span>
+            <span className="text-gray-300">|</span>
+            <span className="text-green-600 font-bold">{totalApproved} approved</span>
+            <span className="text-gray-300">|</span>
+            <span className="text-amber-600 font-bold">{totalPending} pending</span>
+            <span className="text-gray-300">|</span>
+            <span className="text-red-600 font-bold">{totalRejected} rejected</span>
+          </div>
 
-          {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -373,6 +356,7 @@ const AdminPartners = () => {
                   ) : (
                     filteredPartners.map((partner) => {
                       const status = statusConfig[partner.status];
+                      if (!status) return null;
                       const StatusIcon = status.icon;
                       return (
                         <tr key={partner.uid} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
@@ -409,7 +393,7 @@ const AdminPartners = () => {
                             {partner.status === 'pending' && (
                               <div className="flex items-center justify-end gap-2">
                                 <button
-                                  onClick={() => handleApprove(partner.uid)}
+                                  onClick={() => handleApprove(partner.uid, partner)}
                                   disabled={actionLoading === partner.uid}
                                   className="px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
                                 >
@@ -465,7 +449,6 @@ const AdminPartners = () => {
         </>
       )}
 
-      {/* Reject Confirmation Modal */}
       <AnimatePresence>
         {showRejectModal && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -474,7 +457,10 @@ const AdminPartners = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowRejectModal(false)}
+              onClick={() => {
+                setShowRejectModal(false);
+                setRejectPartnerId(null);
+              }}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -485,7 +471,10 @@ const AdminPartners = () => {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-[#1A1A2E]">Reject Partner Application</h3>
                 <button
-                  onClick={() => setShowRejectModal(false)}
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectPartnerId(null);
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X size={20} className="text-gray-400" />
@@ -496,7 +485,10 @@ const AdminPartners = () => {
               </p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowRejectModal(false)}
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectPartnerId(null);
+                  }}
                   className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
                 >
                   Cancel
