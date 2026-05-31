@@ -95,15 +95,21 @@ class PartnerService {
   }
 
   subscribePartners(callback: (partners: any[]) => void) {
-    const q = query(collection(db, 'partners'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'partners'));
     return onSnapshot(q, (snapshot) => {
       const partners = snapshot.docs.map(doc => ({
         uid: doc.id,
         ...doc.data(),
       }));
+      partners.sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toMillis?.() || 0;
+        const bTime = b.createdAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
       callback(partners);
     }, (error) => {
       console.error('Error subscribing to partners:', error);
+      callback([]);
     });
   }
 
@@ -128,26 +134,34 @@ class PartnerService {
   async getPartnerCommissions(uid: string, maxCount: number = 3) {
     const q = query(
       collection(db, 'partnerCommissions'),
-      where('partnerId', '==', uid),
-      orderBy('createdAt', 'desc'),
-      limit(maxCount)
+      where('partnerId', '==', uid)
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    let commissions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    commissions.sort((a: any, b: any) => {
+      const aTime = a.createdAt?.toMillis?.() || 0;
+      const bTime = b.createdAt?.toMillis?.() || 0;
+      return bTime - aTime;
+    });
+    return commissions.slice(0, maxCount);
   }
 
   subscribePartnerCommissions(uid: string, callback: (commissions: any[]) => void, maxCount: number = 3) {
     const q = query(
       collection(db, 'partnerCommissions'),
-      where('partnerId', '==', uid),
-      orderBy('createdAt', 'desc'),
-      limit(maxCount)
+      where('partnerId', '==', uid)
     );
     return onSnapshot(q, (snapshot) => {
-      const commissions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      callback(commissions);
+      let commissions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      commissions.sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toMillis?.() || 0;
+        const bTime = b.createdAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+      callback(commissions.slice(0, maxCount));
     }, (error) => {
       console.error('Error subscribing to partner commissions:', error);
+      callback([]);
     });
   }
 }
