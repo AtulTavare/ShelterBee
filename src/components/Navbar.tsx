@@ -78,6 +78,8 @@ export default function Navbar() {
   ];
 
   const isAdmin = profile?.role === 'admin' || user?.email === 'tavareatul7192@gmail.com';
+  const isPartner = profile?.role === 'partner';
+  const profileLink = isAdmin ? '/admin-secret-dashboard' : isPartner ? '/partner-dashboard' : '/profile';
 
   return (
     <>
@@ -100,6 +102,9 @@ export default function Navbar() {
               {isAdmin && (
                 <Link to="/admin-secret-dashboard" className={`font-bold transition-colors ${location.pathname.startsWith('/admin-secret-dashboard') ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Admin</Link>
               )}
+              {isPartner && (
+                <Link to="/partner-dashboard" className={`font-bold transition-colors ${location.pathname === '/partner-dashboard' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Partner</Link>
+              )}
             </div>
           </div>
           
@@ -119,7 +124,7 @@ export default function Navbar() {
               </div>
             ) : (
               user ? (
-                profile?.role !== 'visitor' && (
+                profile?.role !== 'visitor' && profile?.role !== 'partner' && (
                   <Link 
                     to="/list-property" 
                     className="hidden lg:block bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
@@ -148,10 +153,10 @@ export default function Navbar() {
             <div className="flex items-center gap-2 relative" ref={dropdownRef}>
               {user ? (
                 <div className="flex items-center gap-2 md:gap-3">
-                  <Link to={isAdmin ? '/admin-secret-dashboard' : '/profile'} className="hidden sm:flex flex-col items-end mr-2 hover:text-primary transition-colors cursor-pointer">
+                  <Link to={profileLink} className="hidden sm:flex flex-col items-end mr-2 hover:text-primary transition-colors cursor-pointer">
                     <span className="text-sm font-bold text-on-secondary-fixed">{profile?.displayName || user.email?.split('@')[0]}</span>
                   </Link>
-                  <Link to={isAdmin ? '/admin-secret-dashboard' : '/profile'} className="hidden sm:block cursor-pointer">
+                  <Link to={profileLink} className="hidden sm:block cursor-pointer">
                     <img 
                       src={user.photoURL || getAvatarUrl(profile?.gender)} 
                       alt="Profile" 
@@ -244,8 +249,8 @@ export default function Navbar() {
         </Link>
 
         <Link 
-          to={user ? "/profile" : "/auth?mode=login"} 
-          className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400'}`}
+          to={user ? profileLink : "/auth?mode=login"} 
+          className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' || location.pathname === '/partner-dashboard' ? 'text-primary' : 'text-gray-400'}`}
         >
           <UserIcon size={20} />
           <span className="text-[10px] font-bold">Profile</span>

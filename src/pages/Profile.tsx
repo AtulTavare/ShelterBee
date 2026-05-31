@@ -218,8 +218,10 @@ export default function Profile() {
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth?mode=login");
+    } else if (!loading && profile?.role === 'partner') {
+      navigate("/partner-dashboard", { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, profile?.role]);
 
   const location = useLocation();
 
