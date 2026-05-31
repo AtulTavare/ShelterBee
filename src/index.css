@@ -162,6 +162,10 @@ body {
   position: relative;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Ensure all nav elements respect the top-most z-index */
 navbar, nav {
   z-index: 9999 !important;

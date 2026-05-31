@@ -114,11 +114,14 @@ export const walletService = {
     ownerUid: string,
     visitorUid: string,
     propertyTitle: string,
+    partnerId?: string,
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
-      const ownerCredit = bookingAmount * 0.75;
-      const adminCredit = bookingAmount * 0.25;
+      const partnerCredit = partnerId ? bookingAmount * 0.05 : 0;
+      const remainingAfterPartner = bookingAmount - partnerCredit;
+      const ownerCredit = remainingAfterPartner * 0.80;
+      const adminCredit = remainingAfterPartner * 0.20;
 
       await runTransaction(db, async (transaction) => {
         const ownerWalletRef = doc(db, "wallets", ownerUid);
@@ -126,7 +129,6 @@ export const walletService = {
         const bookingRef = doc(db, "bookings", bookingId);
         const txnRef = collection(db, "walletTransactions");
 
-        // ALL READS
         const ownerSnap = await transaction.get(ownerWalletRef);
         const adminSnap = await transaction.get(adminWalletRef);
 
@@ -140,7 +142,6 @@ export const walletService = {
         const newOwnerBalance = ownerBal + ownerCredit;
         const newAdminBalance = adminBal + adminCredit;
 
-        // ALL WRITES
         transaction.set(
           ownerWalletRef,
           {
@@ -191,6 +192,39 @@ export const walletService = {
           balanceAfter: newAdminBalance,
         });
 
+        // Partner commission
+        if (partnerId && partnerCredit > 0) {
+          const partnerWalletRef = doc(db, "wallets", partnerId);
+          const partnerSnap = await transaction.get(partnerWalletRef);
+          const partnerBal = partnerSnap.exists()
+            ? (partnerSnap.data().balance ?? 0)
+            : 0;
+          const newPartnerBalance = partnerBal + partnerCredit;
+
+          transaction.set(
+            partnerWalletRef,
+            {
+              userId: partnerId,
+              balance: newPartnerBalance,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+
+          transaction.set(doc(txnRef), {
+            userId: partnerId,
+            type: "credit",
+            amount: partnerCredit,
+            description: `Referral commission - ${propertyTitle}`,
+            bookingId,
+            propertyTitle,
+            bookingAmount,
+            walletProcessed: true,
+            createdAt: serverTimestamp(),
+            balanceAfter: newPartnerBalance,
+          });
+        }
+
         // Update booking
         transaction.update(bookingRef, {
           walletProcessed: true,
@@ -199,7 +233,7 @@ export const walletService = {
       });
 
       console.log(
-        `Success: processBookingWallet for ${bookingId}. Owner: +${ownerCredit}, Admin: +${adminCredit}`,
+        `Success: processBookingWallet for ${bookingId}. Owner: +${ownerCredit}, Admin: +${adminCredit}${partnerId ? `, Partner: +${partnerCredit}` : ''}`,
       );
     } catch (error) {
       console.error("Wallet failed for booking:", bookingId, error);
@@ -217,10 +251,9 @@ export const walletService = {
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
-      const paymentPartnerCharge = bookingAmount * 0.05;
-      const visitorRefund = bookingAmount * 0.95;
-      const ownerDebit = bookingAmount * 0.75;
-      const adminReversal = bookingAmount * 0.25;
+      const visitorRefund = bookingAmount * 1.00;
+      const ownerDebit = bookingAmount * 0.80;
+      const adminReversal = bookingAmount * 0.20;
 
       await runTransaction(db, async (transaction) => {
         const ownerWalletRef = doc(db, "wallets", ownerUid);
@@ -245,9 +278,7 @@ export const walletService = {
           : 0;
 
         const newOwnerBalance = ownerBal - ownerDebit;
-        // Net admin = -25% (reversal) + 5% (charge) = -20%
-        const adminBalanceAfterDebit = adminBal - adminReversal;
-        const newAdminBalance = adminBalanceAfterDebit + paymentPartnerCharge;
+        const newAdminBalance = adminBal - adminReversal;
         const newVisitorBalance = visitorBal + visitorRefund;
 
         // ALL WRITES
@@ -305,19 +336,6 @@ export const walletService = {
           propertyTitle,
           walletProcessed: true,
           createdAt: serverTimestamp(),
-          balanceAfter: adminBalanceAfterDebit,
-        });
-
-        // Admin transaction 2 (charge)
-        transaction.set(doc(txnRef), {
-          userId: adminUid,
-          type: "credit",
-          amount: paymentPartnerCharge,
-          description: `Payment partner charge - ${propertyTitle}`,
-          bookingId,
-          propertyTitle,
-          walletProcessed: true,
-          createdAt: serverTimestamp(),
           balanceAfter: newAdminBalance,
         });
 
@@ -330,8 +348,7 @@ export const walletService = {
           bookingId,
           propertyTitle,
           bookingAmount,
-          refundPercentage: 95,
-          paymentPartnerCharge: paymentPartnerCharge,
+          refundPercentage: 100,
           walletProcessed: true,
           createdAt: serverTimestamp(),
           balanceAfter: newVisitorBalance,
@@ -345,7 +362,7 @@ export const walletService = {
       });
 
       console.log(
-        `Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin Net: -${adminReversal - paymentPartnerCharge}, Visitor: +${visitorRefund}`,
+        `Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin Net: -${adminReversal}, Visitor: +${visitorRefund}`,
       );
     } catch (error) {
       console.error("Rejection wallet failed:", error);
@@ -362,15 +379,8 @@ export const walletService = {
       const adminUid = await this.getAdminId();
       const bookingAmount = booking.totalAmount;
       const refundAmount = bookingAmount * (refundPercent / 100);
-      const adminGets = bookingAmount - refundAmount;
-      const ownerDebit = bookingAmount; // Assuming owner gets 100% of debit reversal? Or should it be owner payout reversal?
-      // Request says: "Owner wallet: -100% debit ALWAYS"
-      // This means we take back the full booking amount from owner's balance?
-      // If we credited 75% initially, -100% means we take back 75%? Or 100%?
-      // "Owner wallet: -100% debit ALWAYS" implies taking back the full potential revenue or reversing the credit.
-      // Usually it means taking back what was given.
-      // If owner was given 75%, -100% of the totalAmount would put them in negative if they didn't have enough.
-      // Let's assume -bookingAmount to be safe as per "100% debit ALWAYS".
+      const ownerDebit = bookingAmount * 0.80; // Owner always loses 100% of their share
+      const adminGets = ownerDebit - refundAmount; // Admin gets the remainder
 
       await runTransaction(db, async (transaction) => {
         const ownerWalletRef = doc(db, "wallets", booking.ownerId);

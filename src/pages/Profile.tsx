@@ -138,7 +138,8 @@ type Tab =
   | "security"
   | "dashboard"
   | "approvals"
-  | "new-bookings";
+  | "new-bookings"
+  | "campaigns";
 
 export default function Profile() {
   const { user, profile, loading } = useAuth();
@@ -235,6 +236,7 @@ export default function Profile() {
         "dashboard",
         "approvals",
         "new-bookings",
+        "campaigns",
       ];
       if (validTabs.includes(hash as Tab)) {
         setActiveTab(hash as Tab);
@@ -264,6 +266,7 @@ export default function Profile() {
     ? [
         { id: "dashboard", label: "Dashboard", icon: Building2 },
         { id: "new-bookings", label: "Bookings", icon: Calendar },
+        { id: "campaigns", label: "Campaigns", icon: TrendingUp },
         { id: "favourites", label: "My Listings", icon: Heart },
         { id: "wallet", label: "Wallet", icon: WalletIcon },
         { id: "security", label: "Security", icon: ShieldCheck },
@@ -407,6 +410,7 @@ export default function Profile() {
               {activeTab === "payments" && <PaymentsTab />}
               {activeTab === "favourites" && <FavouritesTab />}
               {activeTab === "new-bookings" && <NewBookingsTab />}
+              {activeTab === "campaigns" && <CampaignsTab />}
               {activeTab === "approvals" && <PropertyApprovalsTab />}
               {activeTab === "security" && <SecurityTab />}
             </motion.div>
@@ -5267,6 +5271,299 @@ function ReportModal({
           </button>
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+function CampaignsTab() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState("");
+  const [formData, setFormData] = useState({
+    code: "",
+    discountType: "percentage",
+    discountValue: "",
+    minGuests: "1",
+    eligibilityType: "any",
+    expiryType: "no_expiry",
+    expiryDate: ""
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  useEffect(() => {
+    if (!user) return;
+    const fetchCouponsAndProperties = async () => {
+      try {
+        const propQ = query(collection(db, "properties"), where("ownerId", "==", user.uid), where("status", "==", "Approved"));
+        const propSnap = await getDocs(propQ);
+        setProperties(propSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const coupQ = query(collection(db, "coupons"), where("ownerId", "==", user.uid));
+        const coupSnap = await getDocs(coupQ);
+        setCoupons(coupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Error fetching campaigns data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCouponsAndProperties();
+  }, [user]);
+
+  const handleCreateCoupon = async () => {
+    if (!formData.code || !selectedProperty || !formData.discountValue) {
+      showToast("Please fill all required fields", "error");
+      return;
+    }
+    if (formData.discountType === 'percentage' && Number(formData.discountValue) > 50) {
+      showToast("Percentage discount cannot exceed 50%", "error");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const checkQ = query(collection(db, "coupons"), where("code", "==", formData.code.toUpperCase()));
+      const checkSnap = await getDocs(checkQ);
+      if (!checkSnap.empty) {
+        showToast("Coupon code already exists", "error");
+        setIsSubmitting(false);
+        return;
+      }
+
+      await addDoc(collection(db, "coupons"), {
+        ownerId: user?.uid,
+        propertyIds: [selectedProperty],
+        code: formData.code.toUpperCase(),
+        discountType: formData.discountType,
+        discountValue: Number(formData.discountValue),
+        minGuests: Number(formData.minGuests),
+        eligibilityType: formData.eligibilityType,
+        expiryType: formData.expiryType,
+        expiryDate: formData.expiryType === 'date' ? new Date(formData.expiryDate) : null,
+        isActive: true,
+        usageCount: 0,
+        createdAt: serverTimestamp()
+      });
+      showToast("Coupon created successfully", "success");
+      setShowModal(false);
+      setSelectedProperty("");
+      setFormData({
+        code: "",
+        discountType: "percentage",
+        discountValue: "",
+        minGuests: "1",
+        eligibilityType: "any",
+        expiryType: "no_expiry",
+        expiryDate: ""
+      });
+      const coupQ = query(collection(db, "coupons"), where("ownerId", "==", user?.uid));
+      const coupSnap = await getDocs(coupQ);
+      setCoupons(coupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to create coupon", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleStatus = async (couponId: string, currentStatus: boolean) => {
+    try {
+      await updateDoc(doc(db, "coupons", couponId), { isActive: !currentStatus });
+      setCoupons(prev => prev.map(c => c.id === couponId ? { ...c, isActive: !currentStatus } : c));
+      showToast("Status updated", "success");
+    } catch (err) {
+      showToast("Failed to update status", "error");
+    }
+  };
+
+  const getPropertyName = (propId: string) => properties.find(p => p.id === propId)?.title || "Unknown";
+
+  if (loading) return (
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F59E0B]"></div>
+      </div>
+  );
+
+  return (
+    <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-xl font-black text-[#1A1A2E] flex items-center gap-3">
+          <div className="p-2 bg-indigo-50 rounded-xl">
+            <TrendingUp className="w-5 h-5 text-indigo-600" />
+          </div>
+          Campaigns
+        </h2>
+        {coupons.length > 0 && (
+          <button onClick={() => setShowModal(true)} className="px-6 py-2.5 bg-[#1E1B4B] text-white rounded-xl font-bold hover:bg-[#312E81] transition-all flex gap-2 items-center shadow-lg shadow-indigo-200">
+            <Plus className="w-4 h-4" /> Create Coupon
+          </button>
+        )}
+      </div>
+
+      {coupons.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200">
+          <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+            <TrendingUp className="w-8 h-8 text-indigo-600" />
+          </div>
+          <h3 className="text-lg font-black text-[#1A1A2E] mb-2">No campaigns yet</h3>
+          <p className="text-sm text-slate-400 font-medium mb-6">Create your first coupon to attract more bookings</p>
+          <button onClick={() => setShowModal(true)} className="px-8 py-3 bg-[#1E1B4B] text-white rounded-xl font-bold hover:bg-[#312E81] transition-all flex gap-2 items-center shadow-lg shadow-indigo-200">
+            <Plus className="w-5 h-5" /> Create a Coupon
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {coupons.map(coupon => (
+            <div key={coupon.id} className="p-5 border border-slate-200 rounded-2xl flex flex-col justify-between hover:shadow-md transition-all">
+              <div>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <span className="text-lg font-black text-[#1A1A2E] tracking-tight">{coupon.code}</span>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {coupon.propertyIds?.map((id: string) => getPropertyName(id)).join(", ")}
+                    </p>
+                  </div>
+                  <button onClick={() => toggleStatus(coupon.id, coupon.isActive)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${coupon.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    {coupon.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </button>
+                </div>
+                <div className="flex gap-3 mt-3 mb-4">
+                  <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold">
+                    {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `₹${coupon.discountValue} OFF`}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 space-y-1">
+                  <p>Min Guests: {coupon.minGuests} · Eligibility: {coupon.eligibilityType.replace(/_/g, ' ')}</p>
+                  <p>Expiry: {coupon.expiryType === 'no_expiry' ? 'No Expiry' : new Date(coupon.expiryDate?.seconds * 1000 || coupon.expiryDate).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div className="pt-3 mt-3 border-t border-slate-100 text-xs font-bold text-slate-500 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
+                {coupon.usageCount || 0} booking{(coupon.usageCount || 0) !== 1 ? 's' : ''} used this coupon
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999]"
+              onClick={() => setShowModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div className="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl pointer-events-auto border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                      <TrendingUp className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <h3 className="text-lg font-black text-[#1A1A2E]">Create New Coupon</h3>
+                  </div>
+                  <button onClick={() => setShowModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                    <XCircle className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+                
+                <div className="space-y-5">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Coupon Code</label>
+                    <input type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl uppercase outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-bold text-[#1A1A2E] placeholder:font-normal" placeholder="SUMMER2026" />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Select Property</label>
+                    {properties.length > 0 ? (
+                      <select value={selectedProperty} onChange={e => setSelectedProperty(e.target.value)} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium text-[#1A1A2E] appearance-none bg-white">
+                        <option value="">Choose a property...</option>
+                        {properties.map(p => (
+                          <option key={p.id} value={p.id}>{p.title}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <p className="text-sm font-bold text-amber-800 mb-2">No live properties found</p>
+                        <p className="text-xs text-amber-700 mb-3">You need at least one approved property to create a coupon.</p>
+                        <button onClick={() => { navigate('/add-property'); setShowModal(false); }} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors">
+                          List a Property
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Discount Type</label>
+                      <select value={formData.discountType} onChange={e => setFormData({...formData, discountType: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium appearance-none bg-white">
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="fixed">Fixed Amount (₹)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Value</label>
+                      <input type="number" value={formData.discountValue} onChange={e => setFormData({...formData, discountValue: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium" placeholder={formData.discountType === 'percentage' ? "10" : "500"} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Minimum Guests</label>
+                    <input type="number" min="1" value={formData.minGuests} onChange={e => setFormData({...formData, minGuests: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium" />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Eligibility</label>
+                    <select value={formData.eligibilityType} onChange={e => setFormData({...formData, eligibilityType: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium appearance-none bg-white">
+                      <option value="any">Open for all visitors</option>
+                      <option value="first_on_platform">First booking on ShelterBee only</option>
+                      <option value="first_on_property">First booking on this property only</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1.5">
+                      {formData.eligibilityType === 'first_on_platform' && "Applies only if the visitor has never made any booking on ShelterBee before"}
+                      {formData.eligibilityType === 'first_on_property' && "Applies only if the visitor has never booked this specific property before"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Expiry</label>
+                    <select value={formData.expiryType} onChange={e => setFormData({...formData, expiryType: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium appearance-none bg-white">
+                      <option value="no_expiry">No expiry (disable manually)</option>
+                      <option value="date">Set expiry date</option>
+                    </select>
+                    {formData.expiryType === 'date' && (
+                      <input type="date" value={formData.expiryDate} onChange={e => setFormData({...formData, expiryDate: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium mt-2" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end gap-3">
+                  <button onClick={() => setShowModal(false)} className="px-5 py-2.5 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors text-sm">Cancel</button>
+                  <button onClick={handleCreateCoupon} disabled={isSubmitting || properties.length === 0} className="px-6 py-2.5 bg-[#1E1B4B] text-white rounded-xl font-bold hover:bg-[#312E81] transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 text-sm flex items-center gap-2">
+                    {isSubmitting ? (
+                      <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Saving...</>
+                    ) : (
+                      'Save Coupon'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmail
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 
-export type UserRole = 'visitor' | 'owner' | 'admin';
+export type UserRole = 'visitor' | 'owner' | 'admin' | 'partner';
 
 export interface UserProfile {
   id?: string;
@@ -21,6 +21,8 @@ export interface UserProfile {
   name?: string;
   status?: 'Active' | 'Inactive';
   favorites?: string[];
+  partnerStatus?: 'pending' | 'approved' | 'rejected';
+  partnerCode?: string;
 }
 
 interface AuthContextType {

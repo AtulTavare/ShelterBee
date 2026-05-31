@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -32,6 +33,8 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const RefundPolicy = lazy(() => import('./pages/RefundPolicy'));
 const PaymentPolicy = lazy(() => import('./pages/PaymentPolicy'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
+const PartnerPending = lazy(() => import('./pages/PartnerPending'));
+const PartnerDashboard = lazy(() => import('./pages/PartnerDashboard'));
 
 // Lazy load Admin Components (Named Exports)
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then(m => ({ default: m.AdminLayout })));
@@ -44,6 +47,7 @@ const AdminUsers = lazy(() => import('./pages/admin/AdminUsers').then(m => ({ de
 const AdminOwnerDetails = lazy(() => import('./pages/admin/AdminOwnerDetails').then(m => ({ default: m.AdminOwnerDetails })));
 const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback').then(m => ({ default: m.AdminFeedback })));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings').then(m => ({ default: m.AdminSettings })));
+const AdminPartners = lazy(() => import('./pages/admin/AdminPartners'));
 
 const PageLoader = () => (
   <div className="min-h-[60vh] flex items-center justify-center bg-background/50 backdrop-blur-sm">
@@ -54,6 +58,18 @@ const PageLoader = () => (
   </div>
 );
 
+function ReferrerCapture() {
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('shelterbee_referral', ref);
+    }
+  }, [location]);
+  return null;
+}
+
 function AppContent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin-secret-dashboard');
@@ -61,47 +77,61 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans text-on-surface">
       <ScrollToTop />
+      <ReferrerCapture />
       <Navbar />
       <main className="flex-grow pt-16 md:pt-20">
         <MaintenanceGuard>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/host-auth" element={<HostAuth />} />
-              <Route path="/property/:id" element={<PropertyDetail />} />
-              <Route path="/list-property" element={<ListProperty />} />
-              <Route path="/stays" element={<Listings />} />
-              <Route path="/support" element={<Support />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/book/:propertyId" element={<BookingPage />} />
-              <Route path="/help-center" element={<HelpCenter />} />
-              <Route path="/help-articles" element={<HelpArticles />} />
-              <Route path="/help-articles/:id" element={<ArticleDetail />} />
-              <Route path="/report-concern" element={<ReportConcern />} />
-              <Route path="/hosting-rules" element={<HostingRules />} />
-              <Route path="/learn-to-host" element={<LearnToHost />} />
-              <Route path="/company-details" element={<CompanyDetails />} />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/refund-policy" element={<RefundPolicy />} />
-              <Route path="/payment-policy" element={<PaymentPolicy />} />
-              <Route path="/about-us" element={<AboutUs />} />
-              
-              {/* Admin Routes */}
-              <Route path="/admin-secret-dashboard" element={<AdminLayout />}>
-                <Route index element={<AdminDashboard />} />
-                <Route path="pending-approvals" element={<AdminPendingApprovals />} />
-                <Route path="wallet" element={<AdminWallet />} />
-                <Route path="recent-registrations" element={<AdminRecentRegistrations />} />
-                <Route path="manage-properties" element={<AdminManageProperties />} />
-                <Route path="users" element={<AdminUsers />} />
-                <Route path="users/owner/:id" element={<AdminOwnerDetails />} />
-                <Route path="feedback" element={<AdminFeedback />} />
-                <Route path="settings" element={<AdminSettings />} />
-              </Route>
-            </Routes>
-          </Suspense>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+            >
+              <Suspense fallback={<PageLoader />}>
+                <Routes location={location}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/host-auth" element={<HostAuth />} />
+                  <Route path="/property/:id" element={<PropertyDetail />} />
+                  <Route path="/list-property" element={<ListProperty />} />
+                  <Route path="/stays" element={<Listings />} />
+                  <Route path="/support" element={<Support />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/book/:propertyId" element={<BookingPage />} />
+                  <Route path="/help-center" element={<HelpCenter />} />
+                  <Route path="/help-articles" element={<HelpArticles />} />
+                  <Route path="/help-articles/:id" element={<ArticleDetail />} />
+                  <Route path="/report-concern" element={<ReportConcern />} />
+                  <Route path="/hosting-rules" element={<HostingRules />} />
+                  <Route path="/learn-to-host" element={<LearnToHost />} />
+                  <Route path="/company-details" element={<CompanyDetails />} />
+                  <Route path="/terms" element={<Terms />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/refund-policy" element={<RefundPolicy />} />
+                  <Route path="/payment-policy" element={<PaymentPolicy />} />
+                  <Route path="/about-us" element={<AboutUs />} />
+                  <Route path="/partner-pending" element={<PartnerPending />} />
+                  <Route path="/partner-dashboard" element={<PartnerDashboard />} />
+                  
+                  {/* Admin Routes */}
+                  <Route path="/admin-secret-dashboard" element={<AdminLayout />}>
+                    <Route index element={<AdminDashboard />} />
+                    <Route path="pending-approvals" element={<AdminPendingApprovals />} />
+                    <Route path="wallet" element={<AdminWallet />} />
+                    <Route path="recent-registrations" element={<AdminRecentRegistrations />} />
+                    <Route path="manage-properties" element={<AdminManageProperties />} />
+                    <Route path="users" element={<AdminUsers />} />
+                    <Route path="users/owner/:id" element={<AdminOwnerDetails />} />
+                    <Route path="feedback" element={<AdminFeedback />} />
+                    <Route path="partners" element={<AdminPartners />} />
+                    <Route path="settings" element={<AdminSettings />} />
+                  </Route>
+                </Routes>
+              </Suspense>
+            </motion.div>
+          </AnimatePresence>
         </MaintenanceGuard>
       </main>
       <Footer />

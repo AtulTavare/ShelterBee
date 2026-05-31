@@ -183,6 +183,40 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // --- 10. COUPONS ---
+    match /coupons/{couponId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && 
+        (resource == null || request.resource.data.ownerId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && 
+        (
+          resource.data.ownerId == request.auth.uid || 
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount'])) || 
+          isAdmin()
+        );
+      allow delete: if isSignedIn() && 
+        (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /couponUsage/{usageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // --- 11. PARTNERS ---
+    match /partners/{partnerId} {
+      allow read: if isSignedIn() && (request.auth.uid == partnerId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && (request.auth.uid == partnerId || isAdmin());
+      allow delete: if isAdmin();
+    }
+    match /partnerCommissions/{commissionId} {
+      allow read: if isSignedIn() && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
     // LEGACY PATHS
     match /support/{docId} {
       allow read, write: if isAdmin();

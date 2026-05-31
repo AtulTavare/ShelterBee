@@ -1,6 +1,19 @@
-import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc, limit, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc, limit, orderBy, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { walletService } from './walletService';
+
+const getPartnerIdFromCode = async (code: string): Promise<string | null> => {
+  try {
+    const q = query(collection(db, 'users'), where('partnerCode', '==', code), where('partnerStatus', '==', 'approved'));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs[0].id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 export interface GuestDetail {
   name: string;
@@ -38,6 +51,11 @@ export interface Booking {
   updatedAt: any;
   walletProcessed: boolean;
   estimatedCost?: number; // Added for UI compatibility
+  couponCode?: string;
+  couponId?: string;
+  discountAmount?: number;
+  originalAmount?: number;
+  referredBy?: string;
 }
 
 export const bookingService = {
@@ -58,18 +76,43 @@ export const bookingService = {
       
       const bookingId = docRef.id;
 
+      if (bookingData.couponId && bookingData.couponCode) {
+        // Create usage record
+        await addDoc(collection(db, 'couponUsage'), {
+          couponCode: bookingData.couponCode,
+          couponId: bookingData.couponId,
+          visitorId: bookingData.visitorId,
+          bookingId: bookingId,
+          propertyId: bookingData.propertyId,
+          discountAmount: bookingData.discountAmount || 0,
+          usedAt: serverTimestamp()
+        });
+
+        // Increment usage count
+        const couponRef = doc(db, 'coupons', bookingData.couponId);
+        await updateDoc(couponRef, {
+          usageCount: increment(1)
+        });
+      }
+
+      // Resolve partner referral if a code is stored
+      let partnerId: string | undefined;
+      if (bookingData.referredBy) {
+        partnerId = await getPartnerIdFromCode(bookingData.referredBy) || undefined;
+      }
+
       try {
         await walletService.processBookingWallet(
           bookingId, 
           bookingData.totalAmount,
           bookingData.ownerId, 
           bookingData.visitorId, 
-          bookingData.propertyTitle || 'Property'
+          bookingData.propertyTitle || 'Property',
+          partnerId,
         );
         console.log('Wallet processed for booking:', bookingId);
       } catch (walletError) {
         console.error('Wallet failed for booking:', bookingId, walletError);
-        // Booking still created, wallet will retry
       }
 
       return bookingId;

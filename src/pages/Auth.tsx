@@ -44,8 +44,8 @@ const Input = ({ label, wrapperClassName, ...props }: any) => {
 };
 
 export default function Auth() {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [userType, setUserType] = useState<'seeker' | 'owner'>('seeker');
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [userType, setUserType] = useState<'seeker' | 'owner' | 'partner'>('seeker');
   
   const location = useLocation();
   const [mode, setMode] = useState<'login' | 'register'>('register');
@@ -70,6 +70,31 @@ export default function Auth() {
   const [propertyName, setPropertyName] = useState('');
   const [propertyHolderName, setPropertyHolderName] = useState('');
   const [propertyLocation, setPropertyLocation] = useState('');
+
+  // Partner specific state
+  const [partnerStep, setPartnerStep] = useState<1 | 2>(1);
+  const [businessName, setBusinessName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [businessEmail, setBusinessEmail] = useState('');
+  const [website, setWebsite] = useState('');
+  const [businessType, setBusinessType] = useState('');
+  const [partnerContactNumber, setPartnerContactNumber] = useState('');
+
+  const BUSINESS_TYPES = [
+    'Travel Agency', 'Tour Operator', 'Hotel', 'Hostel', 'Resort', 'Guest House',
+    'Corporate Housing', 'Relocation Services', 'Real Estate Agency', 'Property Management',
+    'Student Housing Agency', 'Co-living Operator', 'Corporate Travel Manager',
+    'Event Management', 'Wedding Planner', 'Education Consultancy', 'Coaching Institute',
+    'University', 'College', 'HR & Staffing Agency', 'Corporate Consultant', 'IT Company',
+    'Healthcare Staffing', 'Nursing Agency', 'Hospital Management', 'Airline', 'Bus Operator',
+    'Cab Aggregator', 'Logistics Company', 'Freight & Shipping', 'Import Export Business',
+    'Wholesale Trader', 'Retail Chain', 'Franchise Business', 'Food & Beverage Chain',
+    'Restaurant Group', 'Catering Company', 'Influencer / Content Creator',
+    'Social Media Agency', 'Digital Marketing Agency', 'PR Agency', 'Insurance Company',
+    'NBFC / Fintech', 'Bank Branch', 'NGO / Charity', 'Government Contractor',
+    'Defence Contractor', 'Sports Academy', 'Fitness Chain', 'Adventure Tourism', 'Other'
+  ];
   
   // Login State
   const [loginEmail, setLoginEmail] = useState('');
@@ -127,6 +152,18 @@ export default function Auth() {
         setErrorMsg("Please provide your WhatsApp number.");
         return;
       }
+    } else if (userType === 'partner') {
+      if (!firstName || !lastName || !email || !mobile || !gender || !password) {
+        setErrorMsg("Please fill in all required fields.");
+        return;
+      }
+      if (!sameAsWhatsapp && !whatsapp) {
+        setErrorMsg("Please provide your WhatsApp number.");
+        return;
+      }
+      setErrorMsg(null);
+      setStep(2);
+      return;
     } else {
       if (!propertyName || !propertyHolderName || !email || !password || !mobile || !gender || !propertyLocation) {
         setErrorMsg("Please fill in all required fields.");
@@ -139,6 +176,16 @@ export default function Auth() {
     }
     setErrorMsg(null);
     setStep(2);
+  };
+
+  const handleProceedToStep3 = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessName || !businessAddress || !whatsappNumber || !businessType) {
+      setErrorMsg("Please fill in all business details.");
+      return;
+    }
+    setErrorMsg(null);
+    setStep(3);
   };
 
   const [showOTPModal, setShowOTPModal] = useState(false);
@@ -159,7 +206,7 @@ export default function Auth() {
       
       const userData: any = {
         email,
-        role: userType === 'owner' ? 'owner' : 'visitor',
+        role: userType === 'owner' ? 'owner' : userType === 'partner' ? 'partner' : 'visitor',
         createdAt: new Date().toISOString(),
         termsAccepted: true
       };
@@ -173,6 +220,22 @@ export default function Auth() {
         userData.dob = dob;
         userData.age = age;
         userData.gender = gender;
+      } else if (userType === 'partner') {
+        userData.firstName = firstName;
+        userData.lastName = lastName;
+        userData.displayName = `${firstName} ${lastName}`;
+        userData.mobile = mobile;
+        userData.whatsapp = sameAsWhatsapp ? mobile : whatsapp;
+        userData.gender = gender;
+        userData.partnerStatus = 'pending';
+        userData.partnerCode = `PRT-${Date.now().toString(36).toUpperCase()}`;
+        userData.businessName = businessName;
+        userData.businessAddress = businessAddress;
+        userData.businessEmail = businessEmail;
+        userData.businessType = businessType;
+        userData.whatsappNumber = whatsappNumber;
+        userData.partnerContactNumber = partnerContactNumber;
+        userData.website = website;
       } else {
         userData.propertyName = propertyName;
         userData.propertyHolderName = propertyHolderName;
@@ -210,6 +273,26 @@ export default function Auth() {
 
       await setDoc(doc(db, 'users', user.uid), finalUserData);
 
+      if (finalUserData.role === 'partner') {
+        await setDoc(doc(db, 'partners', user.uid), {
+          uid: user.uid,
+          email: finalUserData.email,
+          displayName: finalUserData.displayName,
+          mobile: finalUserData.mobile,
+          businessName: finalUserData.businessName,
+          businessType: finalUserData.businessType,
+          businessAddress: finalUserData.businessAddress,
+          businessEmail: finalUserData.businessEmail,
+          whatsappNumber: finalUserData.whatsappNumber,
+          partnerContactNumber: finalUserData.partnerContactNumber,
+          website: finalUserData.website,
+          partnerCode: finalUserData.partnerCode,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       setShowOTPModal(false);
       
       if (location.state?.returnTo) {
@@ -217,6 +300,8 @@ export default function Auth() {
       } else {
         if (user.email === 'tavareatul7192@gmail.com') {
           navigate('/admin-secret-dashboard');
+        } else if (userType === 'partner') {
+          navigate('/partner-pending');
         } else {
           navigate('/profile');
         }
@@ -280,13 +365,15 @@ export default function Auth() {
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-0.5 bg-amber-500"></div>
             <span className="text-xs font-bold tracking-widest text-amber-700 uppercase">
-              {userType === 'owner' ? 'Shelterbee Partner' : 'Shelterbee Guest'}
+              {userType === 'owner' ? 'Shelterbee Partner' : userType === 'partner' ? 'Shelterbee Business' : 'Shelterbee Guest'}
             </span>
           </div>
           
           <h1 className="text-5xl xl:text-7xl font-extrabold text-[#1A1A2E] leading-[1.1] mb-6">
             {userType === 'owner' ? (
               <>Begin Your <br/><span className="text-amber-500">Property Management</span> <br/>Journey</>
+            ) : userType === 'partner' ? (
+              <>Partner With <br/><span className="text-amber-500">ShelterBee</span> <br/>& Grow Your Business</>
             ) : (
               <>Find Your <br/><span className="text-amber-500">Perfect Stay</span> <br/>Today</>
             )}
@@ -295,32 +382,34 @@ export default function Auth() {
           <p className="text-lg text-gray-600 mb-12 max-w-md">
             {userType === 'owner' 
               ? 'Register your premium property to access the elite Shelterbee management ecosystem. Crafted for the modern property owner.'
+              : userType === 'partner'
+              ? 'Register your business or organization and earn commissions by referring stays. Expand your network with ShelterBee.'
               : 'Join our community to discover and book premium properties tailored for your comfort and lifestyle.'}
           </p>
 
           <div className="space-y-8">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-indigo-100/50 flex items-center justify-center shrink-0">
-                <ShieldCheck className="text-indigo-600" size={24} />
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-indigo-100/50 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="text-indigo-600" size={24} />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-[#1A1A2E]">Secure Verification</h4>
+                  <p className="text-gray-500 text-sm">Enterprise-grade identity protection for your peace of mind.</p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-lg font-bold text-[#1A1A2E]">Secure Verification</h4>
-                <p className="text-gray-500 text-sm">Enterprise-grade identity protection for your peace of mind.</p>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-indigo-100/50 flex items-center justify-center shrink-0">
+                  <Home className="text-indigo-600" size={24} />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-[#1A1A2E]">
+                    {userType === 'owner' ? 'Direct Management' : userType === 'partner' ? 'Commission Rewards' : 'Seamless Booking'}
+                  </h4>
+                  <p className="text-gray-500 text-sm">
+                    {userType === 'owner' ? 'Full control over your assets with real-time analytics.' : userType === 'partner' ? 'Earn up to 5% commission on every successful referral.' : 'Book your stays instantly with our streamlined process.'}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-indigo-100/50 flex items-center justify-center shrink-0">
-                <Home className="text-indigo-600" size={24} />
-              </div>
-              <div>
-                <h4 className="text-lg font-bold text-[#1A1A2E]">
-                  {userType === 'owner' ? 'Direct Management' : 'Seamless Booking'}
-                </h4>
-                <p className="text-gray-500 text-sm">
-                  {userType === 'owner' ? 'Full control over your assets with real-time analytics.' : 'Book your stays instantly with our streamlined process.'}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -330,18 +419,24 @@ export default function Auth() {
         <div className="flex-grow flex flex-col items-center justify-start p-6 sm:p-12 pt-12 sm:pt-24">
           
           {/* Top Toggle */}
-          <div className="flex bg-white rounded-full shadow-sm p-1 mb-8 border border-gray-100 w-full max-w-md relative z-20">
+          <div className="flex bg-white rounded-full shadow-sm p-1 mb-8 border border-gray-100 w-full max-w-lg relative z-20">
             <button 
               onClick={() => setUserType('seeker')}
               className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all ${userType === 'seeker' ? 'bg-[#1A1A2E] text-white' : 'text-gray-500 hover:text-gray-800'}`}
             >
-              I'M LOOKING FOR A STAY
+              I'M A GUEST
             </button>
             <button 
               onClick={() => setUserType('owner')}
               className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all ${userType === 'owner' ? 'bg-[#1A1A2E] text-white' : 'text-gray-500 hover:text-gray-800'}`}
             >
-              I'M A PROPERTY OWNER
+              I'M AN OWNER
+            </button>
+            <button 
+              onClick={() => setUserType('partner')}
+              className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all ${userType === 'partner' ? 'bg-[#1A1A2E] text-white' : 'text-gray-500 hover:text-gray-800'}`}
+            >
+              I'M A PARTNER
             </button>
           </div>
 
@@ -363,6 +458,26 @@ export default function Auth() {
                   exit={{ opacity: 0, y: -10 }}
                   onSubmit={handleProceedToStep2}
                 >
+                  <div className="flex items-center gap-2 mb-8">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-7 h-7 rounded-full bg-[#1A1A2E] text-white flex items-center justify-center text-xs font-bold">1</div>
+                      <span className="text-xs font-bold text-[#1A1A2E] uppercase">{userType === 'partner' ? 'Identity' : 'Details'}</span>
+                    </div>
+                    {userType === 'partner' && (
+                      <>
+                        <div className="w-8 h-px bg-gray-200"></div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-bold">2</div>
+                          <span className="text-xs font-bold text-gray-300 uppercase">Business</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="w-8 h-px bg-gray-200"></div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-bold">{userType === 'partner' ? '3' : '2'}</div>
+                      <span className="text-xs font-bold text-gray-300 uppercase">Confirm</span>
+                    </div>
+                  </div>
                   {mode === 'register' ? (
                     <>
                       {userType === 'seeker' ? (
@@ -441,6 +556,84 @@ export default function Auth() {
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                            <div className="space-y-2 w-full">
+                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">GENDER</label>
+                              <div className="flex bg-[#F8F9FA] border border-gray-100 rounded-xl p-1">
+                                {['MALE', 'FEMALE', 'OTHER'].map((g) => (
+                                  <button
+                                    key={g}
+                                    type="button"
+                                    onClick={() => setGender(g === 'MALE' ? 'Male' : g === 'FEMALE' ? 'Female' : 'Other')}
+                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                                      gender.toUpperCase() === g 
+                                        ? 'bg-white text-gray-900 shadow-sm' 
+                                        : 'text-gray-400 hover:text-gray-600'
+                                    }`}
+                                  >
+                                    {g}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <Input label="CREATE PASSWORD" type="password" placeholder="••••••••" value={password} onChange={(e: any) => setPassword(e.target.value)} required />
+                          </div>
+                        </>
+                      ) : userType === 'partner' ? (
+                        <>
+                          <SectionHeader title="IDENTITY DETAILS" />
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                            <Input label="FIRST NAME" placeholder="Aarav" value={firstName} onChange={(e: any) => setFirstName(e.target.value)} required />
+                            <Input label="LAST NAME" placeholder="Sharma" value={lastName} onChange={(e: any) => setLastName(e.target.value)} required />
+                          </div>
+
+                          <SectionHeader title="CONTACT & DEMOGRAPHICS" />
+                          <Input label="EMAIL ADDRESS" type="email" placeholder="aarav.sharma@example.com" value={email} onChange={(e: any) => setEmail(e.target.value)} required wrapperClassName="mb-6" />
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                            <div className="space-y-2 w-full">
+                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">CONTACT NUMBER</label>
+                              <div className="flex gap-2">
+                                <div className="w-16 px-0 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 flex items-center justify-center font-bold text-gray-700 shrink-0">
+                                  +91
+                                </div>
+                                <input
+                                  type="tel"
+                                  required
+                                  value={mobile}
+                                  onChange={(e) => setMobile(e.target.value)}
+                                  className="w-full px-4 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                                  placeholder="98765 43210"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSameAsWhatsapp(!sameAsWhatsapp)}
+                                  className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+                                    sameAsWhatsapp ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border border-gray-300'
+                                  }`}
+                                >
+                                  {sameAsWhatsapp && <Check size={12} strokeWidth={3} />}
+                                </button>
+                                <span className="text-xs text-gray-500">Same as Contact Number for WhatsApp</span>
+                              </div>
+                              {!sameAsWhatsapp && (
+                                <div className="flex gap-2 mt-3">
+                                  <div className="w-16 px-0 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 flex items-center justify-center font-bold text-gray-700 shrink-0">
+                                    +91
+                                  </div>
+                                  <input
+                                    type="tel"
+                                    required
+                                    value={whatsapp}
+                                    onChange={(e) => setWhatsapp(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                                    placeholder="WhatsApp Number"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
                             <div className="space-y-2 w-full">
                               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">GENDER</label>
                               <div className="flex bg-[#F8F9FA] border border-gray-100 rounded-xl p-1">
@@ -571,7 +764,7 @@ export default function Auth() {
                     disabled={loading}
                     className="w-full bg-[#F59E0B] hover:bg-[#D97706] text-[#1A1A2E] font-extrabold py-4 rounded-xl transition-colors text-sm tracking-widest flex items-center justify-center gap-2 mt-8 shadow-lg shadow-amber-500/20 disabled:opacity-70"
                   >
-                    {loading ? 'PROCESSING...' : (mode === 'login' ? 'LOGIN TO ACCOUNT' : 'CONTINUE REGISTRATION')}
+                    {loading ? 'PROCESSING...' : (mode === 'login' ? 'LOGIN TO ACCOUNT' : userType === 'partner' ? 'CONTINUE TO BUSINESS DETAILS' : 'CONTINUE REGISTRATION')}
                     {!loading && <ArrowRight size={18} strokeWidth={3} />}
                   </button>
 
@@ -594,6 +787,81 @@ export default function Auth() {
                     </button>
                   </div>
                 </motion.form>
+              ) : step === 2 && userType === 'partner' ? (
+                <motion.form
+                  key="partner-step2"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  onSubmit={handleProceedToStep3}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-2 mb-8">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">✓</div>
+                      <span className="text-xs font-bold text-green-600 uppercase">Identity</span>
+                    </div>
+                    <div className="w-8 h-px bg-[#1A1A2E]"></div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-7 h-7 rounded-full bg-[#1A1A2E] text-white flex items-center justify-center text-xs font-bold">2</div>
+                      <span className="text-xs font-bold text-[#1A1A2E] uppercase">Business</span>
+                    </div>
+                    <div className="w-8 h-px bg-gray-200"></div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-bold">3</div>
+                      <span className="text-xs font-bold text-gray-300 uppercase">Confirm</span>
+                    </div>
+                  </div>
+
+                  <SectionHeader title="BUSINESS INFORMATION" />
+                  
+                  <Input label="BUSINESS / ORGANIZATION NAME" placeholder="Your Business Name" value={businessName} onChange={(e: any) => setBusinessName(e.target.value)} required wrapperClassName="mb-6" />
+                  
+                  <Input label="BUSINESS ADDRESS" placeholder="Full business address" value={businessAddress} onChange={(e: any) => setBusinessAddress(e.target.value)} required wrapperClassName="mb-6" />
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                    <Input label="WHATSAPP NUMBER (BUSINESS)" type="tel" placeholder="98765 43210" value={whatsappNumber} onChange={(e: any) => setWhatsappNumber(e.target.value)} required />
+                    <Input label="BUSINESS EMAIL" type="email" placeholder="business@example.com" value={businessEmail} onChange={(e: any) => setBusinessEmail(e.target.value)} wrapperClassName="mb-6" />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                    <Input label="WEBSITE / SOCIAL MEDIA (Optional)" placeholder="https://example.com" value={website} onChange={(e: any) => setWebsite(e.target.value)} />
+                    <Input label="CONTACT PERSON NUMBER" type="tel" placeholder="98765 43210" value={partnerContactNumber} onChange={(e: any) => setPartnerContactNumber(e.target.value)} />
+                  </div>
+
+                  <div className="space-y-2 mb-6">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">BUSINESS TYPE</label>
+                    <select
+                      value={businessType}
+                      onChange={(e) => setBusinessType(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                    >
+                      <option value="">Select your business type</option>
+                      {BUSINESS_TYPES.map(bt => (
+                        <option key={bt} value={bt}>{bt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex gap-4 mt-8">
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="px-6 py-4 rounded-xl font-bold text-gray-500 bg-[#F8F9FA] hover:bg-gray-200 transition-colors text-sm tracking-widest uppercase"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-[#F59E0B] hover:bg-[#D97706] text-[#1A1A2E] font-extrabold py-4 rounded-xl transition-colors text-sm tracking-widest uppercase flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-70"
+                    >
+                      {loading ? 'PROCESSING...' : 'REVIEW & SUBMIT'}
+                      {!loading && <ArrowRight size={18} strokeWidth={3} />}
+                    </button>
+                  </div>
+                </motion.form>
               ) : (
                 <motion.div
                   key="step2"
@@ -602,6 +870,35 @@ export default function Auth() {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
+                  <div className="flex items-center gap-2 mb-8">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">✓</div>
+                      <span className="text-xs font-bold text-green-600 uppercase">{userType === 'partner' ? 'Identity' : 'Details'}</span>
+                    </div>
+                    <div className="w-8 h-px bg-gray-200"></div>
+                    <div className="flex items-center gap-1.5">
+                      {userType === 'partner' ? (
+                        <>
+                          <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">✓</div>
+                          <span className="text-xs font-bold text-green-600 uppercase">Business</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-bold">2</div>
+                          <span className="text-xs font-bold text-gray-300 uppercase">Review</span>
+                        </>
+                      )}
+                    </div>
+                    {userType === 'partner' && (
+                      <>
+                        <div className="w-8 h-px bg-[#1A1A2E]"></div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-7 h-7 rounded-full bg-[#1A1A2E] text-white flex items-center justify-center text-xs font-bold">3</div>
+                          <span className="text-xs font-bold text-[#1A1A2E] uppercase">Confirm</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <SectionHeader title="REVIEW POLICIES" />
                   
                   <div 
