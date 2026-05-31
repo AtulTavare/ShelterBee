@@ -18,7 +18,7 @@ interface PartnerUser {
   whatsappNumber: string;
   partnerContactNumber: string;
   website: string;
-  partnerStatus: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected';
   partnerCode: string;
   mobile: string;
   createdAt: any;
@@ -94,7 +94,7 @@ const AdminPartners = () => {
   };
 
   const filteredPartners = partners.filter(p => {
-    if (filter !== 'all' && p.partnerStatus !== filter) return false;
+    if (filter !== 'all' && p.status !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -114,16 +114,16 @@ const AdminPartners = () => {
   };
 
   // Analytics calculations
-  const totalApproved = partners.filter(p => p.partnerStatus === 'approved').length;
-  const totalPending = partners.filter(p => p.partnerStatus === 'pending').length;
-  const totalRejected = partners.filter(p => p.partnerStatus === 'rejected').length;
+  const totalApproved = partners.filter(p => p.status === 'approved').length;
+  const totalPending = partners.filter(p => p.status === 'pending').length;
+  const totalRejected = partners.filter(p => p.status === 'rejected').length;
 
   const PartnerAnalytics = () => {
     const [partnerCommissions, setPartnerCommissions] = useState<Record<string, any[]>>({});
     const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
     useEffect(() => {
-      const approved = partners.filter(p => p.partnerStatus === 'approved');
+      const approved = partners.filter(p => p.status === 'approved');
       const unsubs: (() => void)[] = [];
 
       approved.forEach(p => {
@@ -205,14 +205,14 @@ const AdminPartners = () => {
                 </tr>
               </thead>
               <tbody>
-                {partners.filter(p => p.partnerStatus === 'approved').length === 0 ? (
+                {partners.filter(p => p.status === 'approved').length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-12 text-gray-400">
                       No approved partners yet
                     </td>
                   </tr>
                 ) : (
-                  partners.filter(p => p.partnerStatus === 'approved').map((partner) => {
+                  partners.filter(p => p.status === 'approved').map((partner) => {
                     const commissions = partnerCommissions[partner.uid] || [];
                     const totalEarned = commissions
                       .filter(c => c.status === 'completed')
@@ -372,7 +372,7 @@ const AdminPartners = () => {
                     </tr>
                   ) : (
                     filteredPartners.map((partner) => {
-                      const status = statusConfig[partner.partnerStatus];
+                      const status = statusConfig[partner.status];
                       const StatusIcon = status.icon;
                       return (
                         <tr key={partner.uid} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
@@ -406,7 +406,7 @@ const AdminPartners = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {partner.partnerStatus === 'pending' && (
+                            {partner.status === 'pending' && (
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => handleApprove(partner.uid)}
@@ -426,7 +426,7 @@ const AdminPartners = () => {
                                 </button>
                               </div>
                             )}
-                            {partner.partnerStatus === 'rejected' && (
+                            {partner.status === 'rejected' && (
                               <div className="flex items-center justify-end gap-1">
                                 <a
                                   href={`mailto:${partner.businessEmail || partner.email}?subject=Partner Application Update`}
