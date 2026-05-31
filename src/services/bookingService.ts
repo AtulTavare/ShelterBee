@@ -152,12 +152,17 @@ export const bookingService = {
       });
 
       try {
+        let partnerId: string | undefined;
+        if (booking.referredBy) {
+          partnerId = await getPartnerIdFromCode(booking.referredBy) || undefined;
+        }
         await walletService.processOwnerRejectionWallet(
           bookingId,
           booking.totalAmount,
           booking.ownerId,
           booking.visitorId,
-          booking.propertyTitle || 'Property'
+          booking.propertyTitle || 'Property',
+          partnerId,
         );
       } catch (walletError) {
         console.error('Rejection wallet failed:', walletError);
@@ -191,9 +196,14 @@ export const bookingService = {
 
       console.log('Cancel step 2: processing wallet...');
       try {
+        let partnerId: string | undefined;
+        if (booking.referredBy) {
+          partnerId = await getPartnerIdFromCode(booking.referredBy) || undefined;
+        }
         await walletService.processCancellationWallet(
           booking, 
-          refundPercent
+          refundPercent,
+          partnerId,
         );
         console.log('Wallet updated after cancellation');
       } catch (walletError) {
@@ -333,8 +343,8 @@ export const bookingService = {
     if (!booking) return { ownerPayout: 0, platformCommission: 0, visitorRefund: 0 };
     
     return {
-      ownerPayout: booking.totalAmount * 0.75,
-      platformCommission: booking.totalAmount * 0.25,
+      ownerPayout: booking.totalAmount * 0.80,
+      platformCommission: booking.totalAmount * 0.20,
       visitorRefund: 0 // Placeholder
     };
   },

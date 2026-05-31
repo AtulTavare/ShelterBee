@@ -108,7 +108,7 @@ export default function Auth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const termsRef = useRef<HTMLDivElement>(null);
-  const { register, login } = useAuth();
+  const { register, login, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   // Calculate age when DOB changes
@@ -293,8 +293,10 @@ export default function Auth() {
         });
       }
 
+      await refreshProfile();
+
       setShowOTPModal(false);
-      
+
       if (location.state?.returnTo) {
         navigate(location.state.returnTo);
       } else {
@@ -307,7 +309,16 @@ export default function Auth() {
         }
       }
     } catch (error: any) {
-      setErrorMsg(error.message || "Failed to create account.");
+      const msg = error?.message || '';
+      if (msg.includes('permission-denied') || msg.includes('Missing or insufficient')) {
+        setErrorMsg('Permission error. Please try again or contact support.');
+      } else if (msg.includes('email-already-in-use')) {
+        setErrorMsg('An account with this email already exists. Please log in.');
+      } else if (msg.includes('network') || msg.includes('Network')) {
+        setErrorMsg('Network error. Please check your connection and try again.');
+      } else {
+        setErrorMsg(msg || 'Failed to create account. Please try again.');
+      }
       setStep(1);
       setShowOTPModal(false);
     } finally {

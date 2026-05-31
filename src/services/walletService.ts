@@ -119,9 +119,8 @@ export const walletService = {
     try {
       const adminUid = await this.getAdminId();
       const partnerCredit = partnerId ? bookingAmount * 0.05 : 0;
-      const remainingAfterPartner = bookingAmount - partnerCredit;
-      const ownerCredit = remainingAfterPartner * 0.80;
-      const adminCredit = remainingAfterPartner * 0.20;
+      const ownerCredit = bookingAmount * 0.80;
+      const adminCredit = partnerId ? bookingAmount * 0.15 : bookingAmount * 0.20;
 
       await runTransaction(db, async (transaction) => {
         const ownerWalletRef = doc(db, "wallets", ownerUid);
@@ -248,12 +247,14 @@ export const walletService = {
     ownerUid: string,
     visitorUid: string,
     propertyTitle: string,
+    partnerId?: string,
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
       const visitorRefund = bookingAmount * 1.00;
       const ownerDebit = bookingAmount * 0.80;
-      const adminReversal = bookingAmount * 0.20;
+      const partnerDebit = partnerId ? bookingAmount * 0.05 : 0;
+      const adminReversal = partnerId ? bookingAmount * 0.15 : bookingAmount * 0.20;
 
       await runTransaction(db, async (transaction) => {
         const ownerWalletRef = doc(db, "wallets", ownerUid);
@@ -326,7 +327,7 @@ export const walletService = {
           balanceAfter: newOwnerBalance,
         });
 
-        // Admin transaction 1 (reversal)
+        // Admin transaction (reversal)
         transaction.set(doc(txnRef), {
           userId: adminUid,
           type: "debit",
@@ -338,6 +339,39 @@ export const walletService = {
           createdAt: serverTimestamp(),
           balanceAfter: newAdminBalance,
         });
+
+        // Partner reversal
+        if (partnerId && partnerDebit > 0) {
+          const partnerWalletRef = doc(db, "wallets", partnerId);
+          const partnerSnap = await transaction.get(partnerWalletRef);
+          const partnerBal = partnerSnap.exists()
+            ? (partnerSnap.data().balance ?? 0)
+            : 0;
+          const newPartnerBalance = partnerBal - partnerDebit;
+
+          transaction.set(
+            partnerWalletRef,
+            {
+              userId: partnerId,
+              balance: newPartnerBalance,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+
+          transaction.set(doc(txnRef), {
+            userId: partnerId,
+            type: "debit",
+            amount: partnerDebit,
+            description: `Commission reversed - booking rejected - ${propertyTitle}`,
+            bookingId,
+            propertyTitle,
+            bookingAmount,
+            walletProcessed: true,
+            createdAt: serverTimestamp(),
+            balanceAfter: newPartnerBalance,
+          });
+        }
 
         // Visitor transaction
         transaction.set(doc(txnRef), {
@@ -362,7 +396,7 @@ export const walletService = {
       });
 
       console.log(
-        `Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin Net: -${adminReversal}, Visitor: +${visitorRefund}`,
+        `Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin: -${adminReversal}${partnerId ? `, Partner: -${partnerDebit}` : ''}, Visitor: +${visitorRefund}`,
       );
     } catch (error) {
       console.error("Rejection wallet failed:", error);
@@ -374,13 +408,15 @@ export const walletService = {
   async processCancellationWallet(
     booking: any,
     refundPercent: number,
+    partnerId?: string,
   ): Promise<void> {
     try {
       const adminUid = await this.getAdminId();
       const bookingAmount = booking.totalAmount;
       const refundAmount = bookingAmount * (refundPercent / 100);
-      const ownerDebit = bookingAmount * 0.80; // Owner always loses 100% of their share
-      const adminGets = ownerDebit - refundAmount; // Admin gets the remainder
+      const ownerDebit = bookingAmount * 0.80;
+      const partnerDebit = partnerId ? bookingAmount * 0.05 : 0;
+      const adminGets = ownerDebit + partnerDebit - refundAmount;
 
       await runTransaction(db, async (transaction) => {
         const ownerWalletRef = doc(db, "wallets", booking.ownerId);
@@ -464,6 +500,40 @@ export const walletService = {
           });
         }
 
+        // Partner reversal
+        if (partnerId && partnerDebit > 0) {
+          const partnerWalletRef = doc(db, "wallets", partnerId);
+          const partnerSnap = await transaction.get(partnerWalletRef);
+          const partnerBal = partnerSnap.exists()
+            ? (partnerSnap.data().balance ?? 0)
+            : 0;
+          const newPartnerBalance = partnerBal - partnerDebit;
+
+          transaction.set(
+            partnerWalletRef,
+            {
+              userId: partnerId,
+              balance: newPartnerBalance,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+
+          transaction.set(doc(txnRef), {
+            userId: partnerId,
+            type: "debit",
+            amount: partnerDebit,
+            description: `Commission reversed - booking cancelled - ${booking.propertyTitle}`,
+            bookingId: booking.id,
+            propertyTitle: booking.propertyTitle,
+            bookingAmount: bookingAmount,
+            refundPercentage: refundPercent,
+            walletProcessed: true,
+            createdAt: serverTimestamp(),
+            balanceAfter: newPartnerBalance,
+          });
+        }
+
         // Admin gets
         if (adminGets > 0) {
           newAdminBalance = adminBal + adminGets;
@@ -498,7 +568,7 @@ export const walletService = {
       });
 
       console.log(
-        `Success: processCancellationWallet for ${booking.id}. Owner: -${bookingAmount}, Visitor: +${refundAmount}, Admin: +${adminGets}`,
+        `Success: processCancellationWallet for ${booking.id}. Owner: -${bookingAmount}, Visitor: +${refundAmount}${partnerId ? `, Partner: -${partnerDebit}` : ''}, Admin: +${adminGets}`,
       );
     } catch (error) {
       console.error("Cancellation wallet failed:", error);

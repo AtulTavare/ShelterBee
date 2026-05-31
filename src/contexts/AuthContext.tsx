@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
@@ -34,6 +34,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<any>;
   logout: () => Promise<void>;
   updateProfileData: (data: Partial<UserProfile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,19 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (userDoc.exists()) {
             setProfile(userDoc.data() as UserProfile);
           } else {
-            // Create a new user profile with default role 'visitor'
-            // If they signed up through the owner flow, we might want to set it to 'owner'
-            // For now, we'll default to visitor and they can upgrade later or we pass it in signIn
-            const newProfile: UserProfile = {
-              uid: currentUser.uid,
-              email: currentUser.email || '',
-              displayName: currentUser.displayName,
-              photoURL: currentUser.photoURL,
-              role: 'visitor',
-              createdAt: serverTimestamp(),
-            };
-            await setDoc(userDocRef, newProfile);
-            setProfile(newProfile);
+            setProfile(null);
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
@@ -137,8 +126,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        setProfile(userDoc.data() as UserProfile);
+      }
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    }
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, register, login, logout, updateProfileData }}>
+    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, register, login, logout, updateProfileData, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

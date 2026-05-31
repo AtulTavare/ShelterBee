@@ -100,8 +100,8 @@ export const sendNewBookingAlertToOwner = async (
   bookingId: string,
   totalAmount: number
 ): Promise<void> => {
-  const commission = Math.round(totalAmount * 0.25)
-  const ownerPayout = Math.round(totalAmount * 0.75)
+  const commission = Math.round(totalAmount * 0.20)
+  const ownerPayout = Math.round(totalAmount * 0.80)
 
   await sendWhatsApp(
     ownerMobile,
