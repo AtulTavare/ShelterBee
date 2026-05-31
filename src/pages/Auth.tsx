@@ -261,21 +261,22 @@ export default function Auth() {
       return;
     }
     setLoading(true);
+    let currentUser: any = null;
     try {
       const userCredential = await register(pendingUserCreds.email, pendingUserCreds.password);
-      const user = userCredential.user;
+      currentUser = userCredential.user;
 
       const finalUserData = {
         ...pendingUserData,
-        uid: user.uid,
+        uid: currentUser.uid,
         emailVerified: true
       };
 
-      await setDoc(doc(db, 'users', user.uid), finalUserData);
+      await setDoc(doc(db, 'users', currentUser.uid), finalUserData);
 
       if (finalUserData.role === 'partner') {
-        await setDoc(doc(db, 'partners', user.uid), {
-          uid: user.uid,
+        await setDoc(doc(db, 'partners', currentUser.uid), {
+          uid: currentUser.uid,
           email: finalUserData.email,
           displayName: finalUserData.displayName,
           mobile: finalUserData.mobile,
@@ -300,7 +301,7 @@ export default function Auth() {
       if (location.state?.returnTo) {
         navigate(location.state.returnTo);
       } else {
-        if (user.email === 'tavareatul7192@gmail.com') {
+        if (currentUser.email === 'tavareatul7192@gmail.com') {
           navigate('/admin-secret-dashboard');
         } else if (userType === 'partner') {
           navigate('/partner-pending');
@@ -309,6 +310,9 @@ export default function Auth() {
         }
       }
     } catch (error: any) {
+      if (currentUser) {
+        try { await currentUser.delete(); } catch {}
+      }
       const msg = error?.message || '';
       if (msg.includes('permission-denied') || msg.includes('Missing or insufficient')) {
         setErrorMsg('Permission error. Please try again or contact support.');
@@ -355,6 +359,8 @@ export default function Auth() {
           navigate('/admin-secret-dashboard');
         } else if (role === 'owner') {
           navigate('/profile');
+        } else if (role === 'partner') {
+          navigate('/partner-pending');
         } else {
           navigate('/');
         }
