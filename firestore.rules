@@ -52,9 +52,11 @@ service cloud.firestore {
       // Broad read access is required for UI to show profiles of owners/visitors
       allow read: if isSignedIn(); 
       allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && (
-        // Prevent self-role-elevation
-        (!incoming().diff(existing()).affectedKeys().hasAny(['role']) || isAdmin())
+      // Allow admin (e.g. approve partner) & owner updates; prevent self-role-elevation
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && (
+          (!incoming().diff(existing()).affectedKeys().hasAny(['role']) || isAdmin())
+        )) || isAdmin()
       );
       allow delete: if isAdmin();
     }
