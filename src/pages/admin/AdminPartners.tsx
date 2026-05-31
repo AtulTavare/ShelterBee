@@ -58,7 +58,7 @@ const AdminPartners = () => {
             partner.businessName,
             `${window.location.origin}/partner-dashboard`
           );
-          await emailService.sendEmail({
+          emailService.sendEmail({
             to: recipientEmail,
             subject: template.subject,
             html: template.html,
