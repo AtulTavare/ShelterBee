@@ -6,13 +6,17 @@ import {
   getDocs, 
   setDoc, 
   updateDoc,
+  addDoc,
   query, 
   where, 
   orderBy,
   limit,
   onSnapshot,
-  Timestamp 
+  Timestamp,
+  serverTimestamp,
+  increment,
 } from 'firebase/firestore';
+import { walletService } from './walletService';
 
 class PartnerService {
   async createPartnerProfile(uid: string, data: any) {
@@ -187,6 +191,67 @@ class PartnerService {
       console.error('Error subscribing to partner commissions:', error);
       callback([]);
     });
+  }
+
+  async backfillPartnerData(partnerCode: string, partnerId: string) {
+    console.log('[Backfill] Starting for code:', partnerCode, 'uid:', partnerId);
+    try {
+      const q = query(
+        collection(db, 'bookings'),
+        where('referredBy', '==', partnerCode)
+      );
+      const snap = await getDocs(q);
+      console.log('[Backfill] Found bookings:', snap.docs.length);
+
+      if (snap.docs.length === 0) {
+        console.log('[Backfill] No bookings found with referredBy:', partnerCode);
+        return;
+      }
+
+      for (const docSnap of snap.docs) {
+        const booking = { id: docSnap.id, ...docSnap.data() } as any;
+        const bookingId = docSnap.id;
+        console.log('[Backfill] Processing booking:', bookingId, 'totalAmount:', booking.totalAmount);
+
+        const amount = (booking.totalAmount || 0) * 0.05;
+        console.log('[Backfill] Commission amount:', amount);
+
+        await setDoc(
+          doc(db, 'partnerCommissions', bookingId),
+          {
+            partnerId,
+            bookingId,
+            amount,
+            status: 'completed',
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          },
+          { merge: true },
+        );
+        console.log('[Backfill] Commission doc created for:', bookingId);
+
+        await setDoc(
+          doc(db, 'wallets', partnerId),
+          { userId: partnerId, balance: increment(amount), updatedAt: serverTimestamp() },
+          { merge: true },
+        );
+
+        await addDoc(collection(db, 'walletTransactions'), {
+          userId: partnerId,
+          type: 'credit',
+          amount,
+          description: `Referral commission - ${booking.propertyTitle || 'Property'}`,
+          bookingId,
+          propertyTitle: booking.propertyTitle || 'Property',
+          bookingAmount: booking.totalAmount || 0,
+          walletProcessed: true,
+          createdAt: serverTimestamp(),
+        });
+        console.log('[Backfill] Wallet credited for:', bookingId);
+      }
+    } catch (error) {
+      console.error('[Backfill] Error:', error);
+    }
   }
 }
 

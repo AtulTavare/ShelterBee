@@ -842,4 +842,46 @@ export const walletService = {
       },
     );
   },
+
+  // Used by partnerService.backfillPartnerData to credit partner wallets
+  // for bookings that were created before partner resolution was fixed.
+  async creditPartnerWalletForBackfill(
+    partnerId: string,
+    bookingId: string,
+    amount: number,
+    propertyTitle: string,
+    bookingAmount: number,
+  ) {
+    const walletRef = doc(db, "wallets", partnerId);
+    const txnRef = collection(db, "walletTransactions");
+
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(walletRef);
+      const currentBalance = snap.exists() ? (snap.data().balance ?? 0) : 0;
+      const newBalance = currentBalance + amount;
+
+      transaction.set(
+        walletRef,
+        {
+          userId: partnerId,
+          balance: newBalance,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      transaction.set(doc(txnRef), {
+        userId: partnerId,
+        type: "credit",
+        amount,
+        description: `Referral commission - ${propertyTitle}`,
+        bookingId,
+        propertyTitle,
+        bookingAmount,
+        walletProcessed: true,
+        createdAt: serverTimestamp(),
+        balanceAfter: newBalance,
+      });
+    });
+  },
 };

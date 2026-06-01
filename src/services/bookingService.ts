@@ -14,7 +14,8 @@ const getPartnerIdFromCode = async (code: string): Promise<string | null> => {
       }
     }
     return null;
-  } catch {
+  } catch (error) {
+    console.error('getPartnerIdFromCode failed:', code, error);
     return null;
   }
 };
@@ -123,30 +124,34 @@ export const bookingService = {
           if (bookingData.referredBy) {
             partnerId = await getPartnerIdFromCode(bookingData.referredBy) || undefined;
           }
+          if (!partnerId) return;
 
-          if (partnerId) {
-            await updateDoc(doc(db, 'bookings', bookingId), { partnerId });
-          }
+          await updateDoc(doc(db, 'bookings', bookingId), { partnerId });
 
-          await walletService.processBookingWallet(
-            bookingId,
-            bookingData.totalAmount,
-            bookingData.ownerId,
-            bookingData.visitorId,
-            bookingData.propertyTitle || 'Property',
-            partnerId,
-          );
-          console.log('Wallet processed for booking:', bookingId);
-
-          if (partnerId) {
-            const commissionAmount = bookingData.totalAmount * 0.05;
-            await partnerService.recordCommission({
-              partnerId,
+          // Wallet processing can fail independently (transaction conflicts, etc.)
+          // — never let it block the commission recording for analytics.
+          try {
+            await walletService.processBookingWallet(
               bookingId,
-              amount: commissionAmount,
-              status: 'completed',
-            });
+              bookingData.totalAmount,
+              bookingData.ownerId,
+              bookingData.visitorId,
+              bookingData.propertyTitle || 'Property',
+              partnerId,
+            );
+            console.log('Wallet processed for booking:', bookingId);
+          } catch (walletErr) {
+            console.error('Wallet processing failed for booking:', bookingId, walletErr);
           }
+
+          // Commission is always recorded for analytics regardless of wallet outcome
+          const commissionAmount = bookingData.totalAmount * 0.05;
+          await partnerService.recordCommission({
+            partnerId,
+            bookingId,
+            amount: commissionAmount,
+            status: 'completed',
+          });
         } catch (e) {
           console.error('Post-creation processing failed for booking:', bookingId, e);
         }

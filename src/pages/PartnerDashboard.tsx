@@ -97,6 +97,19 @@ const PartnerDashboard = () => {
 
     const unsubBookings = partnerService.subscribePartnerBookings(userProfile?.partnerCode || 'N/A', (newBookings) => {
       setBookings(newBookings);
+      setStats({
+        totalReferrals: newBookings.length,
+        completedBookings: newBookings.filter(
+          (b: any) => b.status === 'completed' || b.status === 'confirmed'
+        ).length,
+        totalCommission: newBookings.reduce(
+          (sum: number, b: any) => sum + ((b.totalAmount || 0) * 0.05), 0
+        ),
+        pendingCommission: 0,
+      });
+      if (userProfile.partnerCode && userProfile.uid) {
+        partnerService.backfillPartnerData(userProfile.partnerCode, userProfile.uid);
+      }
     });
 
     const unsubBalance = walletService.subscribeToWalletBalance(
