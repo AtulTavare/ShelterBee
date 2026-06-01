@@ -85,13 +85,18 @@ class PartnerService {
     amount: number;
     status: 'pending' | 'completed' | 'cancelled';
   }) {
-    const ref = doc(collection(db, 'partnerCommissions'));
+    const ref = doc(db, 'partnerCommissions', data.bookingId);
     await setDoc(ref, {
       ...data,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
     return ref.id;
+  }
+
+  async updateCommissionStatus(bookingId: string, status: 'completed' | 'cancelled') {
+    const ref = doc(db, 'partnerCommissions', bookingId);
+    await updateDoc(ref, { status, updatedAt: Timestamp.now() });
   }
 
   subscribePartners(callback: (partners: any[]) => void) {
@@ -144,6 +149,25 @@ class PartnerService {
       return bTime - aTime;
     });
     return commissions.slice(0, maxCount);
+  }
+
+  subscribePartnerBookings(partnerCode: string, callback: (bookings: any[]) => void) {
+    const q = query(
+      collection(db, 'bookings'),
+      where('referredBy', '==', partnerCode)
+    );
+    return onSnapshot(q, (snapshot) => {
+      let bookings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      bookings.sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toMillis?.() || 0;
+        const bTime = b.createdAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+      callback(bookings);
+    }, (error) => {
+      console.error('Error subscribing to partner bookings:', error);
+      callback([]);
+    });
   }
 
   subscribePartnerCommissions(uid: string, callback: (commissions: any[]) => void, maxCount: number = 3) {

@@ -6,6 +6,28 @@ import PropertyCard from '../components/PropertyCard';
 import { ChevronDown, ChevronUp, MapPin, Search, X, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showFavoriteToast } from '../utils/toast';
+import { useReferralCode } from '../hooks/useReferralParam';
+
+function CountUp({ target, decimals = 0, duration = 2000 }: { target: number; decimals?: number; duration?: number }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const increment = target / (duration / 16);
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= target) {
+        setCount(target);
+        clearInterval(timer);
+      } else {
+        setCount(start);
+      }
+    }, 16);
+    return () => clearInterval(timer);
+  }, [target, duration]);
+
+  return <>{count.toFixed(decimals)}</>;
+}
 
 export default function Home() {
   const { user, profile, updateProfileData } = useAuth();
@@ -23,6 +45,7 @@ export default function Home() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [properties, setProperties] = useState<any[]>([]);
   const navigate = useNavigate();
+  const { referralUrl } = useReferralCode();
   const searchRef = useRef<HTMLDivElement>(null);
 
   const favorites = profile?.favorites || [];
@@ -82,7 +105,7 @@ export default function Home() {
   const toggleFavorite = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!user) {
-      navigate('/login');
+      navigate(referralUrl('/login'));
       return;
     }
 
@@ -189,7 +212,7 @@ export default function Home() {
     if (filterType !== 'Any Type') params.set('type', filterType);
     if (occupancy !== 'Any') params.set('occupancy', occupancy.toString());
     if (selectedGender !== 'Any') params.set('gender', selectedGender);
-    navigate(`/stays?${params.toString()}`);
+    navigate(referralUrl(`/stays?${params.toString()}`));
   };
 
   return (
@@ -591,33 +614,6 @@ export default function Home() {
         </AnimatePresence>
       </section>
 
-      {/* How It Works */}
-      <section className="py-16 md:py-20 px-4 md:px-8 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest border border-indigo-200/50 mb-4">How It Works</span>
-            <h2 className="text-2xl md:text-4xl font-black text-[#1A1A2E] tracking-tight mb-3">Book a Stay in 3 Simple Steps</h2>
-            <p className="text-sm md:text-base text-slate-500 font-medium max-w-xl mx-auto">Find, book, and enjoy your stay — no calls, no hassle.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-            {[
-              { step: '01', icon: 'search', title: 'Find Your Stay', desc: 'Browse verified properties across Maharashtra. Filter by location, type, budget, and gender preference.' },
-              { step: '02', icon: 'calendar_month', title: 'Select & Book', desc: 'Choose your dates, review the details, and complete your booking with secure UPI/QR payment.' },
-              { step: '03', icon: 'home', title: 'Check In & Relax', desc: 'Get owner contact, check-in details, and enjoy a hassle-free stay. We\'re here 24/7 if you need us.' },
-            ].map((item) => (
-              <div key={item.step} className="relative p-6 md:p-8 bg-slate-50 rounded-3xl border border-slate-100 hover:shadow-lg hover:shadow-indigo-100/30 transition-all group">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1E1B4B] to-indigo-700 flex items-center justify-center mb-4 shadow-lg shadow-indigo-200">
-                  <span className="material-symbols-outlined text-white text-xl">{item.icon}</span>
-                </div>
-                <div className="absolute top-6 right-6 text-4xl font-black text-indigo-100 group-hover:text-indigo-200 transition-colors">{item.step}</div>
-                <h3 className="text-lg font-black text-[#1A1A2E] mb-2 relative">{item.title}</h3>
-                <p className="text-sm text-slate-500 font-medium leading-relaxed relative">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Trending Properties */}
       <section className="py-16 md:py-20 px-4 md:px-8 bg-[#F9F9F9]">
         <div className="max-w-7xl mx-auto">
@@ -627,7 +623,7 @@ export default function Home() {
               <h2 className="text-2xl md:text-4xl font-black text-[#1A1A2E] tracking-tight">Trending Properties</h2>
               <p className="text-xs md:text-sm text-slate-500 mt-1 font-medium">Most viewed properties this week.</p>
             </div>
-            <Link to="/stays" className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-slate-100 text-[#1E1B4B] font-black text-xs uppercase tracking-widest hover:bg-[#1E1B4B] hover:text-white transition-all shadow-sm">
+            <Link to={referralUrl('/stays')} className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-slate-100 text-[#1E1B4B] font-black text-xs uppercase tracking-widest hover:bg-[#1E1B4B] hover:text-white transition-all shadow-sm">
               View All <Search className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -654,7 +650,7 @@ export default function Home() {
               <h2 className="text-2xl md:text-4xl font-black text-[#1A1A2E] tracking-tight">New Listings</h2>
               <p className="text-xs md:text-sm text-slate-500 mt-1 font-medium">Fresh properties added recently.</p>
             </div>
-            <Link to="/stays?filter=new_last_30_days" className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-slate-100 text-[#1E1B4B] font-black text-xs uppercase tracking-widest hover:bg-[#1E1B4B] hover:text-white transition-all shadow-sm">
+            <Link to={referralUrl('/stays?filter=new_last_30_days')} className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-slate-100 text-[#1E1B4B] font-black text-xs uppercase tracking-widest hover:bg-[#1E1B4B] hover:text-white transition-all shadow-sm">
               View All <Search className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -670,36 +666,6 @@ export default function Home() {
             {newPropsList.length === 0 && (
               <p className="text-slate-500 col-span-full text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">No new listings in the last 30 days.</p>
             )}
-          </div>
-        </div>
-      </section>
-
-      {/* Why ShelterBee */}
-      <section className="py-16 md:py-20 px-4 md:px-8 bg-gradient-to-br from-[#1E1B4B] to-indigo-800 text-white overflow-hidden relative">
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="max-w-6xl mx-auto relative z-10">
-          <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 text-amber-300 text-[10px] font-black uppercase tracking-widest border border-white/10 mb-4">Why ShelterBee</span>
-            <h2 className="text-2xl md:text-4xl font-black tracking-tight mb-3">Built for Trust, Designed for Comfort</h2>
-            <p className="text-sm md:text-base text-white/60 font-medium max-w-xl mx-auto">Every property is verified. Every booking is protected.</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {[
-              { icon: 'verified', title: 'Verified Properties', desc: 'All listings go through admin verification before going live. What you see is what you get.' },
-              { icon: 'security', title: 'Secure Payments', desc: 'Pay via UPI or QR code. Your transactions are encrypted and protected.' },
-              { icon: 'support_agent', title: '24/7 Support', desc: 'Need help? Our team is available around the clock to assist with any issue.' },
-              { icon: 'currency_rupee', title: 'No Hidden Fees', desc: 'The price you see is the price you pay. Transparent pricing, always.' },
-            ].map((item) => (
-              <div key={item.title} className="p-6 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all">
-                <div className="w-11 h-11 rounded-2xl bg-amber-400/20 flex items-center justify-center mb-4">
-                  <span className="material-symbols-outlined text-amber-400 text-2xl">{item.icon}</span>
-                </div>
-                <h3 className="text-base font-black text-white mb-2">{item.title}</h3>
-                <p className="text-xs text-white/60 font-medium leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -737,7 +703,7 @@ export default function Home() {
               <h2 className="text-2xl md:text-4xl font-black text-[#1A1A2E] tracking-tight">Most Affordable</h2>
               <p className="text-xs md:text-sm text-slate-500 mt-1 font-medium">Great stays that fit your budget.</p>
             </div>
-            <Link to="/stays?sort=price_asc" className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-slate-100 text-[#1E1B4B] font-black text-xs uppercase tracking-widest hover:bg-[#1E1B4B] hover:text-white transition-all shadow-sm">
+            <Link to={referralUrl('/stays?sort=price_asc')} className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-slate-100 text-[#1E1B4B] font-black text-xs uppercase tracking-widest hover:bg-[#1E1B4B] hover:text-white transition-all shadow-sm">
               View All <Search className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -760,13 +726,16 @@ export default function Home() {
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
             {[
-              { number: '500+', label: 'Verified Properties' },
-              { number: '50+', label: 'Cities Covered' },
-              { number: '10K+', label: 'Happy Guests' },
-              { number: '4.8', label: 'Average Rating' },
+              { target: 500, suffix: '+', label: 'Verified Properties' },
+              { target: 50, suffix: '+', label: 'Cities Covered' },
+              { target: 10, suffix: 'K+', label: 'Happy Guests' },
+              { target: 4.8, suffix: '', label: 'Average Rating', decimals: 1 },
             ].map((stat) => (
               <div key={stat.label} className="text-center p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                <p className="text-3xl md:text-4xl font-black text-[#1E1B4B] mb-1">{stat.number}</p>
+                <p className="text-3xl md:text-4xl font-black text-[#1E1B4B] mb-1">
+                  <CountUp target={stat.target} decimals={stat.decimals ?? 0} />
+                  {stat.suffix}
+                </p>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{stat.label}</p>
               </div>
             ))}
@@ -817,24 +786,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 md:py-20 px-4 md:px-8 bg-gradient-to-br from-[#1E1B4B] to-indigo-800 text-white overflow-hidden relative">
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
-        <div className="absolute -top-20 -right-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl"></div>
-        <div className="max-w-3xl mx-auto text-center relative z-10">
-          <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 text-amber-300 text-[10px] font-black uppercase tracking-widest border border-white/10 mb-4">Get Started</span>
-          <h2 className="text-2xl md:text-4xl font-black tracking-tight mb-4">Ready to Find Your Perfect Stay?</h2>
-          <p className="text-sm md:text-base text-white/60 font-medium mb-8 max-w-lg mx-auto">Join thousands of happy guests who found their home away from home on ShelterBee.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button onClick={() => navigate('/stays')} className="px-8 py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 text-[#1E1B4B] rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-500/30 hover:from-amber-300 hover:to-amber-400 transition-all active:scale-[0.98]">
-              Browse Stays
-            </button>
-            <button onClick={() => navigate('/list-property')} className="px-8 py-3.5 bg-white/10 backdrop-blur-sm text-white rounded-2xl font-black text-xs uppercase tracking-widest border border-white/20 hover:bg-white/20 transition-all active:scale-[0.98]">
-              List Your Property
-            </button>
-          </div>
-        </div>
-      </section>
+
 
     </div>
   );

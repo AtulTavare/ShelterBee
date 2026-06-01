@@ -1,13 +1,17 @@
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimestamp, getDoc, setDoc, limit, orderBy, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { walletService } from './walletService';
+import { partnerService } from './partnerService';
 
 const getPartnerIdFromCode = async (code: string): Promise<string | null> => {
   try {
-    const q = query(collection(db, 'users'), where('partnerCode', '==', code), where('partnerStatus', '==', 'approved'));
+    const q = query(collection(db, 'users'), where('partnerCode', '==', code));
     const snap = await getDocs(q);
     if (!snap.empty) {
-      return snap.docs[0].id;
+      const user = snap.docs[0].data();
+      if (user.partnerStatus === 'approved') {
+        return snap.docs[0].id;
+      }
     }
     return null;
   } catch {
@@ -56,70 +60,97 @@ export interface Booking {
   discountAmount?: number;
   originalAmount?: number;
   referredBy?: string;
+  partnerId?: string;
 }
 
 export const bookingService = {
   async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>) {
+    // NOTE: Firebase Console firestore.rules update needed manually:
+    // In bookings create rule change:
+    // incoming().status == 'pending_owner'
+    // TO:
+    // incoming().status in ['confirmed', 'pending_owner']
+
+    // Step 1: Create the booking (blocking — this is the only critical path)
+    let docRef;
     try {
-      // NOTE: Firebase Console firestore.rules update needed manually:
-      // In bookings create rule change:
-      // incoming().status == 'pending_owner'
-      // TO:
-      // incoming().status in ['confirmed', 'pending_owner']
-      const docRef = await addDoc(collection(db, 'bookings'), {
+      docRef = await addDoc(collection(db, 'bookings'), {
         ...bookingData,
         status: 'confirmed',
         walletProcessed: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      
-      const bookingId = docRef.id;
-
-      if (bookingData.couponId && bookingData.couponCode) {
-        // Create usage record
-        await addDoc(collection(db, 'couponUsage'), {
-          couponCode: bookingData.couponCode,
-          couponId: bookingData.couponId,
-          visitorId: bookingData.visitorId,
-          bookingId: bookingId,
-          propertyId: bookingData.propertyId,
-          discountAmount: bookingData.discountAmount || 0,
-          usedAt: serverTimestamp()
-        });
-
-        // Increment usage count
-        const couponRef = doc(db, 'coupons', bookingData.couponId);
-        await updateDoc(couponRef, {
-          usageCount: increment(1)
-        });
-      }
-
-      // Resolve partner referral if a code is stored
-      let partnerId: string | undefined;
-      if (bookingData.referredBy) {
-        partnerId = await getPartnerIdFromCode(bookingData.referredBy) || undefined;
-      }
-
-      try {
-        await walletService.processBookingWallet(
-          bookingId, 
-          bookingData.totalAmount,
-          bookingData.ownerId, 
-          bookingData.visitorId, 
-          bookingData.propertyTitle || 'Property',
-          partnerId,
-        );
-        console.log('Wallet processed for booking:', bookingId);
-      } catch (walletError) {
-        console.error('Wallet failed for booking:', bookingId, walletError);
-      }
-
-      return bookingId;
     } catch (error) {
       console.error("Error creating booking:", error);
       throw error;
     }
+
+    const bookingId = docRef.id;
+
+    // Step 2: Fire-and-forget all post-creation processing.
+    // Never block the booking on these — wallet, coupon, or partner failures
+    // should not prevent the booking from being returned to the user.
+    Promise.allSettled([
+      // Handle coupon if applicable
+      (async () => {
+        if (!bookingData.couponId || !bookingData.couponCode) return;
+        try {
+          await addDoc(collection(db, 'couponUsage'), {
+            couponCode: bookingData.couponCode,
+            couponId: bookingData.couponId,
+            visitorId: bookingData.visitorId,
+            bookingId: bookingId,
+            propertyId: bookingData.propertyId,
+            discountAmount: bookingData.discountAmount || 0,
+            usedAt: serverTimestamp()
+          });
+          await updateDoc(doc(db, 'coupons', bookingData.couponId), {
+            usageCount: increment(1)
+          });
+        } catch (e) {
+          console.error('Coupon processing failed for booking:', bookingId, e);
+        }
+      })(),
+
+      // Handle partner referral, wallet processing, and commission
+      (async () => {
+        try {
+          let partnerId: string | undefined;
+          if (bookingData.referredBy) {
+            partnerId = await getPartnerIdFromCode(bookingData.referredBy) || undefined;
+          }
+
+          if (partnerId) {
+            await updateDoc(doc(db, 'bookings', bookingId), { partnerId });
+          }
+
+          await walletService.processBookingWallet(
+            bookingId,
+            bookingData.totalAmount,
+            bookingData.ownerId,
+            bookingData.visitorId,
+            bookingData.propertyTitle || 'Property',
+            partnerId,
+          );
+          console.log('Wallet processed for booking:', bookingId);
+
+          if (partnerId) {
+            const commissionAmount = bookingData.totalAmount * 0.05;
+            await partnerService.recordCommission({
+              partnerId,
+              bookingId,
+              amount: commissionAmount,
+              status: 'completed',
+            });
+          }
+        } catch (e) {
+          console.error('Post-creation processing failed for booking:', bookingId, e);
+        }
+      })(),
+    ]);
+
+    return bookingId;
   },
 
   async acceptBooking(bookingId: string) {
@@ -164,6 +195,10 @@ export const bookingService = {
           booking.propertyTitle || 'Property',
           partnerId,
         );
+
+        if (partnerId) {
+          await partnerService.updateCommissionStatus(bookingId, 'cancelled');
+        }
       } catch (walletError) {
         console.error('Rejection wallet failed:', walletError);
       }
@@ -206,6 +241,10 @@ export const bookingService = {
           partnerId,
         );
         console.log('Wallet updated after cancellation');
+
+        if (partnerId) {
+          await partnerService.updateCommissionStatus(bookingId, 'cancelled');
+        }
       } catch (walletError) {
         console.error('Wallet update failed but booking cancelled:', walletError);
       }

@@ -1,14 +1,14 @@
 import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Clock, ArrowRight, Mail } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const PartnerPending = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -21,6 +21,10 @@ const PartnerPending = () => {
     });
     return () => unsub();
   }, [user?.uid, navigate]);
+
+  if (profile?.partnerStatus === 'approved' || profile?.partnerStatus === 'rejected') {
+    return <Navigate to="/partner-dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-6">

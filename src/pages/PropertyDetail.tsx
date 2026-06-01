@@ -1,6 +1,7 @@
 import { showToast } from '../utils/toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useReferralCode } from '../hooks/useReferralParam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,6 +70,7 @@ const AMENITIES_LIST = ['WiFi', 'AC', 'TV', 'Geyser', 'Washing Machine', 'Fridge
 export default function PropertyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { referralUrl } = useReferralCode();
   const { user, profile, loading } = useAuth();
   
   const [showVerificationPopup, setShowVerificationPopup] = useState(false);
@@ -105,7 +107,7 @@ export default function PropertyDetail() {
           setProperty(prop);
         } else {
           showToast("Property not found", "error");
-          navigate('/');
+          navigate(referralUrl('/'));
         }
       } catch (error: any) {
         console.error('Property load error:', error);
@@ -114,7 +116,7 @@ export default function PropertyDetail() {
           return fetchProperty(retryCounter - 1);
         }
         showToast(error.message || "Failed to load property details", "error");
-        navigate('/');
+        navigate(referralUrl('/'));
       }
     };
 
@@ -279,7 +281,7 @@ export default function PropertyDetail() {
                 <button 
                   onClick={() => {
                     if (!user) {
-                      navigate('/auth?mode=login', { state: { returnTo: `/property/${id}` } });
+                      navigate(referralUrl('/auth?mode=login'), { state: { returnTo: referralUrl(`/property/${id}`) } });
                       return;
                     }
                     if (profile?.emailVerified === false) {
@@ -288,13 +290,13 @@ export default function PropertyDetail() {
                     }
                     if (profile?.role === 'owner') {
                       if (property.ownerId === user.uid) {
-                        navigate('/profile?tab=favourites');
+                        navigate(referralUrl('/profile?tab=favourites'));
                       } else {
-                        navigate('/list-property');
+                        navigate(referralUrl('/list-property'));
                       }
                       return;
                     }
-                    navigate(`/book/${id}`);
+                    navigate(referralUrl(`/book/${id}`));
                   }}
                   className="bg-gradient-to-r from-[#1E1B4B] to-indigo-800 text-white px-6 md:px-8 py-2.5 md:py-3 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 hover:from-[#312E81] hover:to-indigo-900 transition-all active:scale-[0.98]"
                 >
@@ -605,7 +607,7 @@ export default function PropertyDetail() {
                   <button 
                     onClick={() => {
                       if (!user) {
-                        navigate('/auth?mode=login', { state: { returnTo: `/property/${id}` } });
+                        navigate(referralUrl('/auth?mode=login'), { state: { returnTo: referralUrl(`/property/${id}`) } });
                         return;
                       }
                       if (profile?.emailVerified === false) {
@@ -614,13 +616,13 @@ export default function PropertyDetail() {
                       }
                       if (profile?.role === 'owner') {
                         if (property.ownerId === user.uid) {
-                          navigate('/profile?tab=favourites');
+                          navigate(referralUrl('/profile?tab=favourites'));
                         } else {
-                          navigate('/list-property');
+                          navigate(referralUrl('/list-property'));
                         }
                         return;
                       }
-                      navigate(`/book/${id}`);
+                      navigate(referralUrl(`/book/${id}`));
                     }}
                     className="w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all bg-gradient-to-r from-amber-400 to-amber-500 text-[#1E1B4B] shadow-lg shadow-amber-500/30 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98]"
                   >

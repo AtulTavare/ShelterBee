@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { showConfirm } from '../utils/toast';
+import { useReferralCode } from '../hooks/useReferralParam';
 import { Menu, X, LogOut, User as UserIcon, Home, Map, LifeBuoy, Info, Shield, Plus, Clock, Wallet as WalletIcon, UserPlus, Building, Users as UsersIcon, MessageSquare, Settings as SettingsIcon, Building2, Calendar, Heart, CheckCircle2, ShieldCheck, History, CreditCard, FileText, Handshake } from 'lucide-react';
 
 import { getAvatarUrl } from '../utils/avatar';
@@ -12,6 +13,7 @@ export default function Navbar() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const authMode = searchParams.get('mode') === 'login' ? 'login' : 'register';
+  const { referralUrl } = useReferralCode();
 
   const [showAuthDropdown, setShowAuthDropdown] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -93,17 +95,17 @@ export default function Navbar() {
               {navLinks.map((link) => (
                 <Link 
                   key={link.path}
-                  to={link.path} 
+                  to={referralUrl(link.path)} 
                   className={`font-bold transition-colors ${location.pathname === link.path ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}
                 >
                   {link.name}
                 </Link>
               ))}
               {isAdmin && (
-                <Link to="/admin-secret-dashboard" className={`font-bold transition-colors ${location.pathname.startsWith('/admin-secret-dashboard') ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Admin</Link>
+                <Link to={referralUrl('/admin-secret-dashboard')} className={`font-bold transition-colors ${location.pathname.startsWith('/admin-secret-dashboard') ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Admin</Link>
               )}
               {isPartner && (
-                <Link to="/partner-dashboard" className={`font-bold transition-colors ${location.pathname === '/partner-dashboard' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Partner</Link>
+                <Link to={referralUrl('/partner-dashboard')} className={`font-bold transition-colors ${location.pathname === '/partner-dashboard' ? 'text-primary border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-on-surface'}`}>Partner</Link>
               )}
             </div>
           </div>
@@ -126,7 +128,7 @@ export default function Navbar() {
               user ? (
                 profile?.role !== 'visitor' && profile?.role !== 'partner' && (
                   <Link 
-                    to="/list-property" 
+                    to={referralUrl('/list-property')}
                     className="hidden lg:block bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
                   >
                     {profile?.role === 'owner' ? 'List your property' : 'Become a Host'}
@@ -135,13 +137,13 @@ export default function Navbar() {
               ) : (
                 <div className="hidden lg:flex items-center gap-3">
                   <Link 
-                    to="/host-auth?mode=register" 
+                    to={referralUrl('/host-auth?mode=register')}
                     className="bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
                   >
                     Become a Host
                   </Link>
                   <Link 
-                    to="/auth?mode=login" 
+                    to={referralUrl('/auth?mode=login')}
                     className="bg-[#FFF8E1] text-[#8B5A2B] border border-[#FFE082] px-6 py-2 rounded-xl font-bold active:scale-95 duration-200 transition-all"
                   >
                     Book a Property
@@ -153,10 +155,10 @@ export default function Navbar() {
             <div className="flex items-center gap-2 relative" ref={dropdownRef}>
               {user ? (
                 <div className="flex items-center gap-2 md:gap-3">
-                  <Link to={profileLink} className="hidden sm:flex flex-col items-end mr-2 hover:text-primary transition-colors cursor-pointer">
+                  <Link to={referralUrl(profileLink)} className="hidden sm:flex flex-col items-end mr-2 hover:text-primary transition-colors cursor-pointer">
                     <span className="text-sm font-bold text-on-secondary-fixed">{profile?.displayName || user.email?.split('@')[0]}</span>
                   </Link>
-                  <Link to={profileLink} className="hidden sm:block cursor-pointer">
+                  <Link to={referralUrl(profileLink)} className="hidden sm:block cursor-pointer">
                     <img 
                       src={user.photoURL || getAvatarUrl(profile?.gender)} 
                       alt="Profile" 
@@ -174,7 +176,7 @@ export default function Navbar() {
               ) : (
                 <>
                   <Link 
-                    to="/auth?mode=login"
+                    to={referralUrl('/auth?mode=login')}
                     className="hidden sm:flex items-center gap-2 hover:text-primary transition-colors"
                   >
                     <img 
@@ -194,14 +196,14 @@ export default function Navbar() {
                   {showAuthDropdown && (
                     <div className="absolute top-12 right-0 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50 flex flex-col overflow-hidden">
                       <Link 
-                        to="/auth?mode=login" 
+                        to={referralUrl('/auth?mode=login')}
                         onClick={() => setShowAuthDropdown(false)}
                         className="px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors text-left"
                       >
                         Log in
                       </Link>
                       <Link 
-                        to="/auth?mode=register" 
+                        to={referralUrl('/auth?mode=register')}
                         onClick={() => setShowAuthDropdown(false)}
                         className="px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors text-left"
                       >
@@ -227,18 +229,18 @@ export default function Navbar() {
 
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-[9999] flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-        <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
+        <Link to={referralUrl('/')} className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
           <Home size={20} />
           <span className="text-[10px] font-bold">Home</span>
         </Link>
-        <Link to="/stays" className={`flex flex-col items-center gap-1 ${location.pathname === '/stays' ? 'text-primary' : 'text-gray-400'}`}>
+        <Link to={referralUrl('/stays')} className={`flex flex-col items-center gap-1 ${location.pathname === '/stays' ? 'text-primary' : 'text-gray-400'}`}>
           <Map size={20} />
           <span className="text-[10px] font-bold">Stays</span>
         </Link>
         
         {/* Host Button - Always visible in mobile bottom nav */}
         <Link 
-          to={user ? "/list-property" : "/auth?mode=login"} 
+          to={user ? referralUrl("/list-property") : "/auth?mode=login"}
           state={!user ? { returnTo: '/list-property' } : undefined}
           className={`flex flex-col items-center gap-1 ${location.pathname === '/list-property' ? 'text-primary' : 'text-gray-400'}`}
         >
@@ -249,7 +251,7 @@ export default function Navbar() {
         </Link>
 
         <Link 
-          to={user ? profileLink : "/auth?mode=login"} 
+          to={user ? referralUrl(profileLink) : "/auth?mode=login"}
           className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' || location.pathname === '/partner-dashboard' ? 'text-primary' : 'text-gray-400'}`}
         >
           <UserIcon size={20} />
@@ -299,7 +301,7 @@ export default function Navbar() {
                       return (
                         <Link 
                           key={link.name}
-                          to={link.path}
+                          to={referralUrl(link.path)}
                           onClick={() => setIsMobileMenuOpen(false)}
                           className={`flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors ${idx !== dashboardLinks.length - 1 ? 'border-b border-gray-50' : ''}`}
                         >
@@ -316,7 +318,7 @@ export default function Navbar() {
                   </>
                 ) : (
                   <Link 
-                    to="/auth?mode=login"
+                    to={referralUrl('/auth?mode=login')}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
                   >
@@ -337,7 +339,7 @@ export default function Navbar() {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2">Preferences</p>
               <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
                 <Link 
-                  to="/about-us"
+                  to={referralUrl('/about-us')}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
                 >
@@ -357,7 +359,7 @@ export default function Navbar() {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2">Support</p>
               <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
                 <Link 
-                  to="/help-center"
+                  to={referralUrl('/help-center')}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center justify-between px-5 py-4 border-b border-gray-50 hover:bg-gray-50 transition-colors"
                 >
@@ -370,7 +372,7 @@ export default function Navbar() {
                   <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
                 </Link>
                 <Link 
-                  to="/support#policies"
+                  to={referralUrl('/support#policies')}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
                 >

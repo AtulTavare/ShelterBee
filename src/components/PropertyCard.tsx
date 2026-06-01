@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useReferralCode } from '../hooks/useReferralParam';
 
 interface PropertyCardProps {
   property: any;
@@ -24,10 +25,11 @@ export default function PropertyCard({
   onToggleFavorite
 }: PropertyCardProps) {
   const navigate = useNavigate();
+  const { referralUrl } = useReferralCode();
 
   return (
     <div 
-      onClick={() => navigate(`/property/${property.id}`)}
+      onClick={() => navigate(referralUrl(`/property/${property.id}`))}
       className="group bg-white rounded-2xl overflow-hidden border border-outline-variant/5 shadow-sm hover:shadow-xl hover:shadow-indigo-900/10 transition-all duration-500 flex flex-col cursor-pointer h-full"
     >
       <div className="relative h-48 overflow-hidden">

@@ -14,7 +14,6 @@ import {
   onSnapshot,
   limit,
   Transaction,
-  Timestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -589,10 +588,13 @@ export const walletService = {
       const q = query(
         collection(db, "withdrawalRequests"),
         where("userId", "==", userId),
-        where("createdAt", ">=", Timestamp.fromDate(today)),
       );
       const snap = await getDocs(q);
-      if (snap.size >= 2) {
+      const todayRequests = snap.docs.filter((d) => {
+        const createdAt = d.data().createdAt?.toMillis?.() || 0;
+        return createdAt >= today.getTime();
+      });
+      if (todayRequests.length >= 2) {
         throw new Error("Daily withdrawal limit reached. Maximum 2 per day.");
       }
 
@@ -676,7 +678,6 @@ export const walletService = {
       query(
         collection(db, "walletTransactions"),
         where("userId", "==", userId),
-        orderBy("createdAt", "desc"),
         limit(50),
       ),
       (snap) => {
@@ -684,6 +685,11 @@ export const walletService = {
           id: d.id,
           ...d.data(),
         }));
+        transactions.sort((a: any, b: any) => {
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
         callback(transactions);
       },
       (error) => {
@@ -719,15 +725,20 @@ export const walletService = {
     const q = query(
       collection(db, "walletTransactions"),
       where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
       limit(100),
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
+    let transactions = snap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
-      reason: d.data().description, // Map description to reason for UI
+      reason: d.data().description,
     })) as WalletTransaction[];
+    transactions.sort((a: any, b: any) => {
+      const aTime = a.createdAt?.toMillis?.() || 0;
+      const bTime = b.createdAt?.toMillis?.() || 0;
+      return bTime - aTime;
+    });
+    return transactions;
   },
 
   async getWalletTransactions(userId: string): Promise<WalletTransaction[]> {

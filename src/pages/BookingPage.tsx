@@ -334,6 +334,8 @@ export default function BookingPage() {
         referredBy,
       });
 
+      localStorage.removeItem('shelterbee_referral');
+
       // Send Emails
       try {
         // 1. Email to Guest
@@ -480,7 +482,7 @@ export default function BookingPage() {
       navigate('/profile#history');
     } catch (error) {
       console.error("Booking failed:", error);
-      showToast("Failed to create booking. Please try again.", "error");
+      showToast(error instanceof Error ? error.message : "Failed to create booking. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }

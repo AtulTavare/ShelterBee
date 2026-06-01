@@ -6,6 +6,7 @@ import PropertyCard from "../components/PropertyCard";
 import FilterBar from "../components/FilterBar";
 import { useAuth } from "../contexts/AuthContext";
 import { showFavoriteToast } from "../utils/toast";
+import { useReferralCode } from "../hooks/useReferralParam";
 
 const getAmenityIcon = (amenity: string) => {
   const lower = amenity.toLowerCase();
@@ -29,6 +30,7 @@ export default function Listings() {
   const { user, profile, updateProfileData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { referralUrl } = useReferralCode();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -113,7 +115,7 @@ export default function Listings() {
     e.preventDefault();
     e.stopPropagation();
     if (!user) {
-      navigate("/login");
+      navigate(referralUrl("/login"));
       return;
     }
 
@@ -342,7 +344,7 @@ export default function Listings() {
                       </p>
                       <div className="flex gap-4">
                         <Link
-                          to={`/property/${topProperties[currentSlide].id}`}
+                          to={referralUrl(`/property/${topProperties[currentSlide].id}`)}
                           className="bg-primary-container text-on-primary-container px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold text-base md:text-lg flex items-center gap-3 shadow-2xl active:scale-95 transition-all"
                         >
                           View Details

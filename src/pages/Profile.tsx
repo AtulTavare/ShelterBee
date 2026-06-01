@@ -1,6 +1,6 @@
 import { showToast, showConfirm } from "../utils/toast";
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useNavigate, Link, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 import { mockProperties } from "../data/mockProperties";
@@ -215,14 +215,6 @@ export default function Profile() {
     }
   }, [isOwner, user]);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth?mode=login");
-    } else if (!loading && profile?.role === 'partner') {
-      navigate("/partner-dashboard", { replace: true });
-    }
-  }, [user, loading, navigate, profile?.role]);
-
   const location = useLocation();
 
   useEffect(() => {
@@ -256,13 +248,15 @@ export default function Profile() {
     }
   }, [isOwner, activeTab, location.hash]);
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#F59E0B]"></div>
       </div>
     );
   }
+  if (!user) return <Navigate to="/auth?mode=login" replace />;
+  if (profile?.role === 'partner') return <Navigate to="/partner-dashboard" replace />;
 
   const tabs = isOwner
     ? [
