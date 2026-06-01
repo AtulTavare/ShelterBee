@@ -74,8 +74,11 @@ export const bookingService = {
     // Step 1: Create the booking (blocking — this is the only critical path)
     let docRef;
     try {
+      const firestoreData = Object.fromEntries(
+        Object.entries(bookingData).filter(([_, v]) => v !== undefined)
+      );
       docRef = await addDoc(collection(db, 'bookings'), {
-        ...bookingData,
+        ...firestoreData,
         status: 'confirmed',
         walletProcessed: false,
         createdAt: serverTimestamp(),
