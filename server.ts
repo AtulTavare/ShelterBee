@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import path from "path";
-import { initializeApp, cert } from "firebase-admin/app";
+import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { v2 as cloudinary } from "cloudinary";
@@ -23,13 +23,9 @@ cloudinary.config({
 // Configure Multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Initialize Firebase Admin with service account
+// Initialize Firebase Admin (uses GOOGLE_APPLICATION_CREDENTIALS from .env)
 try {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
-  initializeApp({
-    credential: cert(serviceAccount),
-    projectId: 'sheterbee',
-  });
+  initializeApp();
 } catch (error) {
   console.error("Firebase Admin initialization error:", error);
 }
