@@ -9,7 +9,6 @@ import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { propertyService } from '../services/propertyService';
 import { bookingService, GuestDetail } from '../services/bookingService';
-import { walletService } from '../services/walletService';
 import { emailService } from '../services/emailService';
 import { emailTemplates } from '../services/emailTemplates';
 import { userService } from '../services/userService';
@@ -20,12 +19,9 @@ import {
   Calendar as CalendarIcon, 
   Users, 
   CreditCard, 
-  ShieldCheck, 
   Plus, 
   Trash2, 
   Info,
-  QrCode,
-  Smartphone,
   CheckCircle2,
   MapPin
 } from 'lucide-react';
@@ -74,7 +70,7 @@ export default function BookingPage() {
   ]);
 
   // Step 3: Payment
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'phonepe' | 'paytm'>('upi');
+
 
   // Step 4: Policies
   const [govIdAcknowledged, setGovIdAcknowledged] = useState(false);
@@ -298,11 +294,16 @@ export default function BookingPage() {
     return true;
   };
 
-  const handleConfirmBooking = async () => {
+  const handleRazorpayPayment = async () => {
     if (!user) return;
-    
+
     if (!bookingContactNo || bookingContactNo.length !== 10) {
       showToast("Please provide a valid 10-digit primary contact number", "error");
+      return;
+    }
+
+    if (!govIdAcknowledged || !termsAccepted) {
+      showToast("Please accept the terms and conditions", "error");
       return;
     }
 
@@ -312,6 +313,7 @@ export default function BookingPage() {
       guestsWithContact[0] = { ...guests[0], contactNo: bookingContactNo };
 
       const referredBy = localStorage.getItem('shelterbee_referral') || undefined;
+
       const bookingId = await bookingService.createBooking({
         propertyId: property.id,
         visitorId: user.uid,
@@ -332,158 +334,210 @@ export default function BookingPage() {
         govIdAcknowledged,
         propertyTitle: property.title,
         referredBy,
-      });
+      }, true);
 
       localStorage.removeItem('shelterbee_referral');
 
-      // Send Emails
-      try {
-        // 1. Email to Guest
-        if (user.email) {
-          const guestTemplate = emailTemplates.getBookingConfirmationGuest(
-            guests[0].name,
-            property.title,
-            dateRange.from!,
-            dateRange.to!,
-            totalGuests,
-            totalAmount,
-            property.address || property.area
-          );
-          await emailService.sendEmail({
-            to: user.email,
-            subject: guestTemplate.subject,
-            html: guestTemplate.html
-          });
-        }
+      const response = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, amount: totalAmount }),
+      });
 
-        // 2. Email to Owner
-        const ownerProfile = await userService.getUserProfile(property.ownerId);
-        if (ownerProfile?.email) {
-          const ownerTemplate = emailTemplates.getBookingAlertOwner(
-            property.title,
-            guests[0].name,
-            guests[0].contactNo || 'Not provided',
-            dateRange.from!,
-            dateRange.to!,
-            effectiveNights,
-            totalGuests,
-            bookingId,
-            totalAmount,
-            platformCommission,
-            receivedAmount
-          );
-          await emailService.sendEmail({
-            to: ownerProfile.email,
-            subject: ownerTemplate.subject,
-            html: ownerTemplate.html
-          });
-        }
-
-        // 3. Payment Notification to Guest
-        if (user.email) {
-          const paymentTemplate = emailTemplates.getPaymentNotification(
-            guests[0].name,
-            totalAmount,
-            'Property Booking',
-            bookingId
-          );
-          await emailService.sendEmail({
-            to: user.email,
-            subject: paymentTemplate.subject,
-            html: paymentTemplate.html
-          });
-        }
-      } catch (emailError) {
-        console.error("Failed to send booking emails:", emailError);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to create payment order');
       }
 
-      try {
-        const visitorProfile = await userService
-          .getUserProfile(user.uid)
-        const ownerProfile = await userService
-          .getUserProfile(property.ownerId)
-        
-        console.log('Guest 0 full object:', guests[0])
-        console.log('All guest keys:', Object.keys(guests[0] || {}))
+      const order = await response.json();
 
-        const visitorMobile = bookingContactNo;
+      const options = {
+        key: (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || 'rzp_test_SwkQFzVHrQ0dYr',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'ShelterBee',
+        description: property.title,
+        order_id: order.orderId,
+        prefill: {
+          name: guests[0].name,
+          contact: bookingContactNo,
+          email: user.email || '',
+        },
+        handler: async (paymentResponse: any) => {
+          try {
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                bookingId,
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature,
+              }),
+            });
 
-        let formattedMobile = '';
-        if (visitorMobile) {
-          const cleanMobile = visitorMobile
-            .toString()
-            .replace(/[\s\-\(\)]/g, '')
-          formattedMobile = cleanMobile.startsWith('+')
-            ? cleanMobile.slice(1)
-            : cleanMobile.startsWith('91')
-              ? cleanMobile
-              : `91${cleanMobile}`
-        }
+            const verifyData = await verifyRes.json();
 
-        if (formattedMobile) {
-          const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
-          const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
-          await sendBookingConfirmationToVisitor(
-            formattedMobile,
-            visitorProfile?.displayName || guests[0]?.name || 'Guest',
-            property.title,
-            inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-            outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-            totalGuests || 1,
-            totalAmount,
-            property.address || '',
-            property.googleMapsLink || ''
-          )
-          console.log('Visitor WhatsApp sent to:', visitorMobile)
-        }
+            if (!verifyRes.ok || !verifyData.success) {
+              throw new Error(verifyData.error || 'Payment verification failed');
+            }
 
-        // WhatsApp to owner - new booking alert
-        let rawOwnerMobile = ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile || (ownerProfile as any)?.contactNumber;
-        let ownerMobile = '';
-        
-        if (rawOwnerMobile) {
-          const cleanMobile = rawOwnerMobile.toString().replace(/[\s\-\(\)]/g, '')
-          ownerMobile = cleanMobile.startsWith('+') 
-            ? cleanMobile.slice(1) 
-            : cleanMobile.startsWith('91') 
-              ? cleanMobile 
-              : `91${cleanMobile}`
-        }
+            await bookingService.finalizeBookingAfterPayment(bookingId);
 
-        if (ownerMobile) {
-          const inDate = dateRange.from ? new Date(dateRange.from) : new Date()
-          const outDate = dateRange.to ? new Date(dateRange.to) : new Date()
-          const diff = outDate.getTime() - inDate.getTime()
-          const nights = Math.ceil(diff / (1000 * 60 * 60 * 24))
+            // Send notifications (non-blocking — errors won't affect booking)
+            try {
+              // 1. Emails
+              try {
+                if (user.email) {
+                  const guestTemplate = emailTemplates.getBookingConfirmationGuest(
+                    guests[0].name,
+                    property.title,
+                    dateRange.from!,
+                    dateRange.to!,
+                    totalGuests,
+                    totalAmount,
+                    property.address || property.area
+                  );
+                  await emailService.sendEmail({
+                    to: user.email,
+                    subject: guestTemplate.subject,
+                    html: guestTemplate.html
+                  });
+                }
 
-          await sendNewBookingAlertToOwner(
-            ownerMobile,
-            ownerProfile?.displayName || 'Owner',
-            property.title,
-            visitorProfile?.displayName || guests[0]?.name || 'Guest',
-            visitorMobile || 'N/A',
-            inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-            outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-            nights,
-            totalGuests || 1,
-            bookingId,
-            totalAmount
-          )
-          console.log('Owner WhatsApp sent to:', ownerMobile)
-        }
-      } catch (waError) {
-        console.error(
-          'WhatsApp booking notifications failed:', 
-          waError
-        )
-      }
+                const ownerProfile = await userService.getUserProfile(property.ownerId);
+                if (ownerProfile?.email) {
+                  const ownerTemplate = emailTemplates.getBookingAlertOwner(
+                    property.title,
+                    guests[0].name,
+                    guests[0].contactNo || 'Not provided',
+                    dateRange.from!,
+                    dateRange.to!,
+                    effectiveNights,
+                    totalGuests,
+                    bookingId,
+                    totalAmount,
+                    platformCommission,
+                    receivedAmount
+                  );
+                  await emailService.sendEmail({
+                    to: ownerProfile.email,
+                    subject: ownerTemplate.subject,
+                    html: ownerTemplate.html
+                  });
+                }
 
-      showToast("Booking confirmed successfully!", "success");
-      navigate('/profile#history');
+                if (user.email) {
+                  const paymentTemplate = emailTemplates.getPaymentNotification(
+                    guests[0].name,
+                    totalAmount,
+                    'Property Booking',
+                    bookingId
+                  );
+                  await emailService.sendEmail({
+                    to: user.email,
+                    subject: paymentTemplate.subject,
+                    html: paymentTemplate.html
+                  });
+                }
+              } catch (emailError) {
+                console.error("Failed to send booking emails:", emailError);
+              }
+
+              // 2. WhatsApp
+              try {
+                const visitorProfile = await userService.getUserProfile(user.uid);
+                const ownerProfile = await userService.getUserProfile(property.ownerId);
+
+                const visitorMobile = bookingContactNo;
+                let formattedMobile = '';
+                if (visitorMobile) {
+                  const cleanMobile = visitorMobile.toString().replace(/[\s\-\(\)]/g, '');
+                  formattedMobile = cleanMobile.startsWith('+')
+                    ? cleanMobile.slice(1)
+                    : cleanMobile.startsWith('91')
+                      ? cleanMobile
+                      : `91${cleanMobile}`;
+                }
+
+                if (formattedMobile) {
+                  const inDate = dateRange.from ? new Date(dateRange.from) : new Date();
+                  const outDate = dateRange.to ? new Date(dateRange.to) : new Date();
+                  await sendBookingConfirmationToVisitor(
+                    formattedMobile,
+                    visitorProfile?.displayName || guests[0]?.name || 'Guest',
+                    property.title,
+                    inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    totalGuests || 1,
+                    totalAmount,
+                    property.address || '',
+                    property.googleMapsLink || ''
+                  );
+                }
+
+                let rawOwnerMobile = ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile || (ownerProfile as any)?.contactNumber;
+                let ownerMobile = '';
+                if (rawOwnerMobile) {
+                  const cleanMobile = rawOwnerMobile.toString().replace(/[\s\-\(\)]/g, '');
+                  ownerMobile = cleanMobile.startsWith('+')
+                    ? cleanMobile.slice(1)
+                    : cleanMobile.startsWith('91')
+                      ? cleanMobile
+                      : `91${cleanMobile}`;
+                }
+
+                if (ownerMobile) {
+                  const inDate = dateRange.from ? new Date(dateRange.from) : new Date();
+                  const outDate = dateRange.to ? new Date(dateRange.to) : new Date();
+                  const diff = outDate.getTime() - inDate.getTime();
+                  const nights = Math.ceil(diff / (1000 * 60 * 60 * 24));
+
+                  await sendNewBookingAlertToOwner(
+                    ownerMobile,
+                    ownerProfile?.displayName || 'Owner',
+                    property.title,
+                    visitorProfile?.displayName || guests[0]?.name || 'Guest',
+                    visitorMobile || 'N/A',
+                    inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    nights,
+                    totalGuests || 1,
+                    bookingId,
+                    totalAmount
+                  );
+                }
+              } catch (waError) {
+                console.error('WhatsApp booking notifications failed:', waError);
+              }
+            } catch (notificationError) {
+              console.error('Notification sending failed:', notificationError);
+            }
+
+            navigate(`/booking-success/${bookingId}`);
+          } catch (verifyError: any) {
+            console.error('Payment verification error:', verifyError);
+            showToast(verifyError.message || 'Payment verification failed', 'error');
+            setIsSubmitting(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            showToast('Payment cancelled', 'info');
+            setIsSubmitting(false);
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', (response: any) => {
+        showToast(response.error?.description || 'Payment failed', 'error');
+        setIsSubmitting(false);
+      });
+      rzp.open();
     } catch (error) {
-      console.error("Booking failed:", error);
-      showToast(error instanceof Error ? error.message : "Failed to create booking. Please try again.", "error");
-    } finally {
+      console.error("Payment error:", error);
+      showToast(error instanceof Error ? error.message : "An error occurred", "error");
       setIsSubmitting(false);
     }
   };
@@ -492,7 +546,6 @@ export default function BookingPage() {
     { id: 1, name: 'Dates', icon: CalendarIcon },
     { id: 2, name: 'Guests', icon: Users },
     { id: 3, name: 'Payment', icon: CreditCard },
-    { id: 4, name: 'Confirm', icon: ShieldCheck },
   ];
 
   return (
@@ -899,17 +952,6 @@ export default function BookingPage() {
                   
                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <div className="lg:col-span-7 space-y-6">
-                      <div className="p-6 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border border-slate-100 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">Scan to Pay Securely</p>
-                        <div className="w-48 h-48 sm:w-56 sm:h-56 bg-white mx-auto rounded-2xl border-2 border-dashed border-slate-200 p-5 flex items-center justify-center shadow-inner">
-                          <QrCode className="w-full h-full text-[#1A1A2E]" />
-                        </div>
-                        <div className="mt-5 inline-flex items-center gap-2 bg-[#1E1B4B] text-white font-black text-xs py-3 px-5 rounded-2xl shadow-lg shadow-indigo-200">
-                          <Smartphone className="w-4 h-4" />
-                          <span>shelterbee@okaxis</span>
-                        </div>
-                      </div>
-
                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
                         <h3 className="text-xs font-black text-[#1A1A2E] uppercase tracking-widest mb-4 flex items-center gap-2">
                           <Info className="w-4 h-4 text-[#1E1B4B]" />
@@ -932,30 +974,6 @@ export default function BookingPage() {
                             <p className="text-[9px] font-black text-slate-400 uppercase mb-1">After In</p>
                             <p className="text-xs font-black text-red-600">No Refund</p>
                           </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Pay using</p>
-                        <div className="grid grid-cols-3 gap-3">
-                          {[
-                            { id: 'upi', name: 'UPI', desc: 'Unified Payments' },
-                            { id: 'phonepe', name: 'PhonePe', desc: 'Instant Transfer' },
-                            { id: 'paytm', name: 'Paytm', desc: 'Fast Checkout' }
-                          ].map((m) => (
-                            <button
-                              key={m.id}
-                              onClick={() => setPaymentMethod(m.id as any)}
-                              className={`p-4 rounded-xl border-2 transition-all text-center ${
-                                paymentMethod === m.id 
-                                  ? 'border-[#1E1B4B] bg-indigo-50 ring-2 ring-indigo-200' 
-                                  : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm text-slate-500'
-                              }`}
-                            >
-                              <span className="text-xs font-black tracking-wider block">{m.name}</span>
-                              <span className="text-[8px] font-medium text-slate-400 mt-0.5">{m.desc}</span>
-                            </button>
-                          ))}
                         </div>
                       </div>
 
@@ -1026,131 +1044,23 @@ export default function BookingPage() {
                           </div>
                         )}
                       </div>
-                    </div>
 
-                    <div className="lg:col-span-5 space-y-5">
-                      <div className="p-6 bg-gradient-to-br from-[#1E1B4B] to-indigo-800 text-white rounded-3xl shadow-2xl shadow-indigo-200 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-20 -mt-20"></div>
-                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-12 -mb-12"></div>
-                        <div className="relative z-10">
-                          <div className="flex items-center gap-2 mb-6">
-                            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                              <CreditCard className="w-4 h-4" />
+                      {/* Terms & Conditions */}
+                      <div className="space-y-3">
+                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                          <h3 className="font-black text-[#1A1A2E] text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
+                              <Info className="w-3.5 h-3.5 text-indigo-600" />
                             </div>
-                            <h3 className="text-base font-black tracking-wide">Payment Summary</h3>
-                          </div>
-                          <div className="space-y-3">
-                            <div className="flex justify-between text-sm text-white/70">
-                              <span>Stay</span>
-                              <span className="text-white font-bold">{nights} Night{nights > 1 ? 's' : ''} · {totalGuests} Guest{totalGuests > 1 ? 's' : ''}</span>
-                            </div>
-                            <div className="h-px bg-white/10"></div>
-                            <div className="flex justify-between text-sm text-white/70">
-                              <span>Base Rent</span>
-                              <span className="text-white font-bold">₹{(baseTotalAmount || 0).toLocaleString()}</span>
-                            </div>
-                            {appliedCoupon && (
-                              <div className="flex justify-between text-sm">
-                                <span className="text-emerald-300">Discount ({appliedCoupon.code})</span>
-                                <span className="text-emerald-300 font-bold">- ₹{discountAmount.toLocaleString()}</span>
-                              </div>
-                            )}
-                            <div className="h-px bg-white/20 mt-3"></div>
-                            <div className="flex justify-between items-end pt-1">
-                              <span className="text-sm font-bold text-white/80">Total Amount</span>
-                              <span className="text-3xl font-black tracking-tight">₹{(totalAmount || 0).toLocaleString()}</span>
-                            </div>
-                          </div>
+                            Terms & Conditions
+                          </h3>
+                          <ul className="text-xs text-slate-600 leading-relaxed font-medium space-y-2">
+                            <li className="flex gap-2"><span className="text-[#1E1B4B] font-black">1.</span> By booking, you agree to follow house rules set by the host.</li>
+                            <li className="flex gap-2"><span className="text-[#1E1B4B] font-black">2.</span> ShelterBee is a technology platform connecting guests with host-managed properties.</li>
+                            <li className="flex gap-2"><span className="text-[#1E1B4B] font-black">3.</span> ShelterBee is not liable for issues arising from host negligence or property conditions.</li>
+                          </ul>
                         </div>
-                      </div>
 
-                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0 mt-0.5">
-                            <Info className="w-4 h-4" />
-                          </div>
-                          <p className="text-xs text-amber-800 leading-relaxed font-medium">
-                            This is a simulated payment screen. In production, you'd be redirected to your payment app.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-8 flex flex-col sm:flex-row justify-between gap-4">
-                    <button
-                      onClick={() => setStep(2)}
-                      className="order-2 sm:order-1 px-8 py-4 text-slate-400 font-black uppercase tracking-widest hover:text-slate-600 hover:bg-slate-50 rounded-2xl transition-all"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => setStep(4)}
-                      className="order-1 sm:order-2 px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#312E81] transition-all shadow-xl shadow-indigo-200"
-                    >
-                      Next: Final Review
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 4 && (
-                <motion.div
-                  key="step4"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                >
-                  <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-lg shadow-slate-200/50 border border-slate-100">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1E1B4B] to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-200">
-                        <ShieldCheck className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h2 className="text-xl sm:text-2xl font-black text-[#1A1A2E]">Final Review</h2>
-                        <p className="text-sm text-slate-400 font-medium">Review policies and confirm your booking</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-5 mb-8">
-                      <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <h3 className="font-black text-[#1A1A2E] text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          </div>
-                          Cancellation Policy
-                        </h3>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
-                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">&gt; 24h</p>
-                            <p className="text-xs font-black text-emerald-600">75% Refund</p>
-                          </div>
-                          <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
-                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">24-6h</p>
-                            <p className="text-xs font-black text-amber-600">50% Refund</p>
-                          </div>
-                          <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
-                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">&lt; 6h</p>
-                            <p className="text-xs font-black text-red-600">No Refund</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <h3 className="font-black text-[#1A1A2E] text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
-                            <Info className="w-3.5 h-3.5 text-indigo-600" />
-                          </div>
-                          Terms & Conditions
-                        </h3>
-                        <ul className="text-xs text-slate-600 leading-relaxed font-medium space-y-2">
-                          <li className="flex gap-2"><span className="text-[#1E1B4B] font-black">1.</span> By booking, you agree to follow house rules set by the host.</li>
-                          <li className="flex gap-2"><span className="text-[#1E1B4B] font-black">2.</span> ShelterBee is a technology platform connecting guests with host-managed properties.</li>
-                          <li className="flex gap-2"><span className="text-[#1E1B4B] font-black">3.</span> ShelterBee is not liable for issues arising from host negligence or property conditions.</li>
-                        </ul>
-                      </div>
-
-                      <div className="space-y-3 pt-2">
                         <label className={`flex gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
                           govIdAcknowledged ? 'border-indigo-300 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'
                         }`}>
@@ -1181,31 +1091,68 @@ export default function BookingPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row justify-between gap-4">
-                      <button
-                        onClick={() => setStep(3)}
-                        className="order-2 sm:order-1 px-8 py-4 text-slate-400 font-black uppercase tracking-widest hover:text-slate-600 hover:bg-slate-50 rounded-2xl transition-all"
-                      >
-                        Back
-                      </button>
-                      <button
-                        disabled={!govIdAcknowledged || !termsAccepted || isSubmitting}
-                        onClick={handleConfirmBooking}
-                        className="order-1 sm:order-2 px-10 py-4 bg-gradient-to-r from-[#1E1B4B] to-indigo-800 text-white rounded-2xl font-black uppercase tracking-widest hover:from-[#312E81] hover:to-indigo-900 transition-all shadow-2xl shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group min-w-[200px]"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            Confirm Booking
-                            <CheckCircle2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                          </>
-                        )}
-                      </button>
+                    <div className="lg:col-span-5 space-y-5">
+                      <div className="p-6 bg-gradient-to-br from-[#1E1B4B] to-indigo-800 text-white rounded-3xl shadow-2xl shadow-indigo-200 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-20 -mt-20"></div>
+                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-12 -mb-12"></div>
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-2 mb-6">
+                            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                              <CreditCard className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-base font-black tracking-wide">Payment Summary</h3>
+                          </div>
+                          <div className="space-y-3">
+                            <div className="flex justify-between text-sm text-white/70">
+                              <span>Stay</span>
+                              <span className="text-white font-bold">{nights} Night{Number(nights) > 1 ? 's' : ''} · {totalGuests} Guest{totalGuests > 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="h-px bg-white/10"></div>
+                            <div className="flex justify-between text-sm text-white/70">
+                              <span>Base Rent</span>
+                              <span className="text-white font-bold">₹{(baseTotalAmount || 0).toLocaleString()}</span>
+                            </div>
+                            {appliedCoupon && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-emerald-300">Discount ({appliedCoupon.code})</span>
+                                <span className="text-emerald-300 font-bold">- ₹{discountAmount.toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div className="h-px bg-white/20 mt-3"></div>
+                            <div className="flex justify-between items-end pt-1">
+                              <span className="text-sm font-bold text-white/80">Total Amount</span>
+                              <span className="text-3xl font-black tracking-tight">₹{(totalAmount || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="mt-8 flex flex-col sm:flex-row justify-between gap-4">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="order-2 sm:order-1 px-8 py-4 text-slate-400 font-black uppercase tracking-widest hover:text-slate-600 hover:bg-slate-50 rounded-2xl transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      disabled={isSubmitting}
+                      onClick={handleRazorpayPayment}
+                      className="order-1 sm:order-2 px-10 py-4 bg-gradient-to-r from-[#1E1B4B] to-indigo-800 text-white rounded-2xl font-black uppercase tracking-widest hover:from-[#312E81] hover:to-indigo-900 transition-all shadow-2xl shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group min-w-[200px]"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          Pay ₹{totalAmount.toLocaleString()}
+                          <CreditCard className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        </>
+                      )}
+                    </button>
                   </div>
                 </motion.div>
               )}

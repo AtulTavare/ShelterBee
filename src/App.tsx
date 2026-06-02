@@ -35,6 +35,8 @@ const PaymentPolicy = lazy(() => import('./pages/PaymentPolicy'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const PartnerPending = lazy(() => import('./pages/PartnerPending'));
 const PartnerDashboard = lazy(() => import('./pages/PartnerDashboard'));
+const PartnerProgram = lazy(() => import('./pages/PartnerProgram'));
+const BookingSuccess = lazy(() => import('./pages/BookingSuccess'));
 
 // Lazy load Admin Components (Named Exports)
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then(m => ({ default: m.AdminLayout })));
@@ -114,7 +116,9 @@ function AppContent() {
                   <Route path="/about-us" element={<AboutUs />} />
                   <Route path="/partner-pending" element={<PartnerPending />} />
                   <Route path="/partner-dashboard" element={<PartnerDashboard />} />
-                  
+                  <Route path="/partner-program" element={<PartnerProgram />} />
+                  <Route path="/booking-success/:bookingId" element={<BookingSuccess />} />
+
                   {/* Admin Routes */}
                   <Route path="/admin-secret-dashboard" element={<AdminLayout />}>
                     <Route index element={<AdminDashboard />} />

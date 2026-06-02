@@ -3,11 +3,13 @@ import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import path from "path";
-import { initializeApp } from "firebase-admin/app";
+import { initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { v2 as cloudinary } from "cloudinary";
 import multer from "multer";
+import Razorpay from "razorpay";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -21,9 +23,13 @@ cloudinary.config({
 // Configure Multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Initialize Firebase Admin with default credentials
+// Initialize Firebase Admin with service account
 try {
-  initializeApp();
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
+  initializeApp({
+    credential: cert(serviceAccount),
+    projectId: 'sheterbee',
+  });
 } catch (error) {
   console.error("Firebase Admin initialization error:", error);
 }
@@ -186,6 +192,80 @@ async function startServer() {
     } catch (error: any) {
       console.error("Signature generation error:", error);
       res.status(500).json({ error: "Failed to generate Cloudinary signature", details: error.message });
+    }
+  });
+
+  // Initialize Razorpay
+  const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_SwkQFzVHrQ0dYr',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || '3vz5ToTHrDMlomV6b2BdAviC',
+  });
+
+  // API Route to create Razorpay order
+  app.post("/api/create-order", async (req, res) => {
+    try {
+      const { bookingId, amount } = req.body;
+      if (!bookingId || !amount) {
+        return res.status(400).json({ error: "bookingId and amount are required" });
+      }
+
+      const amountPaise = Math.round(amount * 100);
+      const order = await razorpay.orders.create({
+        amount: amountPaise,
+        currency: "INR",
+        receipt: bookingId,
+        notes: { bookingId },
+      });
+
+      const db = getFirestore();
+      await db.collection("bookings").doc(bookingId).update({
+        razorpayOrderId: order.id,
+        updatedAt: Timestamp.now(),
+      });
+
+      res.json({
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_SwkQFzVHrQ0dYr',
+      });
+    } catch (error: any) {
+      console.error("Error creating Razorpay order:", error);
+      res.status(500).json({ error: error.message || "Failed to create order" });
+    }
+  });
+
+  // API Route to verify Razorpay payment
+  app.post("/api/verify-payment", async (req, res) => {
+    try {
+      const { bookingId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+      if (!bookingId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ error: "Missing payment verification fields" });
+      }
+
+      const body = razorpay_order_id + "|" + razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || '3vz5ToTHrDMlomV6b2BdAviC')
+        .update(body)
+        .digest("hex");
+
+      if (expectedSignature !== razorpay_signature) {
+        return res.status(400).json({ success: false, error: "Invalid payment signature" });
+      }
+
+      const db = getFirestore();
+      await db.collection("bookings").doc(bookingId).update({
+        status: "confirmed",
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        paymentStatus: "paid",
+        updatedAt: Timestamp.now(),
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error verifying payment:", error);
+      res.status(500).json({ error: error.message || "Failed to verify payment" });
     }
   });
 

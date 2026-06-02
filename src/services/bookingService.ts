@@ -42,7 +42,7 @@ export interface Booking {
   checkOut: Date | null;
   nights: number;
   totalAmount: number;
-  status: 'pending_owner' | 'confirmed' | 'cancelled' | 'rejected_by_owner' | 'completed';
+  status: 'pending_payment' | 'pending_owner' | 'confirmed' | 'cancelled' | 'rejected_by_owner' | 'completed';
   rejectionReason?: string;
   rejectedAt?: any;
   acceptedAt?: any;
@@ -55,24 +55,21 @@ export interface Booking {
   createdAt: any;
   updatedAt: any;
   walletProcessed: boolean;
-  estimatedCost?: number; // Added for UI compatibility
+  estimatedCost?: number;
   couponCode?: string;
   couponId?: string;
   discountAmount?: number;
   originalAmount?: number;
   referredBy?: string;
   partnerId?: string;
+  paymentStatus?: 'pending' | 'paid' | 'failed';
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
 }
 
 export const bookingService = {
-  async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>) {
-    // NOTE: Firebase Console firestore.rules update needed manually:
-    // In bookings create rule change:
-    // incoming().status == 'pending_owner'
-    // TO:
-    // incoming().status in ['confirmed', 'pending_owner']
-
-    // Step 1: Create the booking (blocking — this is the only critical path)
+  async createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'walletProcessed'>, paymentFlow?: boolean) {
     let docRef;
     try {
       const firestoreData = Object.fromEntries(
@@ -80,7 +77,8 @@ export const bookingService = {
       );
       docRef = await addDoc(collection(db, 'bookings'), {
         ...firestoreData,
-        status: 'confirmed',
+        status: paymentFlow ? 'pending_payment' : 'confirmed',
+        paymentStatus: paymentFlow ? 'pending' : undefined,
         walletProcessed: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -92,24 +90,95 @@ export const bookingService = {
 
     const bookingId = docRef.id;
 
-    // Step 2: Fire-and-forget all post-creation processing.
-    // Never block the booking on these — wallet, coupon, or partner failures
-    // should not prevent the booking from being returned to the user.
+    // Only run post-creation processing for non-payment flow (backward compat)
+    if (!paymentFlow) {
+      Promise.allSettled([
+        (async () => {
+          if (!bookingData.couponId || !bookingData.couponCode) return;
+          try {
+            await addDoc(collection(db, 'couponUsage'), {
+              couponCode: bookingData.couponCode,
+              couponId: bookingData.couponId,
+              visitorId: bookingData.visitorId,
+              bookingId: bookingId,
+              propertyId: bookingData.propertyId,
+              discountAmount: bookingData.discountAmount || 0,
+              usedAt: serverTimestamp()
+            });
+            await updateDoc(doc(db, 'coupons', bookingData.couponId), {
+              usageCount: increment(1)
+            });
+          } catch (e) {
+            console.error('Coupon processing failed for booking:', bookingId, e);
+          }
+        })(),
+
+        (async () => {
+          try {
+            let partnerId: string | undefined;
+            if (bookingData.referredBy) {
+              partnerId = await getPartnerIdFromCode(bookingData.referredBy) || undefined;
+            }
+            if (!partnerId) return;
+
+            await updateDoc(doc(db, 'bookings', bookingId), { partnerId });
+
+            try {
+              await walletService.processBookingWallet(
+                bookingId,
+                bookingData.totalAmount,
+                bookingData.ownerId,
+                bookingData.visitorId,
+                bookingData.propertyTitle || 'Property',
+                partnerId,
+              );
+              console.log('Wallet processed for booking:', bookingId);
+            } catch (walletErr) {
+              console.error('Wallet processing failed for booking:', bookingId, walletErr);
+            }
+
+            const commissionAmount = bookingData.totalAmount * 0.05;
+            await partnerService.recordCommission({
+              partnerId,
+              bookingId,
+              amount: commissionAmount,
+              status: 'completed',
+            });
+          } catch (e) {
+            console.error('Post-creation processing failed for booking:', bookingId, e);
+          }
+        })(),
+      ]);
+    }
+
+    return bookingId;
+  },
+
+  async finalizeBookingAfterPayment(bookingId: string) {
+    const booking = await this.getBookingById(bookingId);
+    if (!booking) throw new Error("Booking not found");
+    if (booking.status === 'confirmed') return;
+
+    await updateDoc(doc(db, 'bookings', bookingId), {
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      updatedAt: serverTimestamp(),
+    });
+
     Promise.allSettled([
-      // Handle coupon if applicable
       (async () => {
-        if (!bookingData.couponId || !bookingData.couponCode) return;
+        if (!booking.couponId || !booking.couponCode) return;
         try {
           await addDoc(collection(db, 'couponUsage'), {
-            couponCode: bookingData.couponCode,
-            couponId: bookingData.couponId,
-            visitorId: bookingData.visitorId,
+            couponCode: booking.couponCode,
+            couponId: booking.couponId,
+            visitorId: booking.visitorId,
             bookingId: bookingId,
-            propertyId: bookingData.propertyId,
-            discountAmount: bookingData.discountAmount || 0,
+            propertyId: booking.propertyId,
+            discountAmount: booking.discountAmount || 0,
             usedAt: serverTimestamp()
           });
-          await updateDoc(doc(db, 'coupons', bookingData.couponId), {
+          await updateDoc(doc(db, 'coupons', booking.couponId), {
             usageCount: increment(1)
           });
         } catch (e) {
@@ -117,26 +186,25 @@ export const bookingService = {
         }
       })(),
 
-      // Handle partner referral, wallet processing, and commission
       (async () => {
         try {
-          let partnerId: string | undefined;
-          if (bookingData.referredBy) {
-            partnerId = await getPartnerIdFromCode(bookingData.referredBy) || undefined;
+          let partnerId: string | undefined = booking.partnerId;
+          if (!partnerId && booking.referredBy) {
+            partnerId = await getPartnerIdFromCode(booking.referredBy) || undefined;
           }
           if (!partnerId) return;
 
-          await updateDoc(doc(db, 'bookings', bookingId), { partnerId });
+          if (!booking.partnerId) {
+            await updateDoc(doc(db, 'bookings', bookingId), { partnerId });
+          }
 
-          // Wallet processing can fail independently (transaction conflicts, etc.)
-          // — never let it block the commission recording for analytics.
           try {
             await walletService.processBookingWallet(
               bookingId,
-              bookingData.totalAmount,
-              bookingData.ownerId,
-              bookingData.visitorId,
-              bookingData.propertyTitle || 'Property',
+              booking.totalAmount,
+              booking.ownerId,
+              booking.visitorId,
+              booking.propertyTitle || 'Property',
               partnerId,
             );
             console.log('Wallet processed for booking:', bookingId);
@@ -144,8 +212,7 @@ export const bookingService = {
             console.error('Wallet processing failed for booking:', bookingId, walletErr);
           }
 
-          // Commission is always recorded for analytics regardless of wallet outcome
-          const commissionAmount = bookingData.totalAmount * 0.05;
+          const commissionAmount = booking.totalAmount * 0.05;
           await partnerService.recordCommission({
             partnerId,
             bookingId,
@@ -153,12 +220,10 @@ export const bookingService = {
             status: 'completed',
           });
         } catch (e) {
-          console.error('Post-creation processing failed for booking:', bookingId, e);
+          console.error('Post-payment processing failed for booking:', bookingId, e);
         }
       })(),
     ]);
-
-    return bookingId;
   },
 
   async acceptBooking(bookingId: string) {

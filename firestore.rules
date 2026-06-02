@@ -76,7 +76,8 @@ service cloud.firestore {
                    (isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()));
       
       // Specifically allow specific read for PropertyDetail/BookingPage by signed-in users
-      allow get: if isSignedIn() || resource.data.status == 'Approved';
+      allow get: if resource.data.status == 'Approved' || 
+                   (isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()));
 
       allow create: if isSignedIn() && isValidProperty(incoming()) && isValidId(propertyId);
       
@@ -85,7 +86,7 @@ service cloud.firestore {
         (resource.data.ownerId == request.auth.uid && (
           incoming().ownerId == existing().ownerId &&
           // Prevent owners from force-approving their own listings
-          (!incoming().diff(existing()).affectedKeys().hasAny(['status']) || isAdmin())
+          (incoming().status == 'Pending' || !incoming().diff(existing()).affectedKeys().hasAny(['status']) || isAdmin())
         ))
       );
       

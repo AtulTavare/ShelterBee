@@ -50,6 +50,7 @@ export default function Navbar() {
   const navLinks = [
     { name: 'Home', path: '/', icon: Home },
     { name: 'Stays', path: '/stays', icon: Map },
+    { name: 'Partner Program', path: '/partner-program', icon: Handshake },
     { name: 'Support', path: '/support', icon: LifeBuoy },
     { name: 'About Us', path: '/about-us', icon: Info },
   ];

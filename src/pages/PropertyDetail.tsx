@@ -104,6 +104,11 @@ export default function PropertyDetail() {
       try {
         const prop = await propertyService.getPropertyById(id);
         if (prop) {
+          if (prop.status !== 'Approved' && user?.uid !== prop.ownerId && profile?.role !== 'admin') {
+            showToast("Property not found", "error");
+            navigate(referralUrl('/'));
+            return;
+          }
           setProperty(prop);
         } else {
           showToast("Property not found", "error");

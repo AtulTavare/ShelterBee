@@ -694,6 +694,17 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Banner Ad */}
+      <section className="py-8 md:py-12 px-4 md:px-8 bg-[#F9F9F9]">
+        <div className="max-w-7xl mx-auto">
+          <img
+            src="https://res.cloudinary.com/dtnsxrc2c/image/upload/v1780394832/booking_ad_kc9aba.png"
+            alt="Book your stay"
+            className="w-full h-auto object-contain rounded-2xl"
+          />
+        </div>
+      </section>
+
       {/* Most Affordable Properties */}
       <section className="py-16 md:py-20 px-4 md:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
