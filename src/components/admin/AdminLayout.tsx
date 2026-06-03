@@ -57,6 +57,7 @@ export const AdminLayout = () => {
     { name: 'Manage Properties', path: '/admin-secret-dashboard/manage-properties', icon: Building },
     { name: 'Users', path: '/admin-secret-dashboard/users', icon: Users },
     { name: 'Partners', path: '/admin-secret-dashboard/partners', icon: Handshake },
+    { name: 'Rules & Violations', path: '/admin-secret-dashboard/rules-violations', icon: ShieldAlert },
     { name: 'Feedback', path: '/admin-secret-dashboard/feedback', icon: MessageSquare, badge: openFeedbackCount },
     { name: 'Settings', path: '/admin-secret-dashboard/settings', icon: Settings },
   ];

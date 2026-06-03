@@ -843,6 +843,60 @@ export const walletService = {
     );
   },
 
+  async processPenaltyDeduction(
+    ownerId: string,
+    amount: number,
+    bookingId: string,
+    propertyTitle: string,
+  ): Promise<void> {
+    try {
+      const adminId = await this.getAdminId();
+      await runTransaction(db, async (transaction) => {
+        const walletRef = doc(db, "wallets", ownerId);
+        const adminWalletRef = doc(db, "wallets", adminId);
+        const txnRef = collection(db, "walletTransactions");
+
+        const walletSnap = await transaction.get(walletRef);
+        const adminSnap = await transaction.get(adminWalletRef);
+        const ownerBal = walletSnap.exists() ? (walletSnap.data().balance ?? 0) : 0;
+        const adminBal = adminSnap.exists() ? (adminSnap.data().balance ?? 0) : 0;
+        const deduction = Math.min(amount, Math.max(ownerBal, 0));
+        if (deduction <= 0) return;
+
+        const newOwnerBalance = ownerBal - deduction;
+        const newAdminBalance = adminBal + deduction;
+
+        transaction.set(walletRef, { userId: ownerId, balance: newOwnerBalance, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(adminWalletRef, { userId: adminId, balance: newAdminBalance, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(doc(txnRef), {
+          userId: ownerId,
+          type: "debit",
+          amount: deduction,
+          description: `Penalty deduction - ${propertyTitle}`,
+          bookingId,
+          propertyTitle,
+          walletProcessed: true,
+          createdAt: serverTimestamp(),
+          balanceAfter: newOwnerBalance,
+        });
+        transaction.set(doc(txnRef), {
+          userId: adminId,
+          type: "credit",
+          amount: deduction,
+          description: `Penalty collected - ${propertyTitle}`,
+          bookingId,
+          propertyTitle,
+          walletProcessed: true,
+          createdAt: serverTimestamp(),
+          balanceAfter: newAdminBalance,
+        });
+      });
+      console.log(`Penalty deduction: ${amount} from owner ${ownerId} for booking ${bookingId}`);
+    } catch (error) {
+      console.error("Penalty deduction failed:", error);
+    }
+  },
+
   // Used by partnerService.backfillPartnerData to credit partner wallets
   // for bookings that were created before partner resolution was fixed.
   async creditPartnerWalletForBackfill(

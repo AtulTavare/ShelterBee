@@ -220,6 +220,30 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // --- 12. WARNINGS ---
+    match /warnings/{warningId} {
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // --- 13. BANNED USERS ---
+    match /bannedUsers/{bannedId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- 14. PENALTIES ---
+    match /penalties/{penaltyId} {
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
     // LEGACY PATHS
     match /support/{docId} {
       allow read, write: if isAdmin();

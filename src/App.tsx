@@ -51,6 +51,7 @@ const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback').then(m =>
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings').then(m => ({ default: m.AdminSettings })));
 const AdminPartners = lazy(() => import('./pages/admin/AdminPartners'));
 const AdminPaymentLogs = lazy(() => import('./pages/admin/AdminPaymentLogs').then(m => ({ default: m.AdminPaymentLogs })));
+const AdminRulesViolations = lazy(() => import('./pages/admin/AdminRulesViolations').then(m => ({ default: m.AdminRulesViolations })));
 
 const PageLoader = () => (
   <div className="min-h-[60vh] flex items-center justify-center bg-background/50 backdrop-blur-sm">
@@ -132,6 +133,7 @@ function AppContent() {
                     <Route path="feedback" element={<AdminFeedback />} />
                     <Route path="partners" element={<AdminPartners />} />
                     <Route path="payments" element={<AdminPaymentLogs />} />
+                    <Route path="rules-violations" element={<AdminRulesViolations />} />
                     <Route path="settings" element={<AdminSettings />} />
                   </Route>
                 </Routes>

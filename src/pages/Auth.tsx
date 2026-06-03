@@ -3,8 +3,9 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Check, ShieldCheck, Home, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { showToast } from '../utils/toast';
 
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
@@ -271,6 +272,18 @@ export default function Auth() {
         uid: currentUser.uid,
         emailVerified: true
       };
+
+      const bannedMobileSnap = await getDocs(query(collection(db, 'bannedUsers'), where('mobile', '==', pendingUserData.mobile || '')));
+      const bannedEmailSnap = await getDocs(query(collection(db, 'bannedUsers'), where('email', '==', pendingUserCreds.email)));
+      const bannedNameSnap = pendingUserData.displayName ? await getDocs(query(collection(db, 'bannedUsers'), where('displayName', '>=', pendingUserData.displayName), where('displayName', '<=', pendingUserData.displayName + '\uf8ff'))) : { size: 0 };
+
+      if ((bannedMobileSnap.size > 0 ? 1 : 0) + (bannedEmailSnap.size > 0 ? 1 : 0) + (bannedNameSnap.size > 0 ? 1 : 0) >= 2) {
+        await currentUser.delete();
+        setLoading(false);
+        setShowOTPModal(false);
+        showToast('Registration blocked. This account matches a banned user.', 'error');
+        return;
+      }
 
       await setDoc(doc(db, 'users', currentUser.uid), finalUserData);
 

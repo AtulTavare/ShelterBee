@@ -267,67 +267,60 @@ export default function Navbar() {
             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
               <X size={20} />
             </button>
-            <h2 className="text-base font-bold text-[#1A1A2E]">Profile</h2>
+            <h2 className="text-base font-bold text-[#1A1A2E]">Menu</h2>
             <div className="w-10"></div>
           </div>
 
           <div className="flex-1 overflow-y-auto pb-24 hide-scrollbar">
-            {/* Profile Card */}
-            <div className="p-4">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-                <img 
-                  src={user?.photoURL || getAvatarUrl(profile?.gender || 'male')} 
-                  alt="Profile" 
-                  className="w-16 h-16 rounded-full border-2 border-primary/10 object-cover" 
-                />
-                <div>
-                  <h3 className="text-lg font-bold text-[#1A1A2E]">
-                    {user ? (profile?.displayName || user.email?.split('@')[0]) : 'Guest User'}
-                  </h3>
-                  <p className="text-xs font-medium text-gray-400">
-                    {user ? (profile?.role === 'admin' ? 'Administrator' : profile?.role === 'owner' ? 'Property Owner' : user.email) : 'Sign in to access more features'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Account Section */}
-            <div className="px-4 mb-6">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2">Account</p>
+            {/* Navigation Links */}
+            <div className="px-4 mb-6 mt-4">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2">Navigation</p>
               <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-                {user ? (
-                  <>
-                    {dashboardLinks.map((link, idx) => {
-                      const Icon = link.icon;
-                      return (
-                        <Link 
-                          key={link.name}
-                          to={referralUrl(link.path)}
-                          onClick={() => setIsMobileMenuOpen(false)}
-                          className={`flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors ${idx !== dashboardLinks.length - 1 ? 'border-b border-gray-50' : ''}`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-                              <Icon size={18} className="text-gray-600" />
-                            </div>
-                            <span className="text-sm font-semibold text-gray-700">{link.name}</span>
-                          </div>
-                          <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
-                        </Link>
-                      );
-                    })}
-                  </>
-                ) : (
+                {navLinks.map((link, idx) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link 
+                      key={link.name}
+                      to={referralUrl(link.path)}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors ${idx !== navLinks.length - 1 ? 'border-b border-gray-50' : ''}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                          <Icon size={18} className="text-gray-600" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{link.name}</span>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
+                    </Link>
+                  );
+                })}
+                {isAdmin && (
                   <Link 
-                    to={referralUrl('/auth?mode=login')}
+                    to={referralUrl('/admin-secret-dashboard')}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors border-t border-gray-50"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-                        <UserIcon size={18} className="text-gray-600" />
+                        <SettingsIcon size={18} className="text-gray-600" />
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">Log in / Sign up</span>
+                      <span className="text-sm font-semibold text-gray-700">Admin</span>
+                    </div>
+                    <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
+                  </Link>
+                )}
+                {isPartner && (
+                  <Link 
+                    to={referralUrl('/partner-dashboard')}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors border-t border-gray-50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                        <Handshake size={18} className="text-gray-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">Partner Dashboard</span>
                     </div>
                     <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
                   </Link>
@@ -335,23 +328,58 @@ export default function Navbar() {
               </div>
             </div>
 
-            {/* Preferences Section */}
+            {/* Host / Book actions */}
             <div className="px-4 mb-6">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2">Preferences</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2">Actions</p>
               <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-                <Link 
-                  to={referralUrl('/about-us')}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-                      <Info size={18} className="text-gray-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">About Us</span>
-                  </div>
-                  <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
-                </Link>
+                {user ? (
+                  profile?.role !== 'visitor' && profile?.role !== 'partner' ? (
+                    <Link 
+                      to={referralUrl('/list-property')}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                          <Building size={18} className="text-gray-600" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">
+                          {profile?.role === 'owner' ? 'List your property' : 'Become a Host'}
+                        </span>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
+                    </Link>
+                  ) : null
+                ) : (
+                  <>
+                    <Link 
+                      to={referralUrl('/host-auth?mode=register')}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                          <Building size={18} className="text-gray-600" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">Become a Host</span>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
+                    </Link>
+                    <Link 
+                      to={referralUrl('/auth?mode=login')}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                          <UserIcon size={18} className="text-gray-600" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">Book a Property</span>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-300 text-lg">chevron_right</span>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 
@@ -388,8 +416,17 @@ export default function Navbar() {
               </div>
             </div>
 
-            {user && (
+            {/* Login / Profile */}
+            {user ? (
               <div className="px-4 mt-4">
+                <Link 
+                  to={referralUrl(profileLink)}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 py-4 text-sm font-bold text-gray-700 bg-white rounded-2xl border border-gray-100 shadow-sm hover:bg-gray-50 transition-colors mb-3"
+                >
+                  <UserIcon size={18} />
+                  Profile
+                </Link>
                 <button 
                   onClick={handleLogout}
                   className="w-full flex items-center justify-center gap-2 py-4 text-sm font-bold text-red-600 bg-red-50 rounded-2xl hover:bg-red-100 transition-colors"
@@ -397,6 +434,17 @@ export default function Navbar() {
                   <LogOut size={18} />
                   Logout
                 </button>
+              </div>
+            ) : (
+              <div className="px-4 mt-4">
+                <Link 
+                  to={referralUrl('/auth?mode=login')}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 py-4 text-sm font-bold text-white bg-[#1E1B4B] rounded-2xl hover:bg-[#312E81] transition-colors"
+                >
+                  <UserIcon size={18} />
+                  Log in / Sign up
+                </Link>
               </div>
             )}
           </div>

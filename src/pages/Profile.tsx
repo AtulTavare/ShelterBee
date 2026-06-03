@@ -46,6 +46,8 @@ import {
   EyeOff,
   IndianRupee,
   Landmark,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 
 import PropertyCard from "../components/PropertyCard";
@@ -452,8 +454,8 @@ function NewBookingsTab() {
   const [visitTime, setVisitTime] = useState("");
   const [processing, setProcessing] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "new" | "confirmed" | "cancelled" | "rejected" | "past"
-  >("new");
+    "confirmed" | "cancelled" | "rejected" | "past"
+  >("confirmed");
 
   const handleAccept = async (booking: any) => {
     if (processing) return;
@@ -592,15 +594,9 @@ function NewBookingsTab() {
   useEffect(() => {
     const now = new Date();
     let filtered = [];
-    if (activeSubTab === "new") {
+    if (activeSubTab === "confirmed") {
       filtered = allBookings.filter(
-        (b) =>
-          b.status === "pending_owner" ||
-          (b.status === "confirmed" && !b.acceptedAt),
-      );
-    } else if (activeSubTab === "confirmed") {
-      filtered = allBookings.filter(
-        (b) => b.status === "confirmed" && !!b.acceptedAt,
+        (b) => b.status === "confirmed" || b.status === "pending_owner",
       );
     } else if (activeSubTab === "cancelled") {
       filtered = allBookings.filter((b) => b.status === "cancelled");
@@ -634,7 +630,6 @@ function NewBookingsTab() {
 
         <div className="flex bg-slate-50 p-1 rounded-xl overflow-x-auto no-scrollbar">
           {[
-            { id: "new", label: "New" },
             { id: "confirmed", label: "Confirmed" },
             { id: "rejected", label: "Rejected" },
             { id: "cancelled", label: "Cancelled" },
@@ -688,12 +683,10 @@ function NewBookingsTab() {
                       </h3>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span
-                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === "pending_owner" || (booking.status === "confirmed" && !booking.acceptedAt) ? "bg-amber-400 animate-pulse" : booking.status === "confirmed" ? "bg-emerald-400" : "bg-gray-400"}`}
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${booking.status === "pending_owner" ? "bg-amber-400 animate-pulse" : booking.status === "confirmed" ? "bg-emerald-400" : "bg-gray-400"}`}
                         ></span>
                         <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest truncate">
-                          {booking.status === "pending_owner" ||
-                          (booking.status === "confirmed" &&
-                            !booking.acceptedAt)
+                          {booking.status === "pending_owner"
                             ? "Pending"
                             : booking.status}
                         </p>
@@ -747,8 +740,7 @@ function NewBookingsTab() {
               </div>
 
               <div className="flex gap-2">
-                {booking.status === "pending_owner" ||
-                (booking.status === "confirmed" && !booking.acceptedAt) ? (
+                {booking.status === "pending_owner" ? (
                   <>
                     <button
                       onClick={() => {
@@ -770,12 +762,26 @@ function NewBookingsTab() {
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => setSelectedBooking(booking)}
-                    className="w-full h-10 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
-                  >
-                    Details
-                  </button>
+                  <div className="flex gap-2 w-full">
+                    <button
+                      onClick={() => setSelectedBooking(booking)}
+                      className="flex-1 h-10 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-slate-100 flex items-center justify-center gap-2"
+                    >
+                      Details
+                    </button>
+                    {booking.status === "confirmed" && (
+                      <button
+                        onClick={() => {
+                          setSelectedBooking(booking);
+                          setShowRejectModal(true);
+                        }}
+                        disabled={processing}
+                        className="flex-1 h-10 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-red-100 flex items-center justify-center gap-2"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -4612,12 +4618,26 @@ function OwnerDashboardTab({
   const { updateProfileData } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [warnings, setWarnings] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     displayName: profile?.displayName || "",
     phoneNumber: profile?.phoneNumber || "",
     location: profile?.location || "",
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchWarnings = async () => {
+      if (!user) return;
+      try {
+        const active = await userService.getActiveWarnings(user.uid);
+        setWarnings(active);
+      } catch (err) {
+        console.error("Failed to fetch warnings:", err);
+      }
+    };
+    fetchWarnings();
+  }, [user]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -4708,8 +4728,34 @@ function OwnerDashboardTab({
     );
   }
 
+  const dismissWarning = async (warningId: string) => {
+    try {
+      await userService.dismissWarning(warningId);
+      setWarnings(prev => prev.filter(w => w.id !== warningId));
+    } catch (err) {
+      console.error("Failed to dismiss warning:", err);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {warnings.map((w) => (
+        <div key={w.id} className="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm flex items-start gap-4">
+          <div className="p-2 bg-amber-100 rounded-full flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-amber-900 text-sm">Warning</p>
+            <p className="text-amber-700 text-sm mt-0.5">{w.reason || 'No reason provided.'}</p>
+            {w.createdAt && (
+              <p className="text-amber-500 text-xs mt-1">{new Date(w.createdAt.seconds * 1000).toLocaleDateString()}</p>
+            )}
+          </div>
+          <button onClick={() => dismissWarning(w.id)} className="p-1.5 hover:bg-amber-100 rounded-lg transition-colors flex-shrink-0">
+            <X className="w-4 h-4 text-amber-500" />
+          </button>
+        </div>
+      ))}
       {/* Personal Details Card */}
       <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative">
         <div className="flex items-center gap-4 mb-8">
@@ -5300,7 +5346,18 @@ function CampaignsTab() {
         
         const coupQ = query(collection(db, "coupons"), where("ownerId", "==", user.uid));
         const coupSnap = await getDocs(coupQ);
-        setCoupons(coupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const now = new Date();
+        const couponsData = coupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        for (const c of couponsData) {
+          if (c.expiryDate && c.isActive) {
+            const expiry = c.expiryDate.toDate ? c.expiryDate.toDate() : new Date(c.expiryDate);
+            if (expiry < now) {
+              await updateDoc(doc(db, "coupons", c.id), { isActive: false });
+              c.isActive = false;
+            }
+          }
+        }
+        setCoupons(couponsData);
       } catch (err) {
         console.error("Error fetching campaigns data:", err);
       } finally {
@@ -5423,9 +5480,15 @@ function CampaignsTab() {
                       {coupon.propertyIds?.map((id: string) => getPropertyName(id)).join(", ")}
                     </p>
                   </div>
-                  <button onClick={() => toggleStatus(coupon.id, coupon.isActive)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${coupon.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {coupon.isActive ? 'ACTIVE' : 'INACTIVE'}
-                  </button>
+                  {(() => {
+                    const isExpired = coupon.expiryDate && (new Date(coupon.expiryDate.toDate ? coupon.expiryDate.toDate() : coupon.expiryDate) < new Date());
+                    if (isExpired) {
+                      return <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">EXPIRED</span>;
+                    }
+                    return <button onClick={() => toggleStatus(coupon.id, coupon.isActive)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${coupon.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                      {coupon.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    </button>;
+                  })()}
                 </div>
                 <div className="flex gap-3 mt-3 mb-4">
                   <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold">

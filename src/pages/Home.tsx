@@ -1,33 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { propertyService } from '../services/propertyService';
 import PropertyCard from '../components/PropertyCard';
-import { ChevronDown, ChevronUp, MapPin, Search, X, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Search, X, Check, Building, Users, VenusAndMars } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showFavoriteToast } from '../utils/toast';
 import { useReferralCode } from '../hooks/useReferralParam';
-
-function CountUp({ target, decimals = 0, duration = 2000 }: { target: number; decimals?: number; duration?: number }) {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    let start = 0;
-    const increment = target / (duration / 16);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= target) {
-        setCount(target);
-        clearInterval(timer);
-      } else {
-        setCount(start);
-      }
-    }, 16);
-    return () => clearInterval(timer);
-  }, [target, duration]);
-
-  return <>{count.toFixed(decimals)}</>;
-}
 
 export default function Home() {
   const { user, profile, updateProfileData } = useAuth();
@@ -298,7 +277,7 @@ export default function Home() {
             
             {/* Where Typeahead */}
             <div className="flex-[1.2] relative flex flex-col px-5 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full transition-colors w-full text-left">
-              <label className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Where</label>
+              <label className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase flex items-center gap-1"><MapPin size={14} className="text-gray-500" />Where</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -386,7 +365,7 @@ export default function Home() {
                 className="flex-[0.8] md:w-28 flex flex-col px-4 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
                 onClick={() => setIsTypeDropdownOpen(true)}
               >
-                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Type</div>
+                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase flex items-center gap-1"><Building size={14} className="text-gray-500" />Type</div>
                 <div className={`text-sm mt-0.5 truncate ${filterType === 'Any Type' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
                   {filterType === 'Any Type' ? 'Any' : filterType}
                 </div>
@@ -399,7 +378,7 @@ export default function Home() {
                 className="flex-[0.8] md:w-28 flex flex-col px-4 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
                 onClick={() => setIsOccupancyDropdownOpen(true)}
               >
-                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Guests</div>
+                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase flex items-center gap-1"><Users size={14} className="text-gray-500" />Guests</div>
                 <div className={`text-sm mt-0.5 truncate ${occupancy === 'Any' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
                   {occupancy === 'Any' ? 'Any' : `${occupancy} Guests`}
                 </div>
@@ -412,7 +391,7 @@ export default function Home() {
                 className="flex-[0.8] md:w-28 flex flex-col px-4 py-2 md:py-1.5 hover:bg-gray-100 rounded-2xl md:rounded-full cursor-pointer transition-colors text-left relative"
                 onClick={() => setIsGenderDropdownOpen(true)}
               >
-                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase">Gender</div>
+                <div className="text-[10px] md:text-[11px] font-extrabold text-gray-800 tracking-wide uppercase flex items-center gap-1"><VenusAndMars size={14} className="text-gray-500" />Gender</div>
                 <div className={`text-sm mt-0.5 truncate ${selectedGender === 'Any' ? 'text-gray-400' : 'text-gray-600 font-medium'}`}>
                   {selectedGender === 'Any' ? 'Any' : selectedGender}
                 </div>
@@ -732,27 +711,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Platform Stats */}
-      <section className="py-16 md:py-20 px-4 md:px-8 bg-[#F9F9F9]">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
-            {[
-              { target: 500, suffix: '+', label: 'Verified Properties' },
-              { target: 50, suffix: '+', label: 'Cities Covered' },
-              { target: 10, suffix: 'K+', label: 'Happy Guests' },
-              { target: 4.8, suffix: '', label: 'Average Rating', decimals: 1 },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                <p className="text-3xl md:text-4xl font-black text-[#1E1B4B] mb-1">
-                  <CountUp target={stat.target} decimals={stat.decimals ?? 0} />
-                  {stat.suffix}
-                </p>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* FAQs Section */}
       <section className="py-16 md:py-20 px-4 md:px-8 bg-white">

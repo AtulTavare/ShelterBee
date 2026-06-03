@@ -2,6 +2,7 @@ import { collection, addDoc, getDocs, query, where, doc, updateDoc, serverTimest
 import { db } from '../firebase';
 import { walletService } from './walletService';
 import { partnerService } from './partnerService';
+import { userService } from './userService';
 
 const getPartnerIdFromCode = async (code: string): Promise<string | null> => {
   try {
@@ -66,6 +67,9 @@ export interface Booking {
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  paymentGatewayCharge?: number;
+  gstOnCharge?: number;
+  totalPayable?: number;
 }
 
 export const bookingService = {
@@ -78,6 +82,7 @@ export const bookingService = {
       docRef = await addDoc(collection(db, 'bookings'), {
         ...firestoreData,
         status: paymentFlow ? 'pending_payment' : 'confirmed',
+        acceptedAt: paymentFlow ? undefined : serverTimestamp(),
         paymentStatus: paymentFlow ? 'pending' : undefined,
         walletProcessed: false,
         createdAt: serverTimestamp(),
@@ -133,6 +138,15 @@ export const bookingService = {
                 partnerId,
               );
               console.log('Wallet processed for booking:', bookingId);
+              const pendingPenalties = await userService.getPendingPenalties(bookingData.ownerId);
+              for (const penalty of pendingPenalties) {
+                try {
+                  await walletService.processPenaltyDeduction(bookingData.ownerId, penalty.amount, bookingId, bookingData.propertyTitle || 'Property');
+                  await userService.applyPenalty(penalty.id);
+                } catch (penaltyErr) {
+                  console.error('Penalty deduction failed for booking:', bookingId, penaltyErr);
+                }
+              }
             } catch (walletErr) {
               console.error('Wallet processing failed for booking:', bookingId, walletErr);
             }
@@ -161,6 +175,7 @@ export const bookingService = {
 
     await updateDoc(doc(db, 'bookings', bookingId), {
       status: 'confirmed',
+      acceptedAt: serverTimestamp(),
       paymentStatus: 'paid',
       updatedAt: serverTimestamp(),
     });
@@ -208,6 +223,15 @@ export const bookingService = {
               partnerId,
             );
             console.log('Wallet processed for booking:', bookingId);
+            const pendingPenalties = await userService.getPendingPenalties(booking.ownerId);
+            for (const penalty of pendingPenalties) {
+              try {
+                await walletService.processPenaltyDeduction(booking.ownerId, penalty.amount, bookingId, booking.propertyTitle || 'Property');
+                await userService.applyPenalty(penalty.id);
+              } catch (penaltyErr) {
+                console.error('Penalty deduction failed for booking:', bookingId, penaltyErr);
+              }
+            }
           } catch (walletErr) {
             console.error('Wallet processing failed for booking:', bookingId, walletErr);
           }
