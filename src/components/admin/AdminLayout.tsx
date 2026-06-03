@@ -17,7 +17,8 @@ import {
   ShieldAlert,
   Menu,
   X,
-  Handshake
+  Handshake,
+  CreditCard
 } from 'lucide-react';
 
 export const AdminLayout = () => {
@@ -51,6 +52,7 @@ export const AdminLayout = () => {
     { name: 'Dashboard', path: '/admin-secret-dashboard', icon: LayoutDashboard },
     { name: 'Pending Approvals', path: '/admin-secret-dashboard/pending-approvals', icon: Clock },
     { name: 'Wallet & Payments', path: '/admin-secret-dashboard/wallet', icon: Wallet },
+    { name: 'Payment Logs', path: '/admin-secret-dashboard/payments', icon: CreditCard },
     { name: 'Recent Registrations', path: '/admin-secret-dashboard/recent-registrations', icon: UserPlus },
     { name: 'Manage Properties', path: '/admin-secret-dashboard/manage-properties', icon: Building },
     { name: 'Users', path: '/admin-secret-dashboard/users', icon: Users },

@@ -352,7 +352,7 @@ export default function BookingPage() {
       const order = await response.json();
 
       const options = {
-        key: (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || 'rzp_test_SwkQFzVHrQ0dYr',
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: 'ShelterBee',
@@ -381,6 +381,9 @@ export default function BookingPage() {
             if (!verifyRes.ok || !verifyData.success) {
               throw new Error(verifyData.error || 'Payment verification failed');
             }
+
+            showToast("Payment verified! Confirming booking...", "success");
+            setIsSubmitting(true);
 
             await bookingService.finalizeBookingAfterPayment(bookingId);
 
