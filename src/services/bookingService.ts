@@ -79,15 +79,18 @@ export const bookingService = {
       const firestoreData = Object.fromEntries(
         Object.entries(bookingData).filter(([_, v]) => v !== undefined)
       );
-      docRef = await addDoc(collection(db, 'bookings'), {
+      const bookingDoc: Record<string, any> = {
         ...firestoreData,
         status: paymentFlow ? 'pending_payment' : 'confirmed',
-        acceptedAt: paymentFlow ? undefined : serverTimestamp(),
         paymentStatus: paymentFlow ? 'pending' : undefined,
         walletProcessed: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (!paymentFlow) {
+        bookingDoc.acceptedAt = serverTimestamp();
+      }
+      docRef = await addDoc(collection(db, 'bookings'), bookingDoc);
     } catch (error) {
       console.error("Error creating booking:", error);
       throw error;
