@@ -48,7 +48,7 @@ export const sendOTPViaWhatsApp = async (
   await sendWhatsApp(
     whatsappNumber,
     'User',
-    'otp_verification',
+    'otp_verification_20260514175355',
     [buildBodyComponent([otp])]
   )
 }
@@ -69,7 +69,7 @@ export const sendChannelPartnerBookingAlert = async (
   await sendWhatsApp(
     ownerWhatsapp,
     ownerName,
-    'channel_partner_after_booking',
+    'channel_partner_after_booking_20260510183828',
     [buildBodyComponent([
       propertyName,
       guestName,
@@ -101,7 +101,7 @@ export const sendBookingConfirmation = async (
   await sendWhatsApp(
     visitorWhatsapp,
     visitorName,
-    'visitor_after_successful_booking',
+    'visitor_after_successful_booking_20260510172747',
     [buildBodyComponent([
       visitorName,
       propertyName,
@@ -130,7 +130,7 @@ export const sendVisitorCancellationConfirmation = async (
   await sendWhatsApp(
     visitorWhatsapp,
     guestName,
-    'visitor_after_cancel_booking_by_them',
+    'visitor_after_cancel_booking_by_them_20260510175140',
     [buildBodyComponent([
       guestName,
       propertyName,
@@ -154,7 +154,7 @@ export const sendOwnerCancellationAlert = async (
   await sendWhatsApp(
     ownerWhatsapp,
     ownerName,
-    'property_owner_after_booking_cancel_by_visitor',
+    'proerty_owner_after_booking_cancel_by_visitor_20260510174608',
     [buildBodyComponent([
       ownerName,
       propertyName,
@@ -175,7 +175,7 @@ export const sendBookingRejectionToVisitor = async (
   await sendWhatsApp(
     visitorWhatsapp,
     guestName,
-    'visitor_after_booking_cancellation_by_channel_part',
+    'visitor_after_booking_cancellation_by_chann_el_part_20260510174133',
     [buildBodyComponent([
       guestName,
       propertyName,
@@ -193,7 +193,7 @@ export const sendPropertyApproval = async (
   await sendWhatsApp(
     ownerWhatsapp,
     ownerName,
-    'property_approval_to_channel_partner',
+    'property_approval_to_channel_partner_20260510171406',
     [buildBodyComponent([
       ownerName,
       propertyName,
@@ -211,7 +211,7 @@ export const sendPropertyRejection = async (
   await sendWhatsApp(
     ownerWhatsapp,
     ownerName,
-    'property_rejection_by_admin',
+    'property_rejection_by_admin__20260510171720',
     [buildBodyComponent([
       ownerName,
       propertyName,
