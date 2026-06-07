@@ -120,83 +120,64 @@ export const AdminDashboard = () => {
       }));
     });
 
-    // Monitor booking stats
+      // Monitor booking stats
     const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
       const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       setDashboardStats(prev => ({
         ...prev,
         totalBookings: bookings.length,
-        pendingPayments: bookings.filter((b: any) => b.status === 'pending_owner').length,
-        pendingRefunds: bookings.filter((b: any) => b.status === 'cancelled' || b.status === 'rejected_by_owner').length,
+        pendingPayments: bookings.filter((b: any) => b.walletProcessed === false && (b.status === 'pending_owner' || b.status === 'confirmed' || b.status === 'pending')).length,
+        pendingRefunds: bookings.filter((b: any) => b.refundProcessed === false && (b.status === 'cancelled' || b.status === 'rejected_by_owner')).length,
         loading: false
       }));
+    });
 
-      // Calculate revenue
-      const confirmed = bookings.filter((b: any) => b.status === 'confirmed' || b.status === 'completed');
-      const startOfToday = new Date();
-      startOfToday.setHours(0,0,0,0);
-      
-      const revenueToday = confirmed
-        .filter((b: any) => (b.createdAt?.toDate?.() || new Date()) >= startOfToday)
-        .reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
-      
-      const revenueThisMonth = confirmed
-        .filter((b: any) => (b.createdAt?.toDate?.() || new Date()).getMonth() === new Date().getMonth())
-        .reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
+    // Monitor wallet transactions for revenue
+    const unsubWalletTxns = walletService.subscribeToAllTransactions((txns: any[]) => {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const todayRevenue = txns
+        .filter((t: any) => {
+          const d = t.createdAt?.toDate?.() || new Date();
+          return t.amountType === 'BOOKING' && t.type === 'credit' && d >= startOfToday;
+        })
+        .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+      const monthRevenue = txns
+        .filter((t: any) => {
+          const d = t.createdAt?.toDate?.() || new Date();
+          return t.amountType === 'BOOKING' && t.type === 'credit' && d >= startOfMonth;
+        })
+        .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
 
       setDashboardStats(prev => ({
         ...prev,
-        revenueToday,
-        revenueThisMonth
+        revenueToday: todayRevenue,
+        revenueThisMonth: monthRevenue,
       }));
 
-      // Generate Chart Data
-      const generateChartData = () => {
-        const data = [];
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-        if (timeframe === 'daily') {
-          for (let i = 6; i >= 0; i--) {
-            const d = new Date(startOfToday);
-            d.setDate(startOfToday.getDate() - i);
-            const dateStr = d.toDateString();
-            const dayBookings = confirmed.filter(b => (b.createdAt?.toDate?.() || new Date()).toDateString() === dateStr);
-            const dayRev = dayBookings.reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
-            data.push({ name: d.toLocaleDateString('en-US', { weekday: 'short' }), revenue: dayRev, bookings: dayBookings.length });
-          }
-        } else if (timeframe === 'weekly') {
-          for (let i = 3; i >= 0; i--) {
-            const startOfWeek = new Date(startOfToday);
-            startOfWeek.setDate(startOfToday.getDate() - (i * 7 + 6));
-            const endOfWeek = new Date(startOfToday);
-            endOfWeek.setDate(startOfToday.getDate() - (i * 7));
-            const weekBookings = confirmed.filter(b => {
-              const bDate = b.createdAt?.toDate?.() || new Date();
-              return bDate >= startOfWeek && bDate <= endOfWeek;
-            });
-            const weekRev = weekBookings.reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
-            data.push({ name: `Wk ${4-i}`, revenue: weekRev, bookings: weekBookings.length });
-          }
-        } else if (timeframe === 'monthly') {
-          for (let i = 5; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const month = d.getMonth();
-            const year = d.getFullYear();
-            const monthBookings = confirmed.filter(b => {
-              const bDate = b.createdAt?.toDate?.() || new Date();
-              return bDate.getMonth() === month && bDate.getFullYear() === year;
-            });
-            const monthRev = monthBookings.reduce((sum, b: any) => sum + (b.totalAmount || 0) * 0.25, 0);
-            data.push({ name: d.toLocaleDateString('en-US', { month: 'short' }), revenue: monthRev, bookings: monthBookings.length });
-          }
-        }
-        return data;
-      };
-      setChartData(generateChartData());
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const chart = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(startOfDay);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toDateString();
+        const dayTxns = txns.filter((t: any) => {
+          const tDate = t.createdAt?.toDate?.() || new Date();
+          return t.amountType === 'BOOKING' && t.type === 'credit' && tDate.toDateString() === dateStr;
+        });
+        chart.push({
+          name: d.toLocaleDateString('en-US', { weekday: 'short' }),
+          revenue: dayTxns.reduce((s: number, t: any) => s + (t.amount || 0), 0),
+          bookings: dayTxns.length,
+        });
+      }
+      setChartData(chart);
     });
 
-    // Monitor wallet
+    // Monitor wallet balance
     let unsubWallet: () => void = () => {};
     walletService.getAdminId().then(adminId => {
       unsubWallet = onSnapshot(doc(db, 'wallets', adminId), (snapshot) => {
@@ -213,9 +194,10 @@ export const AdminDashboard = () => {
       unsubProperties();
       unsubUsers();
       unsubBookings();
+      unsubWalletTxns();
       unsubWallet();
     };
-  }, [timeframe]);
+  }, []);
 
   useEffect(() => {
     if (selectedAnalytic) {
@@ -249,7 +231,7 @@ export const AdminDashboard = () => {
   ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-8">
+    <div className="space-y-6 pb-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard</h1>

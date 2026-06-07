@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { mockProperties } from "../data/mockProperties";
 import { bookingService, Booking } from "../services/bookingService";
 import { propertyService } from "../services/propertyService";
-import { sendBookingRejectionToVisitor } from "../services/whatsappService";
+import { sendBookingRejectionToVisitor, sendVisitorCancellationConfirmation, sendOwnerCancellationAlert } from "../services/whatsappService";
 import { emailService } from "../services/emailService";
 import { userService } from "../services/userService";
 import { reviewService, Review } from "../services/reviewService";
@@ -499,11 +499,15 @@ function NewBookingsTab() {
       }
 
       try {
-        if (visitorProfile?.phone || visitorProfile?.phoneNumber) {
+        const rawVisitorWhatsapp = (visitorProfile as any)?.whatsapp || visitorProfile?.phone || visitorProfile?.phoneNumber || (visitorProfile as any)?.mobile;
+        if (rawVisitorWhatsapp) {
+          const clean = rawVisitorWhatsapp.toString().replace(/[\s\-\(\)]/g, '');
+          const formatted = clean.startsWith('+') ? clean.slice(1) : clean.startsWith('91') ? clean : `91${clean}`;
           await sendBookingRejectionToVisitor(
-            visitorProfile.phone || visitorProfile.phoneNumber,
+            formatted,
             visitorProfile.displayName || "Guest",
             selectedBooking.property?.title || "Property",
+            'https://shelterbee.com/refund-policy'
           );
         }
       } catch (waError) {
@@ -1795,13 +1799,13 @@ function MyBookingsTab() {
                               </div>
                               <div className="flex items-center gap-3 w-full sm:w-auto">
                                 <a
-                                  href={`tel:${owner.phone || "9876543210"}`}
+                                  href={`tel:${owner.phone || "9322828860"}`}
                                   className="flex-1 sm:flex-none p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all border border-emerald-100 flex items-center justify-center shadow-lg shadow-emerald-500/5"
                                 >
                                   <Phone className="w-5 h-5 font-bold" />
                                 </a>
                                 <a
-                                  href={`https://wa.me/${(owner.phone || "919876543210").replace(/\D/g, "")}?text=${encodeURIComponent(`Hello, I've booked your property \"${booking.property?.title}\" on ShelterBee.`)}`}
+                                  href={`https://wa.me/${(owner.phone || "919322828860").replace(/\D/g, "")}?text=${encodeURIComponent(`Hello, I've booked your property \"${booking.property?.title}\" on ShelterBee.`)}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="flex-1 sm:flex-none px-6 py-3 bg-[#25D366] hover:bg-[#20bd5c] text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
@@ -2035,6 +2039,46 @@ function CancellationModal({
           subject: template.subject,
           html: template.html,
         });
+      }
+
+      // WhatsApp cancellation notifications
+      try {
+        const formatPhone = (num: string) => {
+          const clean = num.toString().replace(/[\s\-\(\)]/g, '');
+          return clean.startsWith('+') ? clean.slice(1) : clean.startsWith('91') ? clean : `91${clean}`;
+        };
+
+        const visitorWhatsapp = booking.whatsappNumber || booking.visitorContact;
+        if (visitorWhatsapp) {
+          const inDate = booking.checkIn ? new Date(booking.checkIn) : new Date();
+          const outDate = booking.checkOut ? new Date(booking.checkOut) : new Date();
+          await sendVisitorCancellationConfirmation(
+            formatPhone(visitorWhatsapp),
+            booking.visitorName || 'Guest',
+            booking.property?.title || 'Property',
+            inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            booking.id || '',
+            'https://shelterbee.com/refund-policy'
+          );
+        }
+
+        const ownerWhatsapp = (owner as any)?.whatsapp || (owner as any)?.mobile || owner?.phone || owner?.phoneNumber;
+        if (ownerWhatsapp && booking.id) {
+          const inDate = booking.checkIn ? new Date(booking.checkIn) : new Date();
+          const outDate = booking.checkOut ? new Date(booking.checkOut) : new Date();
+          await sendOwnerCancellationAlert(
+            formatPhone(ownerWhatsapp),
+            owner.displayName || 'Owner',
+            booking.property?.title || 'Property',
+            booking.visitorName || 'Guest',
+            inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            booking.id
+          );
+        }
+      } catch (waError) {
+        console.error('WhatsApp cancellation notifications failed:', waError);
       }
 
       onClose();
@@ -2290,6 +2334,11 @@ function PaymentsTab() {
       Number(withdrawAmount) <= 0
     ) {
       showToast("Please enter a valid amount", "error");
+      return;
+    }
+
+    if (Number(withdrawAmount) < 1000) {
+      showToast("Minimum withdrawal amount is ₹1,000", "error");
       return;
     }
 
@@ -3887,6 +3936,10 @@ function WalletTab({
       showToast("Please enter a valid amount", "error");
       return;
     }
+    if (amount < 1000) {
+      showToast("Minimum withdrawal amount is ₹1,000", "error");
+      return;
+    }
     if (amount > walletBalance) {
       showToast("Insufficient balance", "error");
       return;
@@ -3906,6 +3959,10 @@ function WalletTab({
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
+    if (amount < 1000) {
+      showToast("Minimum withdrawal amount is ₹1,000", "error");
+      return;
+    }
     try {
       await walletService.requestWithdrawal(user!.uid, amount, bankDetails);
       showToast(
@@ -4315,8 +4372,7 @@ function WalletTab({
                         className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Daily limit: ₹{(10000).toLocaleString()} (Max 2
-                        withdrawals/day)
+                        Daily limit: ₹1,000 • Max 2 withdrawals/week
                       </p>
                     </div>
                   </div>

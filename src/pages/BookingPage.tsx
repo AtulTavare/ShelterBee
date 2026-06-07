@@ -12,7 +12,7 @@ import { bookingService, GuestDetail } from '../services/bookingService';
 import { emailService } from '../services/emailService';
 import { emailTemplates } from '../services/emailTemplates';
 import { userService } from '../services/userService';
-import { sendBookingConfirmationToVisitor, sendNewBookingAlertToOwner } from '../services/whatsappService';
+import { sendBookingConfirmation, sendChannelPartnerBookingAlert } from '../services/whatsappService';
 import { showToast } from '../utils/toast';
 import { 
   ChevronLeft, 
@@ -465,58 +465,58 @@ export default function BookingPage() {
                 const visitorProfile = await userService.getUserProfile(user.uid);
                 const ownerProfile = await userService.getUserProfile(property.ownerId);
 
-                const visitorMobile = whatsappSameAsContact ? bookingContactNo : bookingWhatsappNo;
-                let formattedMobile = '';
-                if (visitorMobile) {
-                  const cleanMobile = visitorMobile.toString().replace(/[\s\-\(\)]/g, '');
-                  formattedMobile = cleanMobile.startsWith('+')
-                    ? cleanMobile.slice(1)
-                    : cleanMobile.startsWith('91')
-                      ? cleanMobile
-                      : `91${cleanMobile}`;
-                }
+                const formatPhone = (num: string) => {
+                  const clean = num.toString().replace(/[\s\-\(\)]/g, '');
+                  return clean.startsWith('+')
+                    ? clean.slice(1)
+                    : clean.startsWith('91')
+                      ? clean
+                      : `91${clean}`;
+                };
 
-                if (formattedMobile) {
-                  const inDate = dateRange.from ? new Date(dateRange.from) : new Date();
-                  const outDate = dateRange.to ? new Date(dateRange.to) : new Date();
-                  await sendBookingConfirmationToVisitor(
-                    formattedMobile,
-                    visitorProfile?.displayName || guests[0]?.name || 'Guest',
+                const visitorWhatsapp = whatsappSameAsContact ? bookingContactNo : bookingWhatsappNo;
+                const formattedVisitorWhatsapp = visitorWhatsapp ? formatPhone(visitorWhatsapp) : '';
+
+                const rawOwnerWhatsapp = (ownerProfile as any)?.whatsapp || (ownerProfile as any)?.mobile || ownerProfile?.phone || ownerProfile?.phoneNumber || '';
+                const formattedOwnerWhatsapp = rawOwnerWhatsapp ? formatPhone(rawOwnerWhatsapp) : '';
+
+                const inDate = dateRange.from ? new Date(dateRange.from) : new Date();
+                const outDate = dateRange.to ? new Date(dateRange.to) : new Date();
+                const nights = Math.ceil((outDate.getTime() - inDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                const formattedIn = inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+                const formattedOut = outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                const visitorName = visitorProfile?.displayName || guests[0]?.name || 'Guest';
+                const ownerContact1 = (ownerProfile as any)?.mobile || (ownerProfile as any)?.phone || ownerProfile?.phone || '';
+                const ownerContact2 = (ownerProfile as any)?.whatsapp || '';
+
+                if (formattedVisitorWhatsapp) {
+                  await sendBookingConfirmation(
+                    formattedVisitorWhatsapp,
+                    visitorName,
                     property.title,
-                    inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-                    outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    ownerContact1,
+                    ownerContact2,
+                    formattedIn,
+                    formattedOut,
                     totalGuests || 1,
                     totalAmount,
                     property.address || '',
-                    property.googleMapsLink || ''
+                    property.googleMapsLink || '',
+                    'https://shelterbee.com/terms'
                   );
                 }
 
-                let rawOwnerMobile = ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile || (ownerProfile as any)?.contactNumber;
-                let ownerMobile = '';
-                if (rawOwnerMobile) {
-                  const cleanMobile = rawOwnerMobile.toString().replace(/[\s\-\(\)]/g, '');
-                  ownerMobile = cleanMobile.startsWith('+')
-                    ? cleanMobile.slice(1)
-                    : cleanMobile.startsWith('91')
-                      ? cleanMobile
-                      : `91${cleanMobile}`;
-                }
-
-                if (ownerMobile) {
-                  const inDate = dateRange.from ? new Date(dateRange.from) : new Date();
-                  const outDate = dateRange.to ? new Date(dateRange.to) : new Date();
-                  const diff = outDate.getTime() - inDate.getTime();
-                  const nights = Math.ceil(diff / (1000 * 60 * 60 * 24));
-
-                  await sendNewBookingAlertToOwner(
-                    ownerMobile,
+                if (formattedOwnerWhatsapp) {
+                  await sendChannelPartnerBookingAlert(
+                    formattedOwnerWhatsapp,
                     ownerProfile?.displayName || 'Owner',
                     property.title,
-                    visitorProfile?.displayName || guests[0]?.name || 'Guest',
-                    visitorMobile || 'N/A',
-                    inDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-                    outDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    visitorName,
+                    visitorWhatsapp || 'N/A',
+                    formattedIn,
+                    formattedOut,
                     nights,
                     totalGuests || 1,
                     bookingId,

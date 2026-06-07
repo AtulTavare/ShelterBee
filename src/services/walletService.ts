@@ -27,12 +27,14 @@ export interface Wallet {
 }
 
 export interface WalletTransaction {
-  id?: string; // Added
+  id?: string;
   userId: string;
+  userName?: string;
+  userRole?: string;
   type: "credit" | "debit";
   amount: number;
   description: string;
-  reason?: string; // Added for UI
+  reason?: string;
   bookingId: string;
   propertyTitle: string;
   bookingAmount?: number;
@@ -43,6 +45,9 @@ export interface WalletTransaction {
   walletProcessed: boolean;
   createdAt: any;
   balanceAfter: number;
+  amountType?: "BOOKING" | "COMMISSION" | "REFUND" | "WITHDRAWAL" | "PENALTY" | "SETTLEMENT";
+  paymentMode?: string;
+  status?: string;
 }
 
 export interface WithdrawalRequest {
@@ -121,34 +126,32 @@ export const walletService = {
       const ownerCredit = bookingAmount * 0.80;
       const adminCredit = partnerId ? bookingAmount * 0.15 : bookingAmount * 0.20;
 
+      const [adminSnap, ownerSnap] = await Promise.all([
+        getDoc(doc(db, "users", adminUid)),
+        getDoc(doc(db, "users", ownerUid)),
+      ]);
+      const adminData = adminSnap.data();
+      const ownerData = ownerSnap.data();
+      const adminName = adminData?.name || adminData?.displayName || "Admin";
+      const ownerName = ownerData?.name || ownerData?.displayName || "Owner";
+
+      let partnerName = "";
+      if (partnerId) {
+        const partnerSnap = await getDoc(doc(db, "users", partnerId));
+        const partnerData = partnerSnap.data();
+        partnerName = partnerData?.name || partnerData?.displayName || "Partner";
+      }
+
       await runTransaction(db, async (transaction) => {
-        const ownerWalletRef = doc(db, "wallets", ownerUid);
         const adminWalletRef = doc(db, "wallets", adminUid);
         const bookingRef = doc(db, "bookings", bookingId);
         const txnRef = collection(db, "walletTransactions");
 
-        const ownerSnap = await transaction.get(ownerWalletRef);
-        const adminSnap = await transaction.get(adminWalletRef);
-
-        const ownerBal = ownerSnap.exists()
-          ? (ownerSnap.data().balance ?? 0)
+        const adminWalletSnap = await transaction.get(adminWalletRef);
+        const adminBal = adminWalletSnap.exists()
+          ? (adminWalletSnap.data().balance ?? 0)
           : 0;
-        const adminBal = adminSnap.exists()
-          ? (adminSnap.data().balance ?? 0)
-          : 0;
-
-        const newOwnerBalance = ownerBal + ownerCredit;
-        const newAdminBalance = adminBal + adminCredit;
-
-        transaction.set(
-          ownerWalletRef,
-          {
-            userId: ownerUid,
-            balance: newOwnerBalance,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
+        const newAdminBalance = adminBal + bookingAmount;
 
         transaction.set(
           adminWalletRef,
@@ -160,78 +163,36 @@ export const walletService = {
           { merge: true },
         );
 
-        // Owner transaction record
-        transaction.set(doc(txnRef), {
-          userId: ownerUid,
-          type: "credit",
-          amount: ownerCredit,
-          description: `New booking - ${propertyTitle}`,
-          bookingId,
-          propertyTitle,
-          bookingAmount,
-          platformCommission: adminCredit,
-          receivedAmount: ownerCredit,
-          walletProcessed: true,
-          createdAt: serverTimestamp(),
-          balanceAfter: newOwnerBalance,
-        });
-
-        // Admin transaction record
         transaction.set(doc(txnRef), {
           userId: adminUid,
+          userName: adminName,
+          userRole: "admin",
           type: "credit",
-          amount: adminCredit,
-          description: `Platform commission - ${propertyTitle}`,
+          amount: bookingAmount,
+          description: `Booking payment received - ${propertyTitle}`,
           bookingId,
           propertyTitle,
           bookingAmount,
           walletProcessed: true,
+          amountType: "BOOKING",
+          paymentMode: "Online Payment",
+          status: "completed",
           createdAt: serverTimestamp(),
           balanceAfter: newAdminBalance,
         });
 
-        // Partner commission
-        if (partnerId && partnerCredit > 0) {
-          const partnerWalletRef = doc(db, "wallets", partnerId);
-          const partnerSnap = await transaction.get(partnerWalletRef);
-          const partnerBal = partnerSnap.exists()
-            ? (partnerSnap.data().balance ?? 0)
-            : 0;
-          const newPartnerBalance = partnerBal + partnerCredit;
-
-          transaction.set(
-            partnerWalletRef,
-            {
-              userId: partnerId,
-              balance: newPartnerBalance,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
-
-          transaction.set(doc(txnRef), {
-            userId: partnerId,
-            type: "credit",
-            amount: partnerCredit,
-            description: `Referral commission - ${propertyTitle}`,
-            bookingId,
-            propertyTitle,
-            bookingAmount,
-            walletProcessed: true,
-            createdAt: serverTimestamp(),
-            balanceAfter: newPartnerBalance,
-          });
-        }
-
-        // Update booking
         transaction.update(bookingRef, {
+          pendingOwnerAmount: ownerCredit,
+          pendingPartnerAmount: partnerCredit,
+          pendingAdminAmount: adminCredit,
+          amountSettled: false,
           walletProcessed: true,
           updatedAt: serverTimestamp(),
         });
       });
 
       console.log(
-        `Success: processBookingWallet for ${bookingId}. Owner: +${ownerCredit}, Admin: +${adminCredit}${partnerId ? `, Partner: +${partnerCredit}` : ''}`,
+        `Success: processBookingWallet for ${bookingId}. Total ₹${bookingAmount} credited to admin. Pending: Owner ₹${ownerCredit}${partnerId ? `, Partner ₹${partnerCredit}` : ''}`,
       );
     } catch (error) {
       console.error("Wallet failed for booking:", bookingId, error);
@@ -239,7 +200,173 @@ export const walletService = {
     }
   },
 
-  // FUNCTION 3 - processOwnerRejectionWallet
+  // FUNCTION 3 - releasePendingSettlement
+  async releasePendingSettlement(bookingId: string): Promise<void> {
+    try {
+      const bookingRef = doc(db, "bookings", bookingId);
+      const bookingSnap = await getDoc(bookingRef);
+      if (!bookingSnap.exists()) return;
+
+      const booking = bookingSnap.data();
+      if (booking.amountSettled) return;
+      if (!booking.pendingOwnerAmount || booking.pendingOwnerAmount <= 0) return;
+
+      const adminUid = await this.getAdminId();
+
+      const [adminUserSnap, ownerUserSnap] = await Promise.all([
+        getDoc(doc(db, "users", adminUid)),
+        getDoc(doc(db, "users", booking.ownerId)),
+      ]);
+      const adminName = adminUserSnap.data()?.name || adminUserSnap.data()?.displayName || "Admin";
+      const ownerName = ownerUserSnap.data()?.name || ownerUserSnap.data()?.displayName || "Owner";
+
+      let partnerName = "";
+      if (booking.partnerId) {
+        const pSnap = await getDoc(doc(db, "users", booking.partnerId));
+        partnerName = pSnap.data()?.name || pSnap.data()?.displayName || "Partner";
+      }
+
+      const { pendingOwnerAmount, pendingPartnerAmount, pendingAdminAmount, propertyTitle, ownerId, partnerId, totalAmount } = booking;
+
+      await runTransaction(db, async (transaction) => {
+        const ownerWalletRef = doc(db, "wallets", ownerId);
+        const adminWalletRef = doc(db, "wallets", adminUid);
+        const txnRef = collection(db, "walletTransactions");
+
+        const ownerSnap = await transaction.get(ownerWalletRef);
+        const adminSnap = await transaction.get(adminWalletRef);
+
+        const ownerBal = ownerSnap.exists() ? (ownerSnap.data().balance ?? 0) : 0;
+        const adminBal = adminSnap.exists() ? (adminSnap.data().balance ?? 0) : 0;
+
+        const newOwnerBalance = ownerBal + pendingOwnerAmount;
+        const newAdminBalance = adminBal - pendingOwnerAmount - (pendingPartnerAmount || 0);
+
+        // Credit owner
+        transaction.set(ownerWalletRef, {
+          userId: ownerId, balance: newOwnerBalance, updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        // Debit admin (owner + partner payout)
+        transaction.set(adminWalletRef, {
+          userId: adminUid, balance: newAdminBalance, updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        // Owner transaction
+        transaction.set(doc(txnRef), {
+          userId: ownerId,
+          userName: ownerName,
+          userRole: "owner",
+          type: "credit",
+          amount: pendingOwnerAmount,
+          description: `Booking amount released after check-in - ${propertyTitle}`,
+          bookingId,
+          propertyTitle,
+          bookingAmount: totalAmount,
+          walletProcessed: true,
+          amountType: "SETTLEMENT",
+          paymentMode: "Wallet Transfer",
+          status: "completed",
+          createdAt: serverTimestamp(),
+          balanceAfter: newOwnerBalance,
+        });
+
+        // Admin payout transaction
+        transaction.set(doc(txnRef), {
+          userId: adminUid,
+          userName: adminName,
+          userRole: "admin",
+          type: "debit",
+          amount: pendingOwnerAmount + (pendingPartnerAmount || 0),
+          description: `Payout to owner${partnerId ? ' & partner' : ''} - ${propertyTitle}`,
+          bookingId,
+          propertyTitle,
+          bookingAmount: totalAmount,
+          walletProcessed: true,
+          amountType: "SETTLEMENT",
+          paymentMode: "Wallet Transfer",
+          status: "completed",
+          createdAt: serverTimestamp(),
+          balanceAfter: newAdminBalance,
+        });
+
+        // Partner commission
+        if (partnerId && pendingPartnerAmount > 0) {
+          const partnerWalletRef = doc(db, "wallets", partnerId);
+          const partnerSnap = await transaction.get(partnerWalletRef);
+          const partnerBal = partnerSnap.exists() ? (partnerSnap.data().balance ?? 0) : 0;
+          const newPartnerBalance = partnerBal + pendingPartnerAmount;
+
+          transaction.set(partnerWalletRef, {
+            userId: partnerId, balance: newPartnerBalance, updatedAt: serverTimestamp(),
+          }, { merge: true });
+
+          transaction.set(doc(txnRef), {
+            userId: partnerId,
+            userName: partnerName,
+            userRole: "partner",
+            type: "credit",
+            amount: pendingPartnerAmount,
+            description: `Referral commission released after check-in - ${propertyTitle}`,
+            bookingId,
+            propertyTitle,
+            bookingAmount: totalAmount,
+            walletProcessed: true,
+            amountType: "COMMISSION",
+            paymentMode: "Wallet Transfer",
+            status: "completed",
+            createdAt: serverTimestamp(),
+            balanceAfter: newPartnerBalance,
+          });
+        }
+
+        transaction.update(bookingRef, {
+          amountSettled: true,
+          settledAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      console.log(`Settlement released for booking ${bookingId}`);
+    } catch (error) {
+      console.error("Failed to release settlement:", bookingId, error);
+    }
+  },
+
+  // FUNCTION 4 - processAllPendingSettlements
+  async processAllPendingSettlements(): Promise<void> {
+    try {
+      const now = new Date();
+      const q = query(
+        collection(db, "bookings"),
+        where("amountSettled", "==", false),
+        where("walletProcessed", "==", true),
+        limit(20),
+      );
+      const snap = await getDocs(q);
+      const pending = snap.docs.filter((d) => {
+        const data = d.data();
+        if (!data.checkIn) return false;
+        const checkInTime = data.checkIn?.toMillis?.() || new Date(data.checkIn).getTime();
+        return checkInTime <= now.getTime() && (data.pendingOwnerAmount || 0) > 0;
+      });
+
+      for (const docSnap of pending) {
+        try {
+          await this.releasePendingSettlement(docSnap.id);
+        } catch (err) {
+          console.error(`Settlement failed for booking ${docSnap.id}:`, err);
+        }
+      }
+      if (pending.length > 0) {
+        console.log(`Processed ${pending.length} pending settlements`);
+      }
+    } catch (error) {
+      console.error("processAllPendingSettlements failed:", error);
+    }
+  },
+
+  // FUNCTION 5 - processOwnerRejectionWallet
   async processOwnerRejectionWallet(
     bookingId: string,
     bookingAmount: number,
@@ -251,130 +378,50 @@ export const walletService = {
     try {
       const adminUid = await this.getAdminId();
       const visitorRefund = bookingAmount * 1.00;
-      const ownerDebit = bookingAmount * 0.80;
-      const partnerDebit = partnerId ? bookingAmount * 0.05 : 0;
-      const adminReversal = partnerId ? bookingAmount * 0.15 : bookingAmount * 0.20;
+
+      const bookingRef = doc(db, "bookings", bookingId);
+      const bookingSnap = await getDoc(bookingRef);
+      if (bookingSnap.exists() && bookingSnap.data().amountSettled) {
+        console.log("Booking already settled, using old reversal logic for rejection");
+        // Fall back to old logic if already settled (rare edge case)
+        return this.processCancellationWallet(
+          bookingSnap.data(), 100, partnerId
+        );
+      }
+
+      const [adminUserSnap, visitorUserSnap] = await Promise.all([
+        getDoc(doc(db, "users", adminUid)),
+        getDoc(doc(db, "users", visitorUid)),
+      ]);
+      const adminName = adminUserSnap.data()?.name || adminUserSnap.data()?.displayName || "Admin";
+      const visitorName = visitorUserSnap.data()?.name || visitorUserSnap.data()?.displayName || "Visitor";
 
       await runTransaction(db, async (transaction) => {
-        const ownerWalletRef = doc(db, "wallets", ownerUid);
         const adminWalletRef = doc(db, "wallets", adminUid);
         const visitorWalletRef = doc(db, "wallets", visitorUid);
-        const bookingRef = doc(db, "bookings", bookingId);
         const txnRef = collection(db, "walletTransactions");
 
-        // ALL READS
-        const ownerSnap = await transaction.get(ownerWalletRef);
         const adminSnap = await transaction.get(adminWalletRef);
         const visitorSnap = await transaction.get(visitorWalletRef);
 
-        const ownerBal = ownerSnap.exists()
-          ? (ownerSnap.data().balance ?? 0)
-          : 0;
-        const adminBal = adminSnap.exists()
-          ? (adminSnap.data().balance ?? 0)
-          : 0;
-        const visitorBal = visitorSnap.exists()
-          ? (visitorSnap.data().balance ?? 0)
-          : 0;
+        const adminBal = adminSnap.exists() ? (adminSnap.data().balance ?? 0) : 0;
+        const visitorBal = visitorSnap.exists() ? (visitorSnap.data().balance ?? 0) : 0;
 
-        const newOwnerBalance = ownerBal - ownerDebit;
-        const newAdminBalance = adminBal - adminReversal;
+        const newAdminBalance = adminBal - visitorRefund;
         const newVisitorBalance = visitorBal + visitorRefund;
 
-        // ALL WRITES
-        transaction.set(
-          ownerWalletRef,
-          {
-            userId: ownerUid,
-            balance: newOwnerBalance,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
+        transaction.set(adminWalletRef, {
+          userId: adminUid, balance: newAdminBalance, updatedAt: serverTimestamp(),
+        }, { merge: true });
 
-        transaction.set(
-          adminWalletRef,
-          {
-            userId: adminUid,
-            balance: newAdminBalance,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
+        transaction.set(visitorWalletRef, {
+          userId: visitorUid, balance: newVisitorBalance, updatedAt: serverTimestamp(),
+        }, { merge: true });
 
-        transaction.set(
-          visitorWalletRef,
-          {
-            userId: visitorUid,
-            balance: newVisitorBalance,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-
-        // Owner transaction
-        transaction.set(doc(txnRef), {
-          userId: ownerUid,
-          type: "debit",
-          amount: ownerDebit,
-          description: `Booking rejected - refund issued - ${propertyTitle}`,
-          bookingId,
-          propertyTitle,
-          bookingAmount,
-          walletProcessed: true,
-          createdAt: serverTimestamp(),
-          balanceAfter: newOwnerBalance,
-        });
-
-        // Admin transaction (reversal)
-        transaction.set(doc(txnRef), {
-          userId: adminUid,
-          type: "debit",
-          amount: adminReversal,
-          description: `Commission reversed - booking rejected - ${propertyTitle}`,
-          bookingId,
-          propertyTitle,
-          walletProcessed: true,
-          createdAt: serverTimestamp(),
-          balanceAfter: newAdminBalance,
-        });
-
-        // Partner reversal
-        if (partnerId && partnerDebit > 0) {
-          const partnerWalletRef = doc(db, "wallets", partnerId);
-          const partnerSnap = await transaction.get(partnerWalletRef);
-          const partnerBal = partnerSnap.exists()
-            ? (partnerSnap.data().balance ?? 0)
-            : 0;
-          const newPartnerBalance = partnerBal - partnerDebit;
-
-          transaction.set(
-            partnerWalletRef,
-            {
-              userId: partnerId,
-              balance: newPartnerBalance,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
-
-          transaction.set(doc(txnRef), {
-            userId: partnerId,
-            type: "debit",
-            amount: partnerDebit,
-            description: `Commission reversed - booking rejected - ${propertyTitle}`,
-            bookingId,
-            propertyTitle,
-            bookingAmount,
-            walletProcessed: true,
-            createdAt: serverTimestamp(),
-            balanceAfter: newPartnerBalance,
-          });
-        }
-
-        // Visitor transaction
         transaction.set(doc(txnRef), {
           userId: visitorUid,
+          userName: visitorName,
+          userRole: "visitor",
           type: "credit",
           amount: visitorRefund,
           description: `Refund - booking rejected by owner - ${propertyTitle}`,
@@ -383,27 +430,45 @@ export const walletService = {
           bookingAmount,
           refundPercentage: 100,
           walletProcessed: true,
+          amountType: "REFUND",
+          paymentMode: "Online Payment",
+          status: "completed",
           createdAt: serverTimestamp(),
           balanceAfter: newVisitorBalance,
         });
 
-        // Update booking
-        transaction.update(bookingRef, {
+        transaction.set(doc(txnRef), {
+          userId: adminUid,
+          userName: adminName,
+          userRole: "admin",
+          type: "debit",
+          amount: visitorRefund,
+          description: `Refund issued - booking rejected by owner - ${propertyTitle}`,
+          bookingId,
+          propertyTitle,
+          bookingAmount,
           walletProcessed: true,
+          amountType: "REFUND",
+          paymentMode: "Online Payment",
+          status: "completed",
+          createdAt: serverTimestamp(),
+          balanceAfter: newAdminBalance,
+        });
+
+        transaction.update(bookingRef, {
+          refundProcessed: true,
           updatedAt: serverTimestamp(),
         });
       });
 
-      console.log(
-        `Success: processOwnerRejectionWallet for ${bookingId}. Owner: -${ownerDebit}, Admin: -${adminReversal}${partnerId ? `, Partner: -${partnerDebit}` : ''}, Visitor: +${visitorRefund}`,
-      );
+      console.log(`Owner rejection refund processed for ${bookingId}. Visitor +${visitorRefund} from admin`);
     } catch (error) {
       console.error("Rejection wallet failed:", error);
       throw error;
     }
   },
 
-  // FUNCTION 4 - processCancellationWallet
+  // FUNCTION 6 - processCancellationWallet
   async processCancellationWallet(
     booking: any,
     refundPercent: number,
@@ -413,162 +478,175 @@ export const walletService = {
       const adminUid = await this.getAdminId();
       const bookingAmount = booking.totalAmount;
       const refundAmount = bookingAmount * (refundPercent / 100);
-      const ownerDebit = bookingAmount * 0.80;
-      const partnerDebit = partnerId ? bookingAmount * 0.05 : 0;
-      const adminGets = ownerDebit + partnerDebit - refundAmount;
+
+      const bid = booking.id || booking.bookingId;
+      const bookingRef = doc(db, "bookings", bid);
+      const bookingSnap = await getDoc(bookingRef);
+      if (bookingSnap.exists() && bookingSnap.data().amountSettled) {
+        console.log("Booking already settled, using old reversal logic for cancellation");
+        // Fall back to old logic for already-settled bookings
+        const oldProcessCancellation = async () => {
+          const ownerDebit = bookingAmount * 0.80;
+          const partnerDebit = partnerId ? bookingAmount * 0.05 : 0;
+          const adminGets = ownerDebit + partnerDebit - refundAmount;
+          await runTransaction(db, async (transaction) => {
+            const ownerWalletRef = doc(db, "wallets", booking.ownerId);
+            const adminWalletRef = doc(db, "wallets", adminUid);
+            const visitorWalletRef = doc(db, "wallets", booking.visitorId);
+            const txnRef = collection(db, "walletTransactions");
+            const ownerSnap = await transaction.get(ownerWalletRef);
+            const adminSnap = await transaction.get(adminWalletRef);
+            const visitorSnap = await transaction.get(visitorWalletRef);
+            const ownerBal = ownerSnap.exists() ? (ownerSnap.data().balance ?? 0) : 0;
+            const adminBal = adminSnap.exists() ? (adminSnap.data().balance ?? 0) : 0;
+            const visitorBal = visitorSnap.exists() ? (visitorSnap.data().balance ?? 0) : 0;
+            const newOwnerBalance = ownerBal - ownerDebit;
+            let newAdminBalance = adminBal;
+            let newVisitorBalance = visitorBal;
+            transaction.set(ownerWalletRef, { userId: booking.ownerId, balance: newOwnerBalance, updatedAt: serverTimestamp() }, { merge: true });
+            transaction.set(doc(txnRef), {
+              userId: booking.ownerId, type: "debit", amount: ownerDebit,
+              description: `Booking cancelled - ${booking.propertyTitle}`,
+              bookingId: booking.id, propertyTitle: booking.propertyTitle,
+              bookingAmount, walletProcessed: true, createdAt: serverTimestamp(), balanceAfter: newOwnerBalance,
+            });
+            if (refundPercent > 0) {
+              newVisitorBalance = visitorBal + refundAmount;
+              transaction.set(visitorWalletRef, { userId: booking.visitorId, balance: newVisitorBalance, updatedAt: serverTimestamp() }, { merge: true });
+              transaction.set(doc(txnRef), {
+                userId: booking.visitorId, type: "credit", amount: refundAmount,
+                description: `Refund ${refundPercent}% - ${booking.propertyTitle}`,
+                bookingId: booking.id, propertyTitle: booking.propertyTitle,
+                bookingAmount, refundPercentage: refundPercent, walletProcessed: true,
+                createdAt: serverTimestamp(), balanceAfter: newVisitorBalance,
+              });
+            }
+            if (partnerId && partnerDebit > 0) {
+              const partnerWalletRef = doc(db, "wallets", partnerId);
+              const partnerSnap = await transaction.get(partnerWalletRef);
+              const partnerBal = partnerSnap.exists() ? (partnerSnap.data().balance ?? 0) : 0;
+              const newPartnerBalance = partnerBal - partnerDebit;
+              transaction.set(partnerWalletRef, { userId: partnerId, balance: newPartnerBalance, updatedAt: serverTimestamp() }, { merge: true });
+              transaction.set(doc(txnRef), {
+                userId: partnerId, type: "debit", amount: partnerDebit,
+                description: `Commission reversed - ${booking.propertyTitle}`,
+                bookingId: booking.id, propertyTitle: booking.propertyTitle,
+                bookingAmount, walletProcessed: true, createdAt: serverTimestamp(), balanceAfter: newPartnerBalance,
+              });
+            }
+            if (adminGets > 0) {
+              newAdminBalance = adminBal + adminGets;
+              transaction.set(adminWalletRef, { userId: adminUid, balance: newAdminBalance, updatedAt: serverTimestamp() }, { merge: true });
+              transaction.set(doc(txnRef), {
+                userId: adminUid, type: "credit", amount: adminGets,
+                description: `Cancellation charge - ${booking.propertyTitle}`,
+                bookingId: booking.id, propertyTitle: booking.propertyTitle,
+                walletProcessed: true, createdAt: serverTimestamp(), balanceAfter: newAdminBalance,
+              });
+            }
+            transaction.update(bookingRef, { walletProcessed: true, updatedAt: serverTimestamp() });
+          });
+        };
+        return oldProcessCancellation();
+      }
+
+      const [adminUserSnap, visitorUserSnap] = await Promise.all([
+        getDoc(doc(db, "users", adminUid)),
+        getDoc(doc(db, "users", booking.visitorId)),
+      ]);
+      const adminName = adminUserSnap.data()?.name || adminUserSnap.data()?.displayName || "Admin";
+      const visitorName = visitorUserSnap.data()?.name || visitorUserSnap.data()?.displayName || "Visitor";
 
       await runTransaction(db, async (transaction) => {
-        const ownerWalletRef = doc(db, "wallets", booking.ownerId);
         const adminWalletRef = doc(db, "wallets", adminUid);
         const visitorWalletRef = doc(db, "wallets", booking.visitorId);
-        const bookingRef = doc(db, "bookings", booking.id);
         const txnRef = collection(db, "walletTransactions");
 
-        // 1. ALL READS FIRST
-        const ownerSnap = await transaction.get(ownerWalletRef);
         const adminSnap = await transaction.get(adminWalletRef);
         const visitorSnap = await transaction.get(visitorWalletRef);
 
-        const ownerBal = ownerSnap.exists()
-          ? (ownerSnap.data().balance ?? 0)
-          : 0;
-        const adminBal = adminSnap.exists()
-          ? (adminSnap.data().balance ?? 0)
-          : 0;
-        const visitorBal = visitorSnap.exists()
-          ? (visitorSnap.data().balance ?? 0)
-          : 0;
+        const adminBal = adminSnap.exists() ? (adminSnap.data().balance ?? 0) : 0;
+        const visitorBal = visitorSnap.exists() ? (visitorSnap.data().balance ?? 0) : 0;
 
-        // 2. CALCULATE NEW BALANCES
-        const newOwnerBalance = ownerBal - bookingAmount;
         let newAdminBalance = adminBal;
         let newVisitorBalance = visitorBal;
 
-        // 3. ALL WRITES SECURELY
-        // Update Owner Wallet
-        transaction.set(
-          ownerWalletRef,
-          {
-            userId: booking.ownerId,
-            balance: newOwnerBalance,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-
-        // Owner transaction
-        transaction.set(doc(txnRef), {
-          userId: booking.ownerId,
-          type: "debit",
-          amount: bookingAmount,
-          description: `Booking cancelled by visitor - ${booking.propertyTitle}`,
-          bookingId: booking.id,
-          propertyTitle: booking.propertyTitle,
-          bookingAmount: bookingAmount,
-          refundPercentage: refundPercent,
-          walletProcessed: true,
-          createdAt: serverTimestamp(),
-          balanceAfter: newOwnerBalance,
-        });
-
-        // Visitor refund
         if (refundPercent > 0) {
+          newAdminBalance = adminBal - refundAmount;
           newVisitorBalance = visitorBal + refundAmount;
-          transaction.set(
-            visitorWalletRef,
-            {
-              userId: booking.visitorId,
-              balance: newVisitorBalance,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
+
+          transaction.set(adminWalletRef, {
+            userId: adminUid, balance: newAdminBalance, updatedAt: serverTimestamp(),
+          }, { merge: true });
+
+          transaction.set(visitorWalletRef, {
+            userId: booking.visitorId, balance: newVisitorBalance, updatedAt: serverTimestamp(),
+          }, { merge: true });
 
           transaction.set(doc(txnRef), {
             userId: booking.visitorId,
+            userName: visitorName,
+            userRole: "visitor",
             type: "credit",
             amount: refundAmount,
             description: `Refund ${refundPercent}% - ${booking.propertyTitle}`,
-            bookingId: booking.id,
+            bookingId: bid,
             propertyTitle: booking.propertyTitle,
-            bookingAmount: bookingAmount,
+            bookingAmount,
             refundPercentage: refundPercent,
             walletProcessed: true,
+            amountType: "REFUND",
+            paymentMode: "Online Payment",
+            status: "completed",
             createdAt: serverTimestamp(),
             balanceAfter: newVisitorBalance,
           });
-        }
-
-        // Partner reversal
-        if (partnerId && partnerDebit > 0) {
-          const partnerWalletRef = doc(db, "wallets", partnerId);
-          const partnerSnap = await transaction.get(partnerWalletRef);
-          const partnerBal = partnerSnap.exists()
-            ? (partnerSnap.data().balance ?? 0)
-            : 0;
-          const newPartnerBalance = partnerBal - partnerDebit;
-
-          transaction.set(
-            partnerWalletRef,
-            {
-              userId: partnerId,
-              balance: newPartnerBalance,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
-
-          transaction.set(doc(txnRef), {
-            userId: partnerId,
-            type: "debit",
-            amount: partnerDebit,
-            description: `Commission reversed - booking cancelled - ${booking.propertyTitle}`,
-            bookingId: booking.id,
-            propertyTitle: booking.propertyTitle,
-            bookingAmount: bookingAmount,
-            refundPercentage: refundPercent,
-            walletProcessed: true,
-            createdAt: serverTimestamp(),
-            balanceAfter: newPartnerBalance,
-          });
-        }
-
-        // Admin gets
-        if (adminGets > 0) {
-          newAdminBalance = adminBal + adminGets;
-          transaction.set(
-            adminWalletRef,
-            {
-              userId: adminUid,
-              balance: newAdminBalance,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
 
           transaction.set(doc(txnRef), {
             userId: adminUid,
-            type: "credit",
-            amount: adminGets,
-            description: `Cancellation charge - ${booking.propertyTitle}`,
-            bookingId: booking.id,
+            userName: adminName,
+            userRole: "admin",
+            type: "debit",
+            amount: refundAmount,
+            description: `Refund issued (${refundPercent}%) - ${booking.propertyTitle}`,
+            bookingId: bid,
             propertyTitle: booking.propertyTitle,
+            bookingAmount,
             walletProcessed: true,
+            amountType: "REFUND",
+            paymentMode: "Online Payment",
+            status: "completed",
             createdAt: serverTimestamp(),
             balanceAfter: newAdminBalance,
           });
+        } else {
+          // No refund - admin keeps the full amount as cancellation fee
+          transaction.set(doc(txnRef), {
+            userId: adminUid,
+            userName: adminName,
+            userRole: "admin",
+            type: "credit",
+            amount: bookingAmount,
+            description: `Cancellation (no refund) - ${booking.propertyTitle}`,
+            bookingId: bid,
+            propertyTitle: booking.propertyTitle,
+            bookingAmount,
+            walletProcessed: true,
+            amountType: "BOOKING",
+            paymentMode: "Online Payment",
+            status: "completed",
+            createdAt: serverTimestamp(),
+            balanceAfter: adminBal,
+          });
         }
 
-        // Update booking
         transaction.update(bookingRef, {
-          walletProcessed: true,
+          refundProcessed: refundPercent > 0,
           updatedAt: serverTimestamp(),
         });
       });
 
-      console.log(
-        `Success: processCancellationWallet for ${booking.id}. Owner: -${bookingAmount}, Visitor: +${refundAmount}${partnerId ? `, Partner: -${partnerDebit}` : ''}, Admin: +${adminGets}`,
-      );
+      console.log(`Cancellation refund processed for ${bid}. Visitor +${refundAmount} from admin`);
     } catch (error) {
       console.error("Cancellation wallet failed:", error);
       throw error;
@@ -581,21 +659,38 @@ export const walletService = {
     amount: number,
     bankDetails: object,
   ): Promise<void> {
+    if (amount < 1000) {
+      throw new Error("Minimum withdrawal amount is ₹1,000");
+    }
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      weekStart.setHours(0, 0, 0, 0);
 
       const q = query(
         collection(db, "withdrawalRequests"),
         where("userId", "==", userId),
       );
       const snap = await getDocs(q);
+
       const todayRequests = snap.docs.filter((d) => {
-        const createdAt = d.data().createdAt?.toMillis?.() || 0;
-        return createdAt >= today.getTime();
+        const ts = d.data().createdAt?.toMillis?.() || 0;
+        return ts >= todayStart.getTime();
       });
-      if (todayRequests.length >= 2) {
-        throw new Error("Daily withdrawal limit reached. Maximum 2 per day.");
+      const todayTotal = todayRequests.reduce((sum, d) => sum + (d.data().amount || 0), 0);
+      if (todayTotal + amount > 1000) {
+        throw new Error("Daily withdrawal limit is ₹1,000.");
+      }
+
+      const weekRequests = snap.docs.filter((d) => {
+        const ts = d.data().createdAt?.toMillis?.() || 0;
+        return ts >= weekStart.getTime();
+      });
+      if (weekRequests.length >= 2) {
+        throw new Error("Maximum 2 withdrawals per week.");
       }
 
       await runTransaction(db, async (transaction) => {
@@ -669,7 +764,7 @@ export const walletService = {
     );
   },
 
-  // FUNCTION 7 - subscribeToWalletTransactions
+  // FUNCTION 8 - subscribeToWalletTransactions
   subscribeToWalletTransactions(
     userId: string,
     callback: (transactions: any[]) => void,
@@ -678,7 +773,7 @@ export const walletService = {
       query(
         collection(db, "walletTransactions"),
         where("userId", "==", userId),
-        limit(50),
+
       ),
       (snap) => {
         const transactions = snap.docs.map((d) => ({
@@ -743,6 +838,49 @@ export const walletService = {
 
   async getWalletTransactions(userId: string): Promise<WalletTransaction[]> {
     return this.getTransactions(userId);
+  },
+
+  // FUNCTION - getAllTransactions (no userId filter, for admin)
+  async getAllTransactions(): Promise<WalletTransaction[]> {
+    const q = query(
+      collection(db, "walletTransactions"),
+      orderBy("createdAt", "desc"),
+      limit(100),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+      reason: d.data().description,
+    })) as WalletTransaction[];
+  },
+
+  subscribeToAllTransactions(
+    callback: (transactions: any[]) => void,
+  ): () => void {
+    return onSnapshot(
+      query(
+        collection(db, "walletTransactions"),
+        orderBy("createdAt", "desc"),
+
+      ),
+      (snap) => {
+        const transactions = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+        transactions.sort((a: any, b: any) => {
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        callback(transactions);
+      },
+      (error) => {
+        console.error("All transactions listener error:", error);
+        callback([]);
+      },
+    );
   },
 
   async getAllPendingSettlements(): Promise<WalletTransaction[]> {

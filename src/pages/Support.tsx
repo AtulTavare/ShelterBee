@@ -85,7 +85,9 @@ export default function Support() {
                 </div>
                 <div>
                   <h3 className="text-white font-bold text-lg">Direct Line</h3>
-                  <p className="text-gray-400">+91 86559 33724</p>
+                  <p className="text-gray-400">9322828860</p>
+                  <p className="text-gray-400">7875326048</p>
+                  <p className="text-gray-400">7887328190</p>
                 </div>
               </div>
               

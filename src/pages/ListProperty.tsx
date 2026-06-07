@@ -813,6 +813,23 @@ export default function ListProperty() {
                       />
                     </div>
                   </div>
+
+                  {formData.price && Number(formData.price) > 0 && (
+                    <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Daily Rent</span>
+                        <span className="font-semibold text-slate-900">₹{Number(formData.price).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">ShelterBee Commission (20%)</span>
+                        <span className="font-semibold text-rose-600">−₹{Math.round(Number(formData.price) * 0.2).toLocaleString()}</span>
+                      </div>
+                      <div className="pt-2 border-t border-blue-100 flex justify-between text-sm font-semibold">
+                        <span className="text-slate-800">Amount Credited per successful booking</span>
+                        <span className="text-emerald-600">+₹{Math.round(Number(formData.price) * 0.8).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 

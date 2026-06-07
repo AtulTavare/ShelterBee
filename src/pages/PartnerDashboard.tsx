@@ -233,7 +233,7 @@ const PartnerDashboard = () => {
   if (initDone && partnerStatus === "rejected") {
     const companyEmail =
       (userProfile as any)?.businessEmail || userProfile?.email || "";
-    const helpNumber = "+917021054239";
+    const helpNumber = "+919322828860";
     const waMessage = encodeURIComponent(
       `Hi ShelterBee team, I would like to get more information about my partner application rejection for ${(userProfile as any)?.businessName || "my business"}. Please help me understand what went wrong.`,
     );

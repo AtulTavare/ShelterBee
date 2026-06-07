@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { emailService } from '../services/emailService';
+import { sendOTPViaWhatsApp } from '../services/whatsappService';
 
 interface OTPModalProps {
   isOpen: boolean;
   onClose: () => void;
   email: string;
   onSuccess: () => void;
+  whatsappNumber?: string;
 }
 
 export function generateOTP() {
@@ -45,7 +47,7 @@ export const sendOTPEmail = async (email: string, otp: string, isPasswordReset =
   });
 };
 
-export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
+export function OTPModal({ isOpen, onClose, email, onSuccess, whatsappNumber }: OTPModalProps) {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(60);
   const [attempts, setAttempts] = useState(0);
@@ -60,7 +62,6 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
       setError('');
       setTimeLeft(60);
       document.body.style.overflow = 'hidden';
-      // Focus first input after a short delay to allow modal to render
       setTimeout(() => {
         if (inputRefs.current[0]) {
           inputRefs.current[0].focus();
@@ -94,6 +95,9 @@ export function OTPModal({ isOpen, onClose, email, onSuccess }: OTPModalProps) {
     storeOTP(newOtp, email);
     try {
       await sendOTPEmail(email, newOtp);
+      if (whatsappNumber) {
+        sendOTPViaWhatsApp(whatsappNumber, newOtp);
+      }
       setTimeLeft(60);
       setAttempts(0);
       setOtp(['', '', '', '', '', '']);

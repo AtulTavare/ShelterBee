@@ -29,12 +29,10 @@ const sendWhatsApp = async (
       console.log('WhatsApp sent successfully:', templateName)
     }
   } catch (error) {
-    // Never crash main flow if WhatsApp fails
     console.error('WhatsApp service error:', error)
   }
 }
 
-// Helper to build body component with variables
 const buildBodyComponent = (parameters: string[]) => ({
   type: 'body',
   parameters: parameters.map(value => ({
@@ -43,52 +41,20 @@ const buildBodyComponent = (parameters: string[]) => ({
   }))
 })
 
-export const sendBookingConfirmationToVisitor = async (
-  visitorMobile: string,
-  visitorName: string,
-  propertyName: string,
-  checkIn: string,
-  checkOut: string,
-  guests: number,
-  totalAmount: number,
-  address: string,
-  googleMapsLink?: string
+export const sendOTPViaWhatsApp = async (
+  whatsappNumber: string,
+  otp: string
 ): Promise<void> => {
   await sendWhatsApp(
-    visitorMobile,
-    visitorName,
-    'booking_confirmation_for_visitors_20260429162121',
-    [buildBodyComponent([
-      visitorName,
-      propertyName,
-      checkIn,
-      checkOut,
-      guests.toString(),
-      `₹${totalAmount}`,
-      address,
-      googleMapsLink || 'Not provided'
-    ])]
+    whatsappNumber,
+    'User',
+    'otp_verification',
+    [buildBodyComponent([otp])]
   )
 }
 
-export const sendBookingRejectionToVisitor = async (
-  visitorMobile: string,
-  visitorName: string,
-  propertyName: string
-): Promise<void> => {
-  await sendWhatsApp(
-    visitorMobile,
-    visitorName,
-    'visitor_apologies_20260428005608',
-    [buildBodyComponent([
-      visitorName,
-      propertyName
-    ])]
-  )
-}
-
-export const sendNewBookingAlertToOwner = async (
-  ownerMobile: string,
+export const sendChannelPartnerBookingAlert = async (
+  ownerWhatsapp: string,
   ownerName: string,
   propertyName: string,
   guestName: string,
@@ -100,13 +66,10 @@ export const sendNewBookingAlertToOwner = async (
   bookingId: string,
   totalAmount: number
 ): Promise<void> => {
-  const commission = Math.round(totalAmount * 0.20)
-  const ownerPayout = Math.round(totalAmount * 0.80)
-
   await sendWhatsApp(
-    ownerMobile,
+    ownerWhatsapp,
     ownerName,
-    'booking_alert_for_channel_partner_20260428005151',
+    'channel_partner_after_booking',
     [buildBodyComponent([
       propertyName,
       guestName,
@@ -116,39 +79,139 @@ export const sendNewBookingAlertToOwner = async (
       nights.toString(),
       guests.toString(),
       bookingId.substring(0, 8).toUpperCase(),
-      `₹${totalAmount}`,
-      `₹${commission}`,
-      `₹${ownerPayout}`
+      `₹${totalAmount}`
     ])]
   )
 }
 
-export const sendPropertyApprovalToOwner = async (
-  ownerMobile: string,
-  ownerName: string,
-  propertyName: string
+export const sendBookingConfirmation = async (
+  visitorWhatsapp: string,
+  visitorName: string,
+  propertyName: string,
+  ownerContact1: string,
+  ownerContact2: string,
+  checkIn: string,
+  checkOut: string,
+  guests: number,
+  totalAmount: number,
+  address: string,
+  locationLink: string,
+  terms: string
 ): Promise<void> => {
   await sendWhatsApp(
-    ownerMobile,
-    ownerName,
-    'property_approval_template__20260428003741',
+    visitorWhatsapp,
+    visitorName,
+    'visitor_after_successful_booking',
     [buildBodyComponent([
-      ownerName,
-      propertyName
+      visitorName,
+      propertyName,
+      ownerContact1,
+      ownerContact2,
+      checkIn,
+      checkOut,
+      guests.toString(),
+      `₹${totalAmount}`,
+      address,
+      locationLink,
+      terms
     ])]
   )
 }
 
-export const sendPropertyRejectionToOwner = async (
-  ownerMobile: string,
+export const sendVisitorCancellationConfirmation = async (
+  visitorWhatsapp: string,
+  guestName: string,
+  propertyName: string,
+  checkIn: string,
+  checkOut: string,
+  bookingId: string,
+  refundPolicy: string
+): Promise<void> => {
+  await sendWhatsApp(
+    visitorWhatsapp,
+    guestName,
+    'visitor_after_cancel_booking_by_them',
+    [buildBodyComponent([
+      guestName,
+      propertyName,
+      checkIn,
+      checkOut,
+      bookingId.substring(0, 8).toUpperCase(),
+      refundPolicy
+    ])]
+  )
+}
+
+export const sendOwnerCancellationAlert = async (
+  ownerWhatsapp: string,
+  ownerName: string,
+  propertyName: string,
+  guestName: string,
+  checkIn: string,
+  checkOut: string,
+  bookingId: string
+): Promise<void> => {
+  await sendWhatsApp(
+    ownerWhatsapp,
+    ownerName,
+    'property_owner_after_booking_cancel_by_visitor',
+    [buildBodyComponent([
+      ownerName,
+      propertyName,
+      guestName,
+      checkIn,
+      checkOut,
+      bookingId.substring(0, 8).toUpperCase()
+    ])]
+  )
+}
+
+export const sendBookingRejectionToVisitor = async (
+  visitorWhatsapp: string,
+  guestName: string,
+  propertyName: string,
+  refundPolicy: string
+): Promise<void> => {
+  await sendWhatsApp(
+    visitorWhatsapp,
+    guestName,
+    'visitor_after_booking_cancellation_by_channel_part',
+    [buildBodyComponent([
+      guestName,
+      propertyName,
+      refundPolicy
+    ])]
+  )
+}
+
+export const sendPropertyApproval = async (
+  ownerWhatsapp: string,
+  ownerName: string,
+  propertyName: string,
+  propertyId: string
+): Promise<void> => {
+  await sendWhatsApp(
+    ownerWhatsapp,
+    ownerName,
+    'property_approval_to_channel_partner',
+    [buildBodyComponent([
+      ownerName,
+      propertyName,
+      propertyId
+    ])]
+  )
+}
+
+export const sendPropertyRejection = async (
+  ownerWhatsapp: string,
   ownerName: string,
   propertyName: string,
   rejectionReason: string
 ): Promise<void> => {
   await sendWhatsApp(
-    ownerMobile,
+    ownerWhatsapp,
     ownerName,
-    'property_rejection_template_20260427165038',
+    'property_rejection_by_admin',
     [buildBodyComponent([
       ownerName,
       propertyName,

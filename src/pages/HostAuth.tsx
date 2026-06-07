@@ -8,6 +8,7 @@ import { db } from '../firebase';
 import { showToast } from '../utils/toast';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 import { OTPModal, generateOTP, storeOTP, sendOTPEmail } from '../components/OTPModal';
+import { sendOTPViaWhatsApp } from '../services/whatsappService';
 
 const SectionHeader = ({ title }: { title: string }) => (
   <div className="flex items-center gap-4 my-6">
@@ -58,6 +59,7 @@ export default function HostAuth() {
   const [mobile, setMobile] = useState('');
   const [sameAsWhatsapp, setSameAsWhatsapp] = useState(true);
   const [whatsapp, setWhatsapp] = useState('');
+  const whatsappForOTP = sameAsWhatsapp ? mobile : whatsapp;
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other' | ''>('Male');
   const [password, setPassword] = useState('');
   const [propertyName, setPropertyName] = useState('');
@@ -119,7 +121,12 @@ export default function HostAuth() {
       const otp = generateOTP();
       storeOTP(otp, email);
       await sendOTPEmail(email, otp);
-      
+
+      const whatsappNumber = sameAsWhatsapp ? mobile : whatsapp;
+      if (whatsappNumber) {
+        sendOTPViaWhatsApp(whatsappNumber, otp);
+      }
+
       setPendingUserCreds({ email, password });
       
       const userData: any = {
@@ -476,6 +483,7 @@ export default function HostAuth() {
         onClose={() => completeRegistration(false)} 
         email={email} 
         onSuccess={() => completeRegistration(true)} 
+        whatsappNumber={whatsappForOTP}
       />
     </div>
   );

@@ -31,7 +31,7 @@ const statusConfig = {
   rejected: { icon: XCircle, label: 'Rejected', className: 'bg-red-100 text-red-700' },
 };
 
-const helpNumber = '+917021054239';
+const helpNumber = '+919322828860';
 
 function PartnerAnalytics({ partners }: { partners: PartnerUser[] }) {
   const [partnerCommissions, setPartnerCommissions] = useState<Record<string, any[]>>({});

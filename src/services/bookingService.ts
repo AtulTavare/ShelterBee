@@ -56,6 +56,12 @@ export interface Booking {
   createdAt: any;
   updatedAt: any;
   walletProcessed: boolean;
+  amountSettled: boolean;
+  pendingOwnerAmount: number;
+  pendingPartnerAmount: number;
+  pendingAdminAmount: number;
+  settledAt?: any;
+  refundProcessed?: boolean;
   estimatedCost?: number;
   couponCode?: string;
   couponId?: string;
@@ -84,6 +90,10 @@ export const bookingService = {
         status: paymentFlow ? 'pending_payment' : 'confirmed',
         paymentStatus: paymentFlow ? 'pending' : undefined,
         walletProcessed: false,
+        amountSettled: false,
+        pendingOwnerAmount: 0,
+        pendingPartnerAmount: 0,
+        pendingAdminAmount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };

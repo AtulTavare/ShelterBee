@@ -4,6 +4,7 @@ import { X, Check, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { showToast } from '../utils/toast';
+import { sendOTPViaWhatsApp } from '../services/whatsappService';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -11,8 +12,9 @@ interface ForgotPasswordModalProps {
 }
 
 export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProps) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: Email, 2: OTP, 3: New Password, 4: Success
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [email, setEmail] = useState('');
+  const [whatsappMobile, setWhatsappMobile] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [accountType, setAccountType] = useState<string | null>(null);
@@ -68,6 +70,7 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
   const resetState = () => {
     setStep(1);
     setEmail('');
+    setWhatsappMobile('');
     setError('');
     setLoading(false);
     setAccountType(null);
@@ -109,6 +112,10 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
       });
 
       if (!response.ok) throw new Error("Failed to send OTP email");
+
+      if (whatsappMobile) {
+        sendOTPViaWhatsApp(whatsappMobile, otp);
+      }
 
       setStoredOTP(otp);
       setOtpExpiry(expiry);
@@ -312,6 +319,25 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                         placeholder="your@email.com"
                         required
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        WHATSAPP NUMBER (for OTP)
+                      </label>
+                      <div className="flex gap-2">
+                        <span className="flex items-center px-3 py-4 bg-[#F8F9FA] border border-gray-100 rounded-xl text-xs font-bold text-gray-500 shrink-0">
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          value={whatsappMobile}
+                          onChange={(e) => setWhatsappMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          className="w-full px-4 py-4 rounded-xl bg-[#F8F9FA] border border-gray-100 focus:ring-2 focus:ring-amber-500/50 outline-none transition-all text-gray-800"
+                          placeholder="98765 43210"
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400">Optional. OTP will be sent via WhatsApp if provided.</p>
                     </div>
 
                     <button

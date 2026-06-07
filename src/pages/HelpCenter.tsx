@@ -263,7 +263,11 @@ export default function HelpCenter() {
                   <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
                     <Phone className="w-5 h-5 text-amber-400" />
                   </div>
-                  <span>+91 86559 33724</span>
+                  <div>
+                    <p className="text-slate-300">9322828860</p>
+                    <p className="text-slate-300">7875326048</p>
+                    <p className="text-slate-300">7887328190</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
@@ -313,7 +317,7 @@ export default function HelpCenter() {
                       value={formData.contact}
                       onChange={(e) => setFormData({...formData, contact: e.target.value})}
                       className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 93228 28860"
                     />
                   </div>
                 </div>

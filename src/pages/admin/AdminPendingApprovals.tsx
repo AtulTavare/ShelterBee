@@ -6,7 +6,7 @@ import { propertyService, Property } from '../../services/propertyService';
 import { userService } from '../../services/userService';
 import { emailService } from '../../services/emailService';
 import { emailTemplates } from '../../services/emailTemplates';
-import { sendPropertyApprovalToOwner, sendPropertyRejectionToOwner } from '../../services/whatsappService';
+import { sendPropertyApproval, sendPropertyRejection } from '../../services/whatsappService';
 import { collection, query, where, onSnapshot, limit, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -88,11 +88,15 @@ export const AdminPendingApprovals = () => {
 
         try {
           const ownerProfile = await userService.getUserProfile(property.ownerId);
-          if (ownerProfile?.phone || ownerProfile?.phoneNumber) {
-            await sendPropertyApprovalToOwner(
-              ownerProfile.phone || ownerProfile.phoneNumber,
+          const rawWhatsapp = (ownerProfile as any)?.whatsapp || ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile;
+          if (rawWhatsapp) {
+            const clean = rawWhatsapp.toString().replace(/[\s\-\(\)]/g, '');
+            const formatted = clean.startsWith('+') ? clean.slice(1) : clean.startsWith('91') ? clean : `91${clean}`;
+            await sendPropertyApproval(
+              formatted,
               ownerProfile.displayName || 'Owner',
-              property.title
+              property.title,
+              property.id || ''
             );
           }
         } catch (waError) {
@@ -134,9 +138,12 @@ export const AdminPendingApprovals = () => {
 
       try {
         const ownerProfile = await userService.getUserProfile(selectedProperty.ownerId);
-        if (ownerProfile?.phone || ownerProfile?.phoneNumber) {
-          await sendPropertyRejectionToOwner(
-            ownerProfile.phone || ownerProfile.phoneNumber,
+        const rawWhatsapp = (ownerProfile as any)?.whatsapp || ownerProfile?.phone || ownerProfile?.phoneNumber || (ownerProfile as any)?.mobile;
+        if (rawWhatsapp) {
+          const clean = rawWhatsapp.toString().replace(/[\s\-\(\)]/g, '');
+          const formatted = clean.startsWith('+') ? clean.slice(1) : clean.startsWith('91') ? clean : `91${clean}`;
+          await sendPropertyRejection(
+            formatted,
             ownerProfile.displayName || 'Owner',
             selectedProperty.title,
             finalReason
