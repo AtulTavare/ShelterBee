@@ -124,7 +124,7 @@ export default function HostAuth() {
 
       const whatsappNumber = sameAsWhatsapp ? mobile : whatsapp;
       if (whatsappNumber) {
-        sendOTPViaWhatsApp(whatsappNumber, otp);
+        await sendOTPViaWhatsApp(whatsappNumber, otp);
       }
 
       setPendingUserCreds({ email, password });

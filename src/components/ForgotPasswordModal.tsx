@@ -114,7 +114,7 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
       if (!response.ok) throw new Error("Failed to send OTP email");
 
       if (whatsappMobile) {
-        sendOTPViaWhatsApp(whatsappMobile, otp);
+        await sendOTPViaWhatsApp(whatsappMobile, otp);
       }
 
       setStoredOTP(otp);
