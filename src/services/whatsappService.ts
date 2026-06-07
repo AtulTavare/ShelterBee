@@ -41,6 +41,13 @@ const buildBodyComponent = (parameters: string[]) => ({
   }))
 })
 
+const buildButtonComponent = (subType: string, index: string, parameters: { type: string; text: string }[]) => ({
+  type: 'button',
+  sub_type: subType,
+  index,
+  parameters
+})
+
 export const sendOTPViaWhatsApp = async (
   whatsappNumber: string,
   otp: string
@@ -49,7 +56,10 @@ export const sendOTPViaWhatsApp = async (
     whatsappNumber,
     'User',
     'otp_verification_20260514175355',
-    [buildBodyComponent([otp])]
+    [
+      buildBodyComponent([otp]),
+      buildButtonComponent('copy_code', '0', [{ type: 'text', text: otp }])
+    ]
   )
 }
 
