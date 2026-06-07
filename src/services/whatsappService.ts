@@ -58,7 +58,7 @@ export const sendOTPViaWhatsApp = async (
     'otp_verification_20260514175355',
     [
       buildBodyComponent([otp]),
-      buildButtonComponent('copy_code', '0', [{ type: 'text', text: otp }])
+      buildButtonComponent('url', '0', [{ type: 'text', text: otp }])
     ]
   )
 }
