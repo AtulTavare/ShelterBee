@@ -158,15 +158,6 @@ export default function HostAuth() {
       return;
     }
     setLoading(true);
-
-    // Guard: OTP must have been verified (verifyOTP clears sessionStorage on success)
-    if (sessionStorage.getItem("otp")) {
-      setErrorMsg('OTP verification incomplete. Please try again.');
-      setShowOTPModal(false);
-      setLoading(false);
-      return;
-    }
-
     let currentUser: any = null;
     try {
       const userCredential = await register(pendingUserCreds.email, pendingUserCreds.password);

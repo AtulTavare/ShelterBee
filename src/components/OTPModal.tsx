@@ -18,7 +18,7 @@ export function generateOTP() {
 
 export function storeOTP(otp: string, email: string) {
   sessionStorage.setItem("otp", otp);
-  sessionStorage.setItem("otpExpiry", (Date.now() + 10 * 60 * 1000).toString());
+  sessionStorage.setItem("otpExpiry", (Date.now() + 5 * 60 * 1000).toString());
   sessionStorage.setItem("otpEmail", email);
 }
 
@@ -36,8 +36,8 @@ export function verifyOTP(enteredOTP: string) {
 export const sendOTPEmail = async (email: string, otp: string, isPasswordReset = false) => {
   const subject = isPasswordReset ? "Reset Your Shelterbee Password" : "Your Shelterbee Verification Code";
   const message = isPasswordReset 
-    ? `Your password reset code is ${otp}. This expires in 10 minutes. If you did not request this ignore this email.`
-    : `Your OTP is ${otp}. This code expires in 10 minutes. Do not share this with anyone.`;
+    ? `Your password reset code is ${otp}. This expires in 5 minutes. If you did not request this ignore this email.`
+    : `Your OTP is ${otp}. This code expires in 5 minutes. Do not share this with anyone.`;
   
   await emailService.sendEmail({
     to: email,
@@ -53,6 +53,7 @@ export function OTPModal({ isOpen, onClose, email, onSuccess, whatsappNumber }: 
   const [attempts, setAttempts] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export function OTPModal({ isOpen, onClose, email, onSuccess, whatsappNumber }: 
       setAttempts(0);
       setError('');
       setTimeLeft(60);
+      setIsVerified(false);
       document.body.style.overflow = 'hidden';
       setTimeout(() => {
         if (inputRefs.current[0]) {
@@ -131,13 +133,14 @@ export function OTPModal({ isOpen, onClose, email, onSuccess, whatsappNumber }: 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (attempts >= 3) return;
+    if (attempts >= 3 || isVerified) return;
 
     const enteredOtp = otp.join('');
     if (enteredOtp.length !== 6) return;
 
     const result = verifyOTP(enteredOtp);
     if (result === 'success') {
+      setIsVerified(true);
       onSuccess();
     } else if (result === 'expired') {
       setError('This OTP has expired. Please request a new one.');
@@ -211,7 +214,7 @@ export function OTPModal({ isOpen, onClose, email, onSuccess, whatsappNumber }: 
 
               <button
                 type="submit"
-                disabled={otp.join('').length !== 6 || attempts >= 3 || loading}
+                disabled={otp.join('').length !== 6 || attempts >= 3 || loading || isVerified}
                 className="w-full bg-[#1A1A2E] hover:bg-[#2A2A4A] text-white font-extrabold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-widest uppercase shadow-lg shadow-[#1A1A2E]/20"
               >
                 Verify Email
