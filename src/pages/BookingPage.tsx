@@ -56,9 +56,7 @@ export default function BookingPage() {
     return `${hours.toString().padStart(2, '0')}:${m} ${ampm}`;
   };
 
-  useEffect(() => {
-    document.title = 'Book Property - ShelterBee'
-  }, [])
+  useEffect(() => {}, [])
 
   // Step 1: Dates
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -726,7 +724,9 @@ export default function BookingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white font-sans">
+    <>
+      <SEOHead title="Book Property" />
+      <div className="min-h-screen bg-white font-sans">
       {/* Compact Header Bar */}
       <div className="border-b border-slate-100 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
@@ -1359,4 +1359,6 @@ export default function BookingPage() {
         )}
       </AnimatePresence>
     </div>
-  );}
+    </>
+  );
+}

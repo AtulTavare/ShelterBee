@@ -1,0 +1,21 @@
+{
+  "name": "ShelterBee",
+  "short_name": "ShelterBee",
+  "description": "India's trusted platform for finding verified PGs, hostels, rooms, and rental properties",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1E1B4B",
+  "icons": [
+    {
+      "src": "https://res.cloudinary.com/dtnsxrc2c/image/upload/c_fill,w_192,h_192,f_png/v1775077949/shelterbee_logo_q0gz87",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://res.cloudinary.com/dtnsxrc2c/image/upload/c_fill,w_512,h_512,f_png/v1775077949/shelterbee_logo_q0gz87",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { AnimatePresence, motion } from 'motion/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
@@ -164,9 +165,11 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <AdminProvider>
-          <Router>
-            <AppContent />
-          </Router>
+          <HelmetProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </HelmetProvider>
         </AdminProvider>
       </AuthProvider>
     </ErrorBoundary>

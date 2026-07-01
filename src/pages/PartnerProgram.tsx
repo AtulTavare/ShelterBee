@@ -456,12 +456,12 @@ export default function PartnerProgram() {
   const { user } = useAuth();
   const [openSection, setOpenSection] = useState<number | null>(null);
 
-  useEffect(() => {
-    document.title = "Partner Program | ShelterBee";
-  }, []);
+  useEffect(() => {}, []);
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6]">
+    <>
+      <SEOHead title="Partner Program" />
+      <div className="min-h-screen bg-[#FAF9F6]">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-[#1E1B4B] via-[#312E81] to-[#1E1B4B] py-20 md:py-28 px-4 md:px-8">
         <div className="absolute top-10 -left-20 w-72 h-72 rounded-full bg-amber-500/10 blur-3xl" />
@@ -841,5 +841,6 @@ export default function PartnerProgram() {
         </motion.div>
       </section>
     </div>
+    </>
   );
 }

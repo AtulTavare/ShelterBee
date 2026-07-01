@@ -54,15 +54,6 @@ export default function Listings() {
   }, []);
 
   useEffect(() => {
-    document.title = "Short Term & Long Term Rental Properties in Maharashtra | ShelterBee";
-    // Update meta description for search page
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute(
-        "content",
-        "Find verified rental properties, PGs, hostels and furnished flats for short and long term stays across Maharashtra. Filter by city, gender, and property type.",
-      );
-    }
 
     const params = new URLSearchParams(location.search);
     const type = params.get("type");
@@ -292,7 +283,12 @@ export default function Listings() {
   ]);
 
   return (
-    <div className="bg-surface text-on-surface min-h-screen font-sans">
+    <>
+      <SEOHead
+        title="Short Term & Long Term Rental Properties in Maharashtra"
+        description="Find verified rental properties, PGs, hostels and furnished flats for short and long term stays across Maharashtra. Filter by city, gender, and property type."
+      />
+      <div className="bg-surface text-on-surface min-h-screen font-sans">
       {/* Main Content */}
       <main className="pt-0">
         {/* Hero Slideshow */}
@@ -519,5 +515,6 @@ export default function Listings() {
         </div>
       </main>
     </div>
+    </>
   );
 }

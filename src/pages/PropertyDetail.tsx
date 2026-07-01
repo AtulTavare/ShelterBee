@@ -169,20 +169,25 @@ export default function PropertyDetail() {
     return () => unsubscribeReviews();
   }, [id, navigate, loading]);
 
-  useEffect(() => {
-    if (property) {
-      document.title = `${property.title} in ${property.area} ${property.city || ''} | ShelterBee`;
-      const metaDescription = document.querySelector('meta[name="description"]');
-      if (metaDescription) {
-        metaDescription.setAttribute('content', `${property.type} available for short and long term stay in ${property.area}. Verified property on ShelterBee — browse amenities, pricing, and availability.`);
-      }
-    }
-  }, [property]);
+  const propertyDescription = property
+    ? `${property.type} available for short and long term stay in ${property.area}. Verified property on ShelterBee — browse amenities, pricing, and availability.`
+    : '';
 
   if (!property) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F9F9F9] text-[#0F172A]">
+    <>
+      {property && (
+        <SEOHead
+          title={`${property.title} in ${property.area} ${property.city || ''}`}
+          description={propertyDescription}
+          ogImage={property.photos?.[0] || undefined}
+          ogType="product"
+          canonical={`https://shelterbee.com/property/${id}`}
+        />
+      )}
+
+      <div className="min-h-screen bg-[#F9F9F9] text-[#0F172A]">
       <div className="pt-8 pb-20 px-4 md:px-6 max-w-7xl mx-auto">
         
         {/* Back Button */}
@@ -787,5 +792,6 @@ export default function PropertyDetail() {
       />
 
     </div>
+    </>
   );
 }

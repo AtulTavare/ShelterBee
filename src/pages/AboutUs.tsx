@@ -35,16 +35,7 @@ const AboutUs = () => {
     }
   } as any;
 
-  useEffect(() => {
-    document.title = "About ShelterBee | Maharashtra's Trusted Property Rental Platform";
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute(
-        "content",
-        "Learn about ShelterBee — India's trusted platform connecting guests with verified property owners for PGs, hostels, rooms and short stay rentals across Maharashtra."
-      );
-    }
-  }, [])
+  useEffect(() => {}, [])
 
   const values = [
     {
@@ -80,7 +71,12 @@ const AboutUs = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-28 pb-20">
+    <>
+      <SEOHead
+        title="About ShelterBee | Maharashtra's Trusted Property Rental Platform"
+        description="Learn about ShelterBee — India's trusted platform connecting guests with verified property owners for PGs, hostels, rooms and short stay rentals across Maharashtra."
+      />
+      <div className="min-h-screen bg-slate-50 pt-28 pb-20">
       {/* Hero Section */}
       <section className="relative py-20 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full opacity-10 pointer-events-none">
@@ -267,6 +263,7 @@ const AboutUs = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 

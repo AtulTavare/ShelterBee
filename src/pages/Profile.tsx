@@ -154,9 +154,7 @@ export default function Profile() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [rejectedProperties, setRejectedProperties] = useState<any[]>([]);
 
-  useEffect(() => {
-    document.title = "My Profile - ShelterBee";
-  }, []);
+  useEffect(() => {}, []);
 
   // Realtime Wallet State
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -278,7 +276,9 @@ export default function Profile() {
       ];
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row relative">
+    <>
+      <SEOHead title="My Profile" />
+      <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row relative">
       {/* Sidebar */}
       <aside className="hidden md:flex sticky top-[80px] h-[calc(100vh-80px)] w-64 bg-[#F8F9FA] border-r border-gray-200 flex-col flex-shrink-0 z-50">
         <div className="p-6 flex justify-between items-center">
@@ -439,6 +439,7 @@ export default function Profile() {
         }}
       />
     </div>
+    </>
   );
 }
 

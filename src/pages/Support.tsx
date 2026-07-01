@@ -10,16 +10,7 @@ export default function Support() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  useEffect(() => {
-    document.title = "Contact ShelterBee | Help & Support";
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute(
-        "content",
-        "Get in touch with ShelterBee for any queries about bookings, property listings, or your account. We are here to help."
-      );
-    }
-  }, []);
+  useEffect(() => {}, []);
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +45,12 @@ export default function Support() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] font-sans text-gray-900 pb-20">
+    <>
+      <SEOHead
+        title="Contact ShelterBee | Help & Support"
+        description="Get in touch with ShelterBee for any queries about bookings, property listings, or your account. We are here to help."
+      />
+      <div className="min-h-screen bg-[#F9FAFB] font-sans text-gray-900 pb-20">
       {/* Hero Section */}
       <section className="pt-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="bg-[#161338] rounded-[2.5rem] p-8 lg:p-16 flex flex-col lg:flex-row gap-12 lg:gap-24 relative overflow-hidden">
@@ -255,5 +251,6 @@ export default function Support() {
         </div>
       </section>
     </div>
+    </>
   );
 }

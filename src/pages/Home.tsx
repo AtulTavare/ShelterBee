@@ -73,11 +73,7 @@ export default function Home() {
   }, [isTypeDropdownOpen, isOccupancyDropdownOpen, isGenderDropdownOpen, showSuggestions]);
 
   useEffect(() => {
-    document.title = 'Find Verified PGs, Rooms & Short Stay Flats in Maharashtra | ShelterBee';
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute('content', 'Browse verified PGs, hostels, furnished rooms and rental properties across Pune, Mumbai, Nashik and Chh. Sambhajinagar. Book short or long term stays instantly on ShelterBee.');
-    }
+    if (window.location.pathname !== '/') return;
   }, []);
 
 
@@ -195,7 +191,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-background">
+    <>
+      <SEOHead
+        title="Find Verified PGs, Rooms & Short Stay Flats in Maharashtra"
+        description="Browse verified PGs, hostels, furnished rooms and rental properties across Pune, Mumbai, Nashik and Chh. Sambhajinagar. Book short or long term stays instantly on ShelterBee."
+      />
+      <div className="min-h-[calc(100vh-80px)] bg-background">
       <style>{`
         @keyframes scroll {
           0% { transform: translateX(0); }
@@ -759,5 +760,6 @@ export default function Home() {
 
 
     </div>
+    </>
   );
 }
