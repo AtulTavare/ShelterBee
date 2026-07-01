@@ -445,7 +445,7 @@ export default function Terms() {
                 </div>
                 <div>
                   <h3 className="font-bold text-[#161338]">b. Platform Commission</h3>
-                  <p>For each successful booking made through the ShelterBee Platform, ShelterBee shall be entitled to charge a commission of twenty-five percent (25%) of the total booking value or such other commission percentage as may be mutually agreed between ShelterBee and the Channel Partner.</p>
+                  <p>For each successful booking made through the ShelterBee Platform, ShelterBee shall be entitled to charge a commission of twenty percent (20%) of the total booking value or such other commission percentage as may be mutually agreed between ShelterBee and the Channel Partner.</p>
                 </div>
                 <div>
                   <h3 className="font-bold text-[#161338]">c. Settlement to Channel Partner</h3>

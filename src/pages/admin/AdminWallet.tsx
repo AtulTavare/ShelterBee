@@ -604,7 +604,7 @@ export const AdminWallet = () => {
                         {s.propertyTitle || s.description || 'Booking'}
                       </div>
                       <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                        ₹{((s.amount || s.bookingAmount || 0) * 0.25).toLocaleString()} commission
+                        ₹{((s.amount || s.bookingAmount || 0) * 0.20).toLocaleString()} commission
                       </div>
                     </div>
                     <div className="text-right">

@@ -1077,7 +1077,7 @@ export default function ListProperty() {
                       onChange={(e) => setFormData({...formData, termsAccepted: e.target.checked})}
                     />
                     <span className="text-sm font-medium text-on-surface leading-normal">
-                      I confirm that all property details, photographs, and documents submitted are accurate, genuine and up to date. I am the legal owner or authorized representative of this property. I understand that false or misleading information may result in permanent rejection or account suspension. I agree to ShelterBee's Terms of Use, Host/Channel Partner Agreement, Property Listing Guidelines, and Payment & Commission Agreement (25% platform commission on each booking).
+                      I confirm that all property details, photographs, and documents submitted are accurate, genuine and up to date. I am the legal owner or authorized representative of this property. I understand that false or misleading information may result in permanent rejection or account suspension. I agree to ShelterBee's Terms of Use, Host/Channel Partner Agreement, Property Listing Guidelines, and Payment & Commission Agreement (20% platform commission on each booking).
                     </span>
                   </label>
                 </motion.div>

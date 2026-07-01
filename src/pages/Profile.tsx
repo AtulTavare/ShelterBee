@@ -705,7 +705,7 @@ function NewBookingsTab() {
                       ₹
                       {(
                         booking.receivedAmount ||
-                        booking.totalAmount * 0.75 ||
+                        booking.totalAmount * 0.80 ||
                         0
                       ).toLocaleString()}
                     </p>
@@ -923,11 +923,11 @@ function NewBookingsTab() {
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Service Fee (25%)</span>
+                      <span className="text-slate-400">Service Fee (20%)</span>
                       <span className="font-bold text-red-300">
                         -₹
                         {(
-                          (selectedBooking.totalAmount || 0) * 0.25
+                          (selectedBooking.totalAmount || 0) * 0.20
                         ).toLocaleString()}
                       </span>
                     </div>
@@ -936,7 +936,7 @@ function NewBookingsTab() {
                       <span className="font-black text-xl text-emerald-400">
                         ₹
                         {(
-                          (selectedBooking.totalAmount || 0) * 0.75
+                          (selectedBooking.totalAmount || 0) * 0.80
                         ).toLocaleString()}
                       </span>
                     </div>
@@ -3692,7 +3692,7 @@ function FavouritesTab() {
                           Your Revenue: ₹
                           {(
                             booking.receivedAmount ||
-                            booking.estimatedCost * 0.75 ||
+                            booking.estimatedCost * 0.80 ||
                             0
                           ).toLocaleString()}
                         </p>
@@ -4146,7 +4146,7 @@ function WalletTab({
                       {txn.platformCommission > 0 && (
                         <div>
                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                            Commission (25%)
+                            Commission (20%)
                           </p>
                           <p className="text-xs font-bold text-red-400">
                             -₹{txn.platformCommission.toLocaleString()}
@@ -4156,7 +4156,7 @@ function WalletTab({
                       {txn.receivedAmount > 0 && (
                         <div>
                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                            Net Received (75%)
+                            Net Received (80%)
                           </p>
                           <p className="text-xs font-bold text-emerald-600">
                             ₹{txn.receivedAmount.toLocaleString()}
