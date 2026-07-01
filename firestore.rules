@@ -229,8 +229,11 @@ service cloud.firestore {
     }
 
     // --- 13. BANNED USERS ---
+    // Read is open to any signed-in user so that Auth.tsx and HostAuth.tsx
+    // can check the banned list during signup BEFORE a Firestore user doc exists.
+    // Writes remain admin-only.
     match /bannedUsers/{bannedId} {
-      allow read: if isAdmin();
+      allow read: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();

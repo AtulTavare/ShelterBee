@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { emailService } from '../services/emailService';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MessageSquare, Gavel, Shield, Banknote, RefreshCcw, MessageCircleQuestion, ArrowRight } from 'lucide-react';
+import SEOHead from '../components/SEOHead';
 
 export default function Support() {
   const [formData, setFormData] = useState({ fullName: '', email: '', subject: '', message: '' });

@@ -18,7 +18,7 @@ export function generateOTP() {
 
 export function storeOTP(otp: string, email: string) {
   sessionStorage.setItem("otp", otp);
-  sessionStorage.setItem("otpExpiry", (Date.now() + 5 * 60 * 1000).toString());
+  sessionStorage.setItem("otpExpiry", (Date.now() + 10 * 60 * 1000).toString());
   sessionStorage.setItem("otpEmail", email);
 }
 
@@ -36,8 +36,8 @@ export function verifyOTP(enteredOTP: string) {
 export const sendOTPEmail = async (email: string, otp: string, isPasswordReset = false) => {
   const subject = isPasswordReset ? "Reset Your Shelterbee Password" : "Your Shelterbee Verification Code";
   const message = isPasswordReset 
-    ? `Your password reset code is ${otp}. This expires in 5 minutes. If you did not request this ignore this email.`
-    : `Your OTP is ${otp}. This code expires in 5 minutes. Do not share this with anyone.`;
+    ? `Your password reset code is ${otp}. This expires in 10 minutes. If you did not request this ignore this email.`
+    : `Your OTP is ${otp}. This code expires in 10 minutes. Do not share this with anyone.`;
   
   await emailService.sendEmail({
     to: email,

@@ -74,6 +74,7 @@ import { db } from "../firebase";
 
 import { getAvatarUrl } from "../utils/avatar";
 import { auth } from "../firebase";
+import SEOHead from '../components/SEOHead';
 
 enum OperationType {
   CREATE = "create",

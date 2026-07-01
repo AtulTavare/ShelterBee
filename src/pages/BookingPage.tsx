@@ -13,6 +13,7 @@ import { emailService } from '../services/emailService';
 import { emailTemplates } from '../services/emailTemplates';
 import { userService } from '../services/userService';
 import { sendBookingConfirmation, sendChannelPartnerBookingAlert } from '../services/whatsappService';
+import SEOHead from '../components/SEOHead';
 import { showToast } from '../utils/toast';
 import { 
   ChevronLeft, 

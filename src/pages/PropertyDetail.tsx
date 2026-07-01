@@ -13,6 +13,7 @@ import { Users, Bed, ChevronLeft } from 'lucide-react';
 
 import { getAvatarUrl } from '../utils/avatar';
 import { auth } from '../firebase';
+import SEOHead from '../components/SEOHead';
 
 enum OperationType {
   CREATE = 'create',

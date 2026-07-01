@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
+import SEOHead from '../components/SEOHead';
 import { 
   Home, 
   Users, 

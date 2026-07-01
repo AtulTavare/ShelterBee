@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, MapPin, Search, X, Check, Building, Users, Venu
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showFavoriteToast } from '../utils/toast';
 import { useReferralCode } from '../hooks/useReferralParam';
+import SEOHead from '../components/SEOHead';
 
 export default function Home() {
   const { user, profile, updateProfileData } = useAuth();

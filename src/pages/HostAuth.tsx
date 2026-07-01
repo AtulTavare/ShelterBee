@@ -158,13 +158,23 @@ export default function HostAuth() {
       return;
     }
     setLoading(true);
+
+    // Guard: OTP must have been verified (verifyOTP clears sessionStorage on success)
+    if (sessionStorage.getItem("otp")) {
+      setErrorMsg('OTP verification incomplete. Please try again.');
+      setShowOTPModal(false);
+      setLoading(false);
+      return;
+    }
+
+    let currentUser: any = null;
     try {
       const userCredential = await register(pendingUserCreds.email, pendingUserCreds.password);
-      const user = userCredential.user;
+      currentUser = userCredential.user;
 
       const finalUserData = {
         ...pendingUserData,
-        uid: user.uid,
+        uid: currentUser.uid,
         emailVerified: true
       };
 
@@ -173,18 +183,28 @@ export default function HostAuth() {
       const bannedNameSnap = pendingUserData.displayName ? await getDocs(query(collection(db, 'bannedUsers'), where('displayName', '>=', pendingUserData.displayName), where('displayName', '<=', pendingUserData.displayName + '\uf8ff'))) : { size: 0 };
 
       if ((bannedMobileSnap.size > 0 ? 1 : 0) + (bannedEmailSnap.size > 0 ? 1 : 0) + (bannedNameSnap.size > 0 ? 1 : 0) >= 2) {
-        await user.delete();
+        await currentUser.delete();
         setLoading(false);
         setShowOTPModal(false);
         showToast('Registration blocked. This account matches a banned user.', 'error');
         return;
       }
 
-      await setDoc(doc(db, 'users', user.uid), finalUserData);
+      await setDoc(doc(db, 'users', currentUser.uid), finalUserData);
       setShowOTPModal(false);
       navigate('/list-property');
     } catch (error: any) {
-      setErrorMsg(error.message || "Failed to create account.");
+      if (currentUser) {
+        try { await currentUser.delete(); } catch {}
+      }
+      const msg = error?.message || '';
+      if (msg.includes('permission-denied') || msg.includes('Missing or insufficient')) {
+        setErrorMsg('Permission error. Please try again or contact support.');
+      } else if (msg.includes('email-already-in-use')) {
+        setErrorMsg('An account with this email already exists. Please log in.');
+      } else {
+        setErrorMsg(msg || 'Failed to create account. Please try again.');
+      }
       setStep(1);
       setShowOTPModal(false);
     } finally {

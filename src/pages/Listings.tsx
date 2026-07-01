@@ -7,6 +7,7 @@ import FilterBar from "../components/FilterBar";
 import { useAuth } from "../contexts/AuthContext";
 import { showFavoriteToast } from "../utils/toast";
 import { useReferralCode } from "../hooks/useReferralParam";
+import SEOHead from '../components/SEOHead';
 
 const getAmenityIcon = (amenity: string) => {
   const lower = amenity.toLowerCase();
